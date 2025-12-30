@@ -1,7 +1,7 @@
 {
-  "name": "@fyoussef/tinynest",
+  "name": "@diariodaregiao/bunstone",
   "module": "index.ts",
-  "version": "0.0.6",
+  "version": "0.0.1",
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest"
@@ -15,7 +15,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fyoussef/tinynest.git"
+    "url": "git+https://github.com/diariodaregiao/bunstone.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
