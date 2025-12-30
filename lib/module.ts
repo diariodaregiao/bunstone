@@ -14,10 +14,16 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
   moduleConfig.exports = moduleConfig.exports || [];
 
   const controllers = mapControllers(moduleConfig.controllers);
+  const providersTimeouts = mapProvidersWithTimeouts(moduleConfig.providers);
 
   return function (target) {
     Reflect.defineMetadata("dip:module", "is_module", target);
     Reflect.defineMetadata("dip:module:routes", controllers, target);
+    Reflect.defineMetadata(
+      "dip:module:providers:timeouts",
+      providersTimeouts,
+      target
+    );
   };
 }
 
@@ -71,4 +77,32 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
   }
 
   return controllersMap;
+}
+
+function mapProvidersWithTimeouts(providers: ModuleConfig["providers"] = []) {
+  const providersTimeouts = new Map<
+    any,
+    { delay: number; methodName: string }[]
+  >();
+
+  for (const provider of providers) {
+    for (const providerSymbol of Object.getOwnPropertySymbols(
+      provider.prototype
+    )) {
+      const providerType: string = provider.prototype[providerSymbol].type;
+
+      if (providerType === "timeout") {
+        if (!providersTimeouts.has(provider)) {
+          providersTimeouts.set(provider, []);
+        }
+
+        providersTimeouts.get(provider)?.push({
+          delay: provider.prototype[providerSymbol].delay,
+          methodName: provider.prototype[providerSymbol].methodName,
+        });
+      }
+    }
+  }
+
+  return providersTimeouts;
 }

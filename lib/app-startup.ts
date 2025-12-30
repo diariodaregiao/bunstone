@@ -1,6 +1,6 @@
 import Elysia from "elysia";
-import { Logger } from "./utils/logger";
 import { processParameters } from "./http-params";
+import { Logger } from "./utils/logger";
 
 export class AppStartup {
   private static readonly elysia: Elysia = new Elysia();
@@ -60,6 +60,22 @@ export class AppStartup {
       }
     }
 
+    const providersTimeouts: Map<any, { delay: number; methodName: string }[]> =
+      Reflect.getMetadata("dip:module:providers:timeouts", module);
+
+    for (const item of providersTimeouts.entries()) {
+      const [providerInstance, timeouts] = item;
+      const provider = new providerInstance();
+
+      for (const timeout of timeouts) {
+        AppStartup.logger.log(
+          `Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`
+        );
+        setTimeout(() => {
+          provider[timeout.methodName]();
+        }, timeout.delay);
+      }
+    }
     return {
       listen: this.listen,
     };
