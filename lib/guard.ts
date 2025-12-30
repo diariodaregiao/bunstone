@@ -19,7 +19,10 @@ export function Guard(guard: ClassConstructor) {
   ) {
     if (isClass(target)) {
       Reflect.defineMetadata("dip:guard", guard, target);
-    } else {
+    }
+
+    if (propertyKey && descriptor) {
+      Reflect.defineMetadata("dip:guard", guard, target, propertyKey);
     }
   };
 }

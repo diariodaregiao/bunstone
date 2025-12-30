@@ -54,11 +54,17 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
           controllerPathname === "/" ? "" : controllerPathname
         }${cm.pathname}`;
 
+        const methodGuard = Reflect.getMetadata(
+          "dip:guard",
+          controller.prototype,
+          cm.methodName
+        );
+
         controllersMap.get(controller)?.push({
           httpMethod: cm.httpMethod,
           pathname,
           methodName: cm.methodName,
-          guard: controllerGuard,
+          guard: methodGuard || controllerGuard,
         });
       });
     }
