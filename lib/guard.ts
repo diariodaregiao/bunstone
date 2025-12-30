@@ -17,6 +17,10 @@ export function Guard(guard: ClassConstructor) {
     propertyKey?: string | symbol,
     descriptor?: PropertyDescriptor
   ) {
+    if (!("validate" in guard.prototype)) {
+      throw new Error(`Guard class must implement 'validate' method.`);
+    }
+
     if (isClass(target)) {
       Reflect.defineMetadata("dip:guard", guard, target);
     }
