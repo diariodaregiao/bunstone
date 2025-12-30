@@ -40,19 +40,18 @@ export class AppStartup {
             ),
           {
             beforeHandle(req: any) {
-              if (method.guard) {
-                const guardInstance = new method.guard();
-                const isValid = guardInstance.validate(req);
-                if (isValid instanceof Promise) {
-                  return isValid.then((valid) => {
-                    if (!valid) {
-                      throw new Error("Unauthorized");
-                    }
-                  });
-                } else {
-                  if (!isValid) {
+              if (!method.guard) return;
+              const guardInstance = new method.guard();
+              const isValid = guardInstance.validate(req);
+              if (isValid instanceof Promise) {
+                return isValid.then((valid) => {
+                  if (!valid) {
                     throw new Error("Unauthorized");
                   }
+                });
+              } else {
+                if (!isValid) {
+                  throw new Error("Unauthorized");
                 }
               }
             },
