@@ -9,7 +9,12 @@ export class AppStartup {
   static create(module: any) {
     const controllers: Map<
       any,
-      { httpMethod: string; pathname: string; methodName: string }[]
+      {
+        httpMethod: string;
+        pathname: string;
+        methodName: string;
+        guard?: any;
+      }[]
     > = Reflect.getMetadata("dip:module:routes", module);
 
     for (const item of controllers.entries()) {
@@ -35,7 +40,21 @@ export class AppStartup {
             ),
           {
             beforeHandle(req: any) {
-              console.log("headers", req.headers);
+              if (method.guard) {
+                const guardInstance = new method.guard();
+                const isValid = guardInstance.validate(req);
+                if (isValid instanceof Promise) {
+                  return isValid.then((valid) => {
+                    if (!valid) {
+                      throw new Error("Unauthorized");
+                    }
+                  });
+                } else {
+                  if (!isValid) {
+                    throw new Error("Unauthorized");
+                  }
+                }
+              }
             },
           }
         );
