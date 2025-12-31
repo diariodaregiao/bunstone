@@ -1,4 +1,5 @@
 import Elysia from "elysia";
+import scheduler from "node-cron";
 import { processParameters } from "./http-params";
 import { Logger } from "./utils/logger";
 
@@ -22,9 +23,7 @@ export class AppStartup {
       const controller = new controllerInstance();
 
       for (const method of methods) {
-        AppStartup.logger.log(
-          `Registering ${method.httpMethod} route: ${method.pathname}`
-        );
+        AppStartup.logger.log(`Registering ${method.httpMethod} route: ${method.pathname}`);
         const httpMethod = method.httpMethod.toLowerCase();
         if (!(httpMethod in AppStartup.elysia)) {
           throw new Error(`HTTP method ${method.httpMethod} is not supported.`);
@@ -32,12 +31,7 @@ export class AppStartup {
 
         AppStartup.elysia[httpMethod as keyof Elysia](
           method.pathname,
-          (req: any) =>
-            AppStartup.executeControllerMethod(
-              req,
-              controller,
-              method.methodName
-            ),
+          (req: any) => AppStartup.executeControllerMethod(req, controller, method.methodName),
           {
             beforeHandle(req: any) {
               if (!method.guard) return;
@@ -55,27 +49,45 @@ export class AppStartup {
                 }
               }
             },
-          }
+          },
         );
       }
     }
 
-    const providersTimeouts: Map<any, { delay: number; methodName: string }[]> =
-      Reflect.getMetadata("dip:timeouts", module);
+    const providersTimeouts: Map<any, { delay: number; methodName: string }[]> = Reflect.getMetadata(
+      "dip:timeouts",
+      module,
+    );
 
     for (const item of providersTimeouts.entries()) {
       const [providerInstance, timeouts] = item;
       const provider = new providerInstance();
 
       for (const timeout of timeouts) {
-        AppStartup.logger.log(
-          `Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`
-        );
+        AppStartup.logger.log(`Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`);
         setTimeout(() => {
           provider[timeout.methodName]();
         }, timeout.delay);
       }
     }
+
+    const providersCron: Map<any, { expression: string; methodName: string }[]> = Reflect.getMetadata(
+      "dip:crons",
+      module,
+    );
+
+    for (const item of providersCron.entries()) {
+      const [providerInstance, crons] = item;
+      const provider = new providerInstance();
+
+      for (const cron of crons) {
+        AppStartup.logger.log(`Scheduling timeout for method: ${cron.methodName}`);
+        scheduler.schedule(cron.expression, () => {
+          provider[cron.methodName]();
+        });
+      }
+    }
+
     return {
       listen: this.listen,
     };
@@ -86,11 +98,7 @@ export class AppStartup {
     AppStartup.elysia.listen(port);
   }
 
-  private static async executeControllerMethod(
-    req: any,
-    controller: any,
-    method: any
-  ) {
+  private static async executeControllerMethod(req: any, controller: any, method: any) {
     const args = await processParameters(req, controller, method);
     return controller[method](...args);
   }
