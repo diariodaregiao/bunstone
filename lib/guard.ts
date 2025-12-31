@@ -1,7 +1,9 @@
-import type { RouteSchema } from "elysia";
+import type { RouteSchema, HTTPHeaders } from "elysia";
 import { isClass } from "./utils/is-class";
 
-export type HttpRequest = RouteSchema;
+export type HttpRequest = RouteSchema & {
+  headers: HTTPHeaders;
+};
 
 export interface GuardContract {
   validate(req: HttpRequest): boolean | Promise<boolean>;

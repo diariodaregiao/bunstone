@@ -1,17 +1,32 @@
+import { Guard, type GuardContract, type HttpRequest } from "./guard";
+import { isClass } from "./utils/is-class";
+
+function validateTokenFromRequest(req: HttpRequest) {
+  if (!req.headers) return false;
+  const [_, token] = req.headers.authorization?.split(" ") ?? [];
+  if (!token) {
+    return false;
+  }
+  return true;
+}
+
+class JwtGuard implements GuardContract {
+  validate(req: HttpRequest): boolean | Promise<boolean> {
+    return validateTokenFromRequest(req);
+  }
+}
+
 export function Jwt() {
   return function (
     target: any,
-    propertyKey: string | symbol,
-    parameterIndex: number
+    propertyKey?: string | symbol,
+    descriptor?: PropertyDescriptor
   ) {
-    const existingRequiredParameters: number[] =
-      Reflect.getOwnMetadata("dip:jwt:parameters", target, propertyKey) || [];
-    existingRequiredParameters.push(parameterIndex);
-    Reflect.defineMetadata(
-      "dip:jwt:parameters",
-      existingRequiredParameters,
-      target,
-      propertyKey
-    );
+    if (isClass(target)) {
+      Guard(JwtGuard)(target);
+      return;
+    }
+
+    Guard(JwtGuard)(target, propertyKey!, descriptor!);
   };
 }
