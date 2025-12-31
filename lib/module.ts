@@ -71,16 +71,18 @@ function mapProvidersWithTimeouts(providers: ModuleConfig["providers"] = []) {
 
   for (const provider of providers) {
     for (const providerSymbol of Object.getOwnPropertySymbols(provider.prototype)) {
-      const providerType: string = provider.prototype[providerSymbol].type;
+      const methods = provider.prototype[providerSymbol];
 
-      if (providerType === "timeout") {
-        if (!providersTimeouts.has(provider)) {
-          providersTimeouts.set(provider, []);
+      for (const method of methods) {
+        if (method.type === "timeout") {
+          if (!providersTimeouts.has(provider)) {
+            providersTimeouts.set(provider, []);
+          }
         }
 
         providersTimeouts.get(provider)?.push({
-          delay: provider.prototype[providerSymbol].delay,
-          methodName: provider.prototype[providerSymbol].methodName,
+          delay: method.delay,
+          methodName: method.methodName,
         });
       }
     }
