@@ -1,8 +1,12 @@
-import type { RouteSchema, HTTPHeaders } from "elysia";
+import type { RouteSchema, HTTPHeaders, Elysia } from "elysia";
 import { isClass } from "./utils/is-class";
 
 export type HttpRequest = RouteSchema & {
   headers: HTTPHeaders;
+  jwt?: {
+    sign(payload: Record<string, any>): Promise<string>;
+    verify(token?: string): Promise<false | Record<string, any>>;
+  };
 };
 
 export interface GuardContract {

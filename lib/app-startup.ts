@@ -1,12 +1,37 @@
 import Elysia from "elysia";
 import { processParameters } from "./http-params";
 import { Logger } from "./utils/logger";
+import jwt from "@elysiajs/jwt";
 
 export class AppStartup {
   private static readonly elysia: Elysia = new Elysia();
   private static readonly logger = new Logger(AppStartup.name);
 
   static create(module: any) {
+    AppStartup.startWithJWT(module);
+    AppStartup.registerRoutes(module);
+    AppStartup.registerTimeouts(module);
+
+    return {
+      listen: this.listen,
+    };
+  }
+
+  static listen(port: number) {
+    AppStartup.logger.log(`App is running at http://localhost:${port}`);
+    AppStartup.elysia.listen(port);
+  }
+
+  private static async executeControllerMethod(
+    req: any,
+    controller: any,
+    method: any
+  ) {
+    const args = await processParameters(req, controller, method);
+    return controller[method](...args);
+  }
+
+  private static registerRoutes(module: any) {
     const controllers: Map<
       any,
       {
@@ -59,7 +84,9 @@ export class AppStartup {
         );
       }
     }
+  }
 
+  private static registerTimeouts(module: any) {
     const providersTimeouts: Map<any, { delay: number; methodName: string }[]> =
       Reflect.getMetadata("dip:timeouts", module);
 
@@ -76,22 +103,16 @@ export class AppStartup {
         }, timeout.delay);
       }
     }
-    return {
-      listen: this.listen,
-    };
   }
 
-  static listen(port: number) {
-    AppStartup.logger.log(`App is running at http://localhost:${port}`);
-    AppStartup.elysia.listen(port);
-  }
-
-  private static async executeControllerMethod(
-    req: any,
-    controller: any,
-    method: any
-  ) {
-    const args = await processParameters(req, controller, method);
-    return controller[method](...args);
+  private static startWithJWT(module: any) {
+    const modules = Reflect.getMetadata("dip:modules", module) || [];
+    for (const mod of modules) {
+      const hasJWT = Reflect.getMetadata("dip:module:jwt", mod);
+      if (hasJWT) {
+        const jwtOptions = Reflect.getMetadata("dip:module:jwt:options", mod);
+        AppStartup.elysia.use(jwt(jwtOptions));
+      }
+    }
   }
 }
