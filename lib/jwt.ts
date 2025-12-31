@@ -1,18 +1,23 @@
 import { Guard, type GuardContract, type HttpRequest } from "./guard";
 import { isClass } from "./utils/is-class";
 
-function validateTokenFromRequest(req: HttpRequest) {
+async function validateTokenFromRequest(req: HttpRequest) {
+  if (!req.jwt) throw new Error("JWT middleware is not configured.");
   if (!req.headers) return false;
+
   const [_, token] = req.headers.authorization?.split(" ") ?? [];
   if (!token) {
     return false;
   }
-  return true;
+
+  const result = await req.jwt.verify(token);
+
+  return result !== false;
 }
 
 class JwtGuard implements GuardContract {
-  validate(req: HttpRequest): boolean | Promise<boolean> {
-    return validateTokenFromRequest(req);
+  async validate(req: HttpRequest): Promise<boolean> {
+    return await validateTokenFromRequest(req);
   }
 }
 
