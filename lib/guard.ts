@@ -1,7 +1,9 @@
-import type { RouteSchema } from "elysia";
+import type { RouteSchema, HTTPHeaders } from "elysia";
 import { isClass } from "./utils/is-class";
 
-export type HttpRequest = RouteSchema;
+export type HttpRequest = RouteSchema & {
+  headers: HTTPHeaders;
+};
 
 export interface GuardContract {
   validate(req: HttpRequest): boolean | Promise<boolean>;
@@ -17,6 +19,10 @@ export function Guard(guard: ClassConstructor) {
     propertyKey?: string | symbol,
     descriptor?: PropertyDescriptor
   ) {
+    if (!("validate" in guard.prototype)) {
+      throw new Error(`Guard class must implement 'validate' method.`);
+    }
+
     if (isClass(target)) {
       Reflect.defineMetadata("dip:guard", guard, target);
     }

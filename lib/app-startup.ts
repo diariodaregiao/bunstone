@@ -22,7 +22,9 @@ export class AppStartup {
       const controller = new controllerInstance();
 
       for (const method of methods) {
-        AppStartup.logger.log(`Registering ${method.httpMethod} route: ${method.pathname}`);
+        AppStartup.logger.log(
+          `Registering ${method.httpMethod} route: ${method.pathname}`
+        );
         const httpMethod = method.httpMethod.toLowerCase();
         if (!(httpMethod in AppStartup.elysia)) {
           throw new Error(`HTTP method ${method.httpMethod} is not supported.`);
@@ -30,7 +32,12 @@ export class AppStartup {
 
         AppStartup.elysia[httpMethod as keyof Elysia](
           method.pathname,
-          (req: any) => AppStartup.executeControllerMethod(req, controller, method.methodName),
+          (req: any) =>
+            AppStartup.executeControllerMethod(
+              req,
+              controller,
+              method.methodName
+            ),
           {
             beforeHandle(req: any) {
               if (!method.guard) return;
@@ -48,22 +55,22 @@ export class AppStartup {
                 }
               }
             },
-          },
+          }
         );
       }
     }
 
-    const providersTimeouts: Map<any, { delay: number; methodName: string }[]> = Reflect.getMetadata(
-      "dip:timeouts",
-      module,
-    );
+    const providersTimeouts: Map<any, { delay: number; methodName: string }[]> =
+      Reflect.getMetadata("dip:timeouts", module);
 
     for (const item of providersTimeouts.entries()) {
       const [providerInstance, timeouts] = item;
       const provider = new providerInstance();
 
       for (const timeout of timeouts) {
-        AppStartup.logger.log(`Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`);
+        AppStartup.logger.log(
+          `Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`
+        );
         setTimeout(() => {
           provider[timeout.methodName]();
         }, timeout.delay);
@@ -79,8 +86,12 @@ export class AppStartup {
     AppStartup.elysia.listen(port);
   }
 
-  private static async executeControllerMethod(req: any, controller: any, method: any) {
-    const args = processParameters(req, controller, method);
+  private static async executeControllerMethod(
+    req: any,
+    controller: any,
+    method: any
+  ) {
+    const args = await processParameters(req, controller, method);
     return controller[method](...args);
   }
 }
