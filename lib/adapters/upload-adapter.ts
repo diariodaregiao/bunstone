@@ -1,4 +1,5 @@
 import { s3, S3Client, type S3Options } from "bun";
+import { Injectable } from "../injectable";
 
 export type S3UploadBody = Parameters<S3Client["write"]>[1];
 
@@ -16,6 +17,7 @@ export type S3UploadParams = {
   acl?: S3Options["acl"];
 };
 
+@Injectable()
 export class UploadAdatper {
   private readonly client: S3Client;
 
