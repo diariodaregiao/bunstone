@@ -38,9 +38,7 @@ export class AppStartup {
 
       const modulesOfModule = Reflect.getMetadata("dip:modules", mod) || [];
       for (const m of modulesOfModule) {
-        AppStartup.registerRoutes(m);
-        AppStartup.registerTimeouts(m);
-        AppStartup.registerCronJobs(m);
+        AppStartup.registerModules(m);
       }
     }
   }
