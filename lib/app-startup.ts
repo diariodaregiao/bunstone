@@ -1,6 +1,6 @@
 import Elysia from "elysia";
-import { Logger } from "./utils/logger";
 import { processParameters } from "./http-params";
+import { Logger } from "./utils/logger";
 
 export class AppStartup {
   private static readonly elysia: Elysia = new Elysia();
@@ -23,7 +23,7 @@ export class AppStartup {
 
       for (const method of methods) {
         AppStartup.logger.log(
-          `Registering ${method.httpMethod} route: ${method.pathname}`,
+          `Registering ${method.httpMethod} route: ${method.pathname}`
         );
         const httpMethod = method.httpMethod.toLowerCase();
         if (!(httpMethod in AppStartup.elysia)) {
@@ -36,7 +36,7 @@ export class AppStartup {
             AppStartup.executeControllerMethod(
               req,
               controller,
-              method.methodName,
+              method.methodName
             ),
           {
             beforeHandle(req: any) {
@@ -55,11 +55,27 @@ export class AppStartup {
                 }
               }
             },
-          },
+          }
         );
       }
     }
 
+    const providersTimeouts: Map<any, { delay: number; methodName: string }[]> =
+      Reflect.getMetadata("dip:timeouts", module);
+
+    for (const item of providersTimeouts.entries()) {
+      const [providerInstance, timeouts] = item;
+      const provider = new providerInstance();
+
+      for (const timeout of timeouts) {
+        AppStartup.logger.log(
+          `Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`
+        );
+        setTimeout(() => {
+          provider[timeout.methodName]();
+        }, timeout.delay);
+      }
+    }
     return {
       listen: this.listen,
     };
@@ -73,7 +89,7 @@ export class AppStartup {
   private static async executeControllerMethod(
     req: any,
     controller: any,
-    method: any,
+    method: any
   ) {
     const args = await processParameters(req, controller, method);
     return controller[method](...args);
