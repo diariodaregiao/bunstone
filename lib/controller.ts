@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { Injectable } from "./injectable";
 
 export function Controller(pathname: string = "/"): ClassDecorator {
   if (!pathname.startsWith("/")) {
@@ -6,6 +7,8 @@ export function Controller(pathname: string = "/"): ClassDecorator {
   }
 
   return function (target: any) {
+    Injectable()(target);
+
     const controllerMehods = Object.getOwnPropertyNames(
       target.prototype
     ).filter((method) => method !== "constructor");

@@ -15,6 +15,7 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
     moduleConfig.providers
   );
   const providersCrons = MapProvidersWithCron.execute(moduleConfig.providers);
+  const injectableProviders = mapInjectableProviders(moduleConfig.providers);
 
   return function (target) {
     Reflect.defineMetadata("dip:module", "is_module", target);
@@ -22,6 +23,7 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
     Reflect.defineMetadata("dip:timeouts", providersTimeouts, target);
     Reflect.defineMetadata("dip:modules", modules, target);
     Reflect.defineMetadata("dip:crons", providersCrons, target);
+    Reflect.defineMetadata("dip:injectables", injectableProviders, target);
   };
 }
 
@@ -75,4 +77,31 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
   }
 
   return controllersMap;
+}
+
+function mapInjectableProviders(providers: ModuleConfig["providers"] = []) {
+  const deps: Map<string, any> = new Map();
+
+  providers.map((provider) => {
+    const isInjectable = Reflect.getMetadata("injectable", provider);
+    if (!isInjectable) return;
+
+    const paramTypes = Reflect.getMetadata("design:paramtypes", provider) || [];
+
+    const cildrenDep = paramTypes.map((paramType: any) => {
+      mapInjectableProviders([paramType]);
+
+      if (!deps.has(paramType.name)) {
+        deps.set(paramType.name, new paramType());
+      }
+
+      return deps.get(paramType.name);
+    });
+
+    if (!deps.has(provider.name)) {
+      deps.set(provider.name, new provider(...cildrenDep));
+    }
+  });
+
+  return deps;
 }
