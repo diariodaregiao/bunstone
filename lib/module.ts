@@ -1,11 +1,6 @@
 import type { GuardContract } from "./guard";
-
-type ModuleConfig = {
-  providers?: any[];
-  imports?: any[];
-  controllers?: any[];
-  exports?: any[];
-};
+import { MapProvidersWithTimeout } from "./schedule/mappers/map-providers-with-timeouts";
+import type { ModuleConfig } from "./types/module-config";
 
 export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
   moduleConfig.controllers = moduleConfig.controllers || [];
@@ -14,7 +9,7 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
   moduleConfig.exports = moduleConfig.exports || [];
 
   const controllers = mapControllers(moduleConfig.controllers);
-  const providersTimeouts = mapProvidersWithTimeouts(moduleConfig.providers);
+  const providersTimeouts = MapProvidersWithTimeout.execute(moduleConfig.providers);
 
   return function (target) {
     Reflect.defineMetadata("dip:module", "is_module", target);
@@ -64,29 +59,4 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
   }
 
   return controllersMap;
-}
-
-function mapProvidersWithTimeouts(providers: ModuleConfig["providers"] = []) {
-  const providersTimeouts = new Map<any, { delay: number; methodName: string }[]>();
-
-  for (const provider of providers) {
-    for (const providerSymbol of Object.getOwnPropertySymbols(provider.prototype)) {
-      const methods = provider.prototype[providerSymbol];
-
-      for (const method of methods) {
-        if (method.type === "timeout") {
-          if (!providersTimeouts.has(provider)) {
-            providersTimeouts.set(provider, []);
-          }
-        }
-
-        providersTimeouts.get(provider)?.push({
-          delay: method.delay,
-          methodName: method.methodName,
-        });
-      }
-    }
-  }
-
-  return providersTimeouts;
 }
