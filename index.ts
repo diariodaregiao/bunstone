@@ -5,3 +5,4 @@ export * from "./lib/module";
 export * from "./lib/http-params";
 export * from "./lib/guard";
 export * from "./lib/adapters/form-data";
+export * from "./lib/adapters/upload-adapter";
