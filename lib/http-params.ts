@@ -1,4 +1,4 @@
-import type { ZodSchema } from "zod/v4";
+import { ZodError, type ZodType } from "zod/v4";
 import { PARAM_METADATA_KEY } from "./constants";
 import { isZodSchema } from "./utils/is-zod-schema";
 
@@ -32,10 +32,10 @@ function setParamMetadata(
   );
 }
 
-export function BODY(schema?: ZodSchema): ParameterDecorator;
+export function BODY(schema?: ZodType): ParameterDecorator;
 export function BODY(): ParameterDecorator {
   if (arguments.length === 1) {
-    const arg = arguments[0] as ZodSchema;
+    const arg = arguments[0] as ZodType;
     if (isZodSchema(arg)) {
       return function (target, propertyKey, parameterIndex) {
         setParamMetadata(
@@ -60,7 +60,26 @@ export function BODY(): ParameterDecorator {
   };
 }
 
-export function PARAM(key?: string): ParameterDecorator {
+export function PARAM(schema?: ZodType): ParameterDecorator;
+export function PARAM(key?: string): ParameterDecorator;
+export function PARAM(): ParameterDecorator {
+  let key: string | undefined;
+  if (arguments.length === 1) {
+    if (isZodSchema(arguments[0])) {
+      return function (target, propertyKey, parameterIndex) {
+        setParamMetadata(
+          target,
+          propertyKey as string,
+          parameterIndex,
+          ParamType.PARAM,
+          undefined,
+          { zodSchema: arguments[0] as ZodType }
+        );
+      };
+    }
+    key = arguments[0] as string;
+  }
+
   return function (target, propertyKey, parameterIndex) {
     setParamMetadata(
       target,
@@ -72,7 +91,26 @@ export function PARAM(key?: string): ParameterDecorator {
   };
 }
 
-export function QUERY(key?: string): ParameterDecorator {
+export function QUERY(schema?: ZodType): ParameterDecorator;
+export function QUERY(key?: string): ParameterDecorator;
+export function QUERY(): ParameterDecorator {
+  let key: string | undefined;
+  if (arguments.length === 1) {
+    if (isZodSchema(arguments[0])) {
+      return function (target, propertyKey, parameterIndex) {
+        setParamMetadata(
+          target,
+          propertyKey as string,
+          parameterIndex,
+          ParamType.QUERY,
+          undefined,
+          { zodSchema: arguments[0] as ZodType }
+        );
+      };
+    }
+    key = arguments[0] as string;
+  }
+
   return function (target, propertyKey, parameterIndex) {
     setParamMetadata(
       target,
@@ -172,6 +210,19 @@ export async function processParameters(
           metadata.options as FormDataOptions | undefined
         );
         break;
+    }
+
+    try {
+      if (metadata.options?.zodSchema) {
+        const zodSchema = metadata.options.zodSchema as ZodType;
+        if (isZodSchema(zodSchema)) {
+          args[index] = zodSchema.parse(args[index]);
+        }
+      }
+    } catch (e) {
+      if (e instanceof ZodError) {
+        badRequest(e.issues.map((issue) => issue.message).join(", "));
+      }
     }
   }
 
