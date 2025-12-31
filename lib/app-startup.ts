@@ -9,8 +9,7 @@ export class AppStartup {
   private static readonly logger = new Logger(AppStartup.name);
 
   static create(module: any) {
-    const visited = new Set<any>();
-    AppStartup.registerModules(module, visited);
+    AppStartup.registerModules(module);
     return {
       listen: this.listen,
     };
@@ -26,12 +25,7 @@ export class AppStartup {
     return controller[method](...args);
   }
 
-  private static registerModules(module: any, visited: Set<any>) {
-    if (visited.has(module)) {
-      return;
-    }
-    visited.add(module);
-
+  private static registerModules(module: any) {
     AppStartup.startWithJWT(module);
     AppStartup.registerRoutes(module);
     AppStartup.registerTimeouts(module);
@@ -40,7 +34,7 @@ export class AppStartup {
     const modules = Reflect.getMetadata("dip:modules", module) || [];
 
     for (const mod of modules) {
-      AppStartup.registerModules(mod, visited);
+      AppStartup.registerModules(mod);
     }
   }
 
