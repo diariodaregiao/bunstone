@@ -23,7 +23,7 @@ export class AppStartup {
 
       for (const method of methods) {
         AppStartup.logger.log(
-          `Registering ${method.httpMethod} route: ${method.pathname}`
+          `Registering ${method.httpMethod} route: ${method.pathname}`,
         );
         const httpMethod = method.httpMethod.toLowerCase();
         if (!(httpMethod in AppStartup.elysia)) {
@@ -36,7 +36,7 @@ export class AppStartup {
             AppStartup.executeControllerMethod(
               req,
               controller,
-              method.methodName
+              method.methodName,
             ),
           {
             beforeHandle(req: any) {
@@ -55,7 +55,7 @@ export class AppStartup {
                 }
               }
             },
-          }
+          },
         );
       }
     }
@@ -73,9 +73,9 @@ export class AppStartup {
   private static async executeControllerMethod(
     req: any,
     controller: any,
-    method: any
+    method: any,
   ) {
-    const args = processParameters(req, controller, method);
+    const args = await processParameters(req, controller, method);
     return controller[method](...args);
   }
 }
