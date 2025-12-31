@@ -13,7 +13,7 @@ export class AppStartup {
     AppStartup.registerRoutes(module);
     AppStartup.registerTimeouts(module);
     AppStartup.registerCronJobs(module);
-
+    AppStartup.registerModules(module);
     return {
       listen: this.listen,
     };
@@ -27,6 +27,22 @@ export class AppStartup {
   private static async executeControllerMethod(req: any, controller: any, method: any) {
     const args = await processParameters(req, controller, method);
     return controller[method](...args);
+  }
+
+  private static registerModules(module: any) {
+    const modules = Reflect.getMetadata("dip:modules", module) || [];
+    for (const mod of modules) {
+      AppStartup.registerRoutes(mod);
+      AppStartup.registerTimeouts(mod);
+      AppStartup.registerCronJobs(mod);
+
+      const modulesOfModule = Reflect.getMetadata("dip:modules", mod) || [];
+      for (const m of modulesOfModule) {
+        AppStartup.registerRoutes(m);
+        AppStartup.registerTimeouts(m);
+        AppStartup.registerCronJobs(m);
+      }
+    }
   }
 
   private static registerRoutes(module: any) {
