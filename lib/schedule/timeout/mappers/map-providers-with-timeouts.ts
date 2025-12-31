@@ -1,4 +1,4 @@
-import type { ModuleConfig } from "../../types/module-config";
+import type { ModuleConfig } from "../../../types/module-config";
 
 export class MapProvidersWithTimeout {
   static execute(providers: ModuleConfig["providers"] = []) {

@@ -1,5 +1,6 @@
 import type { GuardContract } from "./guard";
-import { MapProvidersWithTimeout } from "./schedule/mappers/map-providers-with-timeouts";
+import { MapProvidersWithCron } from "./schedule/cron/mappers/map-providers-with-cron";
+import { MapProvidersWithTimeout } from "./schedule/timeout/mappers/map-providers-with-timeouts";
 import type { ModuleConfig } from "./types/module-config";
 
 export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
@@ -10,11 +11,13 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
 
   const controllers = mapControllers(moduleConfig.controllers);
   const providersTimeouts = MapProvidersWithTimeout.execute(moduleConfig.providers);
+  const providersCrons = MapProvidersWithCron.execute(moduleConfig.providers);
 
   return function (target) {
     Reflect.defineMetadata("dip:module", "is_module", target);
     Reflect.defineMetadata("dip:module:routes", controllers, target);
     Reflect.defineMetadata("dip:timeouts", providersTimeouts, target);
+    Reflect.defineMetadata("dip:crons", providersCrons, target);
   };
 }
 
