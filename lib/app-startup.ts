@@ -2,6 +2,7 @@ import Elysia from "elysia";
 import { processParameters } from "./http-params";
 import { Logger } from "./utils/logger";
 import jwt from "@elysiajs/jwt";
+import scheduler from "node-cron";
 
 export class AppStartup {
   private static readonly elysia: Elysia = new Elysia();
@@ -101,6 +102,27 @@ export class AppStartup {
         setTimeout(() => {
           provider[timeout.methodName]();
         }, timeout.delay);
+      }
+    }
+  }
+
+  private static registerCronJobs(module: any) {
+    const providersCron: Map<
+      any,
+      { expression: string; methodName: string }[]
+    > = Reflect.getMetadata("dip:crons", module);
+
+    for (const item of providersCron.entries()) {
+      const [providerInstance, crons] = item;
+      const provider = new providerInstance();
+
+      for (const cron of crons) {
+        AppStartup.logger.log(
+          `Scheduling timeout for method: ${cron.methodName}`
+        );
+        scheduler.schedule(cron.expression, () => {
+          provider[cron.methodName]();
+        });
       }
     }
   }
