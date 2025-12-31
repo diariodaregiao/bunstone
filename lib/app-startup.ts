@@ -56,9 +56,15 @@ export class AppStartup {
       }[]
     > = Reflect.getMetadata("dip:module:routes", module);
 
+    const injectables: Map<string, any> = Reflect.getMetadata("dip:injectables", module);
     for (const item of controllers.entries()) {
       const [controllerInstance, methods] = item;
-      const controller = new controllerInstance();
+      const paramsTypes = Reflect.getMetadata("design:paramtypes", controllerInstance) || [];
+      const dependencies = paramsTypes.map((paramType: any) => {
+        return injectables.get(paramType.name);
+      });
+      let controller = new controllerInstance(...dependencies);
+      controller = Object.assign(controller, AppStartup.getControllerHandler(module, controllerInstance));
 
       for (const method of methods) {
         AppStartup.logger.log(`Registering ${method.httpMethod} route: ${method.pathname}`);
@@ -140,5 +146,15 @@ export class AppStartup {
         AppStartup.elysia.use(jwt(jwtOptions));
       }
     }
+  }
+
+  private static getControllerHandler(module: any, controller: any) {
+    const injectables: Map<string, any> = Reflect.getMetadata("dip:injectables", module);
+
+    if (!injectables) {
+      return [];
+    }
+
+    return injectables.get(controller?.name || controller.prototype?.name);
   }
 }
