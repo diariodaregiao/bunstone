@@ -1,22 +1,6 @@
-import type { HTTPHeaders, RouteSchema } from "elysia";
 import "reflect-metadata";
+import type { ClassConstructor } from "./interfaces/class-constructor";
 import { isClass } from "./utils/is-class";
-
-export type HttpRequest = RouteSchema & {
-  headers: HTTPHeaders;
-  jwt?: {
-    sign(payload: Record<string, any>): Promise<string>;
-    verify(token?: string): Promise<false | Record<string, any>>;
-  };
-};
-
-export interface GuardContract {
-  validate(req: HttpRequest): boolean | Promise<boolean>;
-}
-
-export interface ClassConstructor {
-  new (...args: any[]): any;
-}
 
 /**
  * Decorator to define a guard class.

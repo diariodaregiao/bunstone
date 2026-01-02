@@ -1,5 +1,9 @@
 /**
- * Configuration for a module.
+ * Configuration options for a module.
+ * @property providers - An array of provider classes.
+ * @property imports - An array of imported module classes.
+ * @property controllers - An array of controller classes.
+ * @property exports - An array of exported provider classes.
  */
 export type ModuleConfig = {
   providers?: (new (...args: any[]) => any)[];
