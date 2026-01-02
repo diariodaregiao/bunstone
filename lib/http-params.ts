@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ZodError, type ZodType } from "zod/v4";
+import { ZodError, type ZodType } from "zod";
 import { PARAM_METADATA_KEY } from "./constants";
 import { isZodSchema } from "./utils/is-zod-schema";
 

@@ -23,7 +23,6 @@ import { PARAM_METADATA_KEY } from "./constants";
 import type { Options } from "./types/options";
 import { resolveDependencies } from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
-import { ParamType } from "./http-params";
 
 /**
  * Main entry point for the Bunstone application.
@@ -155,23 +154,26 @@ export class AppStartup {
         }
 
         // OpenAPI Metadata
+        const controllerClass = controllerInstance.constructor;
+        const controllerProto = Object.getPrototypeOf(controllerInstance);
+
         const controllerTags =
-          Reflect.getMetadata(API_TAGS_METADATA, controllerInstance) || [];
+          Reflect.getMetadata(API_TAGS_METADATA, controllerClass) || [];
         const methodTags =
           Reflect.getMetadata(
             API_TAGS_METADATA,
-            controllerInstance.prototype,
+            controllerProto,
             method.methodName
           ) || [];
         const operation = Reflect.getMetadata(
           API_OPERATION_METADATA,
-          controllerInstance.prototype,
+          controllerProto,
           method.methodName
         );
         const responsesMetadata =
           Reflect.getMetadata(
             API_RESPONSE_METADATA,
-            controllerInstance.prototype,
+            controllerProto,
             method.methodName
           ) || [];
 
@@ -197,11 +199,11 @@ export class AppStartup {
 
         // OpenAPI Headers
         const controllerHeaders =
-          Reflect.getMetadata(API_HEADERS_METADATA, controllerInstance) || [];
+          Reflect.getMetadata(API_HEADERS_METADATA, controllerClass) || [];
         const methodHeaders =
           Reflect.getMetadata(
             API_HEADERS_METADATA,
-            controllerInstance.prototype,
+            controllerProto,
             method.methodName
           ) || [];
         const allHeaders = [...controllerHeaders, ...methodHeaders];
@@ -217,19 +219,24 @@ export class AppStartup {
         const paramsMetadata =
           Reflect.getMetadata(
             PARAM_METADATA_KEY,
-            controllerInstance.prototype,
+            controllerProto,
             method.methodName
           ) || [];
 
-        const bodySchema = paramsMetadata.find(
-          (p: any) => p.type === ParamType.BODY
-        )?.options?.zodSchema;
-        const querySchema = paramsMetadata.find(
-          (p: any) => p.type === ParamType.QUERY
-        )?.options?.zodSchema;
-        const paramsSchema = paramsMetadata.find(
-          (p: any) => p.type === ParamType.PARAM
-        )?.options?.zodSchema;
+        const bodySchema = paramsMetadata.find((p: any) => p.type === "body")
+          ?.options?.zodSchema;
+        const querySchema = paramsMetadata.find((p: any) => p.type === "query")
+          ?.options?.zodSchema;
+        const paramsSchema = paramsMetadata.find((p: any) => p.type === "param")
+          ?.options?.zodSchema;
+
+        if (bodySchema || querySchema || paramsSchema) {
+          AppStartup.logger.info(
+            `Schemas detected for ${method.httpMethod} ${method.pathname}: ${
+              bodySchema ? "[Body] " : ""
+            }${querySchema ? "[Query] " : ""}${paramsSchema ? "[Params]" : ""}`
+          );
+        }
 
         AppStartup.elysia[httpMethod as keyof Elysia](
           method.pathname,

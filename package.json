@@ -3,7 +3,7 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "type": "module",
   "bin": {
     "bunstone": "./bin/cli.ts"
@@ -34,7 +34,7 @@
     "elysia": "^1.4.19",
     "node-cron": "^4.2.1",
     "reflect-metadata": "^0.2.2",
-    "zod": "^4.3.2"
+    "zod": "^4.3.4"
   },
   "repository": {
     "type": "git",
