@@ -1,5 +1,10 @@
 import "reflect-metadata";
 
+/**
+ * Decorator to define a cron expression.
+ * @param expression The cron expression string.
+ * @returns A method decorator.
+ */
 export function Cron(expression: string) {
   if (!expression) {
     throw new Error("Invalid cron expression.");

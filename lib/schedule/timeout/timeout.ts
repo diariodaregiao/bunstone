@@ -1,5 +1,10 @@
 import "reflect-metadata";
 
+/**
+ * Decorator to define a timeout delay.
+ * @param delay The delay in milliseconds.
+ * @returns A method decorator.
+ */
 export function Timeout(delay: number) {
   if (!delay || delay < 0) {
     throw new Error("Delay must be a positive number.");
