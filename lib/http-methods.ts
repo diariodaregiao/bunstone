@@ -24,39 +24,57 @@ function HttpMethodDecorator(
 }
 
 /**
- * Decorator for GET HTTP method.
- * @param pathname The path for the method.
- * @returns A method decorator.
+ * Route decorator for GET requests.
+ * @param pathname Optional path for the route.
  */
 export function Get(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("GET", pathname);
 }
 
 /**
- * Decorator for POST HTTP method.
- * @param pathname The path for the method.
- * @returns A method decorator.
+ * Route decorator for POST requests.
+ * @param pathname Optional path for the route.
  */
 export function Post(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("POST", pathname);
 }
 
+/**
+ * Route decorator for PUT requests.
+ * @param pathname Optional path for the route.
+ */
 export function Put(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("PUT", pathname);
 }
 
+/**
+ * Route decorator for DELETE requests.
+ * @param pathname Optional path for the route.
+ */
 export function Delete(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("DELETE", pathname);
 }
 
+/**
+ * Route decorator for PATCH requests.
+ * @param pathname Optional path for the route.
+ */
 export function Patch(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("PATCH", pathname);
 }
 
+/**
+ * Route decorator for OPTIONS requests.
+ * @param pathname Optional path for the route.
+ */
 export function Options(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("OPTIONS", pathname);
 }
 
+/**
+ * Route decorator for HEAD requests.
+ * @param pathname Optional path for the route.
+ */
 export function Head(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("HEAD", pathname);
 }

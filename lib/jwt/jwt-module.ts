@@ -1,9 +1,16 @@
 import type { JWTOption } from "@elysiajs/jwt";
 import "reflect-metadata";
 
+/**
+ * Module for configuring JWT authentication.
+ */
 export class JwtModule {
   private static options: JWTOption;
 
+  /**
+   * Configures the JWT options for the application.
+   * @param options JWT configuration options (secret, algorithm, expiration, etc.).
+   */
   static register(options: JWTOption) {
     this.options = {
       ...options,

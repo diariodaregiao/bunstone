@@ -1,8 +1,14 @@
 import "reflect-metadata";
 
 /**
- * Decorator to define an injectable class. Don`t necessary instantiate nanually
- * @returns A class decorator.
+ * Decorator that marks a class as available to be injected as a dependency.
+ * Classes decorated with `@Injectable()` can be managed by the Bunstone DI container.
+ *
+ * @example
+ * ```typescript
+ * @Injectable()
+ * export class UserService {}
+ * ```
  */
 export function Injectable() {
   return function (target: any) {

@@ -16,11 +16,22 @@ import type { Options } from "./types/options";
 import { resolveDependencies } from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
 
+/**
+ * Main entry point for the Bunstone application.
+ * Handles module registration, route setup, and server startup.
+ */
 export class AppStartup {
   private static elysia: Elysia = new Elysia();
   private static readonly logger = new Logger(AppStartup.name);
   private static readonly registeredSagas = new WeakSet<any>();
 
+  /**
+   * Initializes the application from a root module.
+   *
+   * @param module The root module of the application.
+   * @param options Optional configuration (e.g., CORS).
+   * @returns An object with a `listen` method to start the server.
+   */
   static create(module: any, options?: Options) {
     this.elysia = new Elysia(); // Reset for each creation
 
@@ -42,11 +53,22 @@ export class AppStartup {
 
     AppStartup.registerModules(module);
     return {
+      /**
+       * Starts the server on the specified port.
+       * @param port The port number to listen on.
+       */
       listen: this.listen,
+      /**
+       * Returns the underlying Elysia instance.
+       */
       getElysia: () => this.elysia,
     };
   }
 
+  /**
+   * Starts the server on the specified port.
+   * @param port The port number to listen on.
+   */
   static listen(port: number) {
     AppStartup.logger.log(`App is running at http://localhost:${port}`);
     AppStartup.elysia.listen(port);

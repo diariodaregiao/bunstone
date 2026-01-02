@@ -30,11 +30,19 @@ class EventStream implements IEventStream {
   }
 }
 
+/**
+ * Bus for publishing and subscribing to events.
+ * Supports event handlers and reactive streams (Sagas).
+ */
 @Injectable()
 export class EventBus {
   private handlers = new Map<any, IEventHandler[]>();
   private listeners: ((event: IEvent) => void)[] = [];
 
+  /**
+   * Registers a list of event handlers.
+   * @param handlers Array of event handler instances.
+   */
   register(handlers: IEventHandler[]) {
     handlers.forEach((handler) => {
       const events = Reflect.getMetadata(
@@ -55,6 +63,10 @@ export class EventBus {
     });
   }
 
+  /**
+   * Publishes an event to all registered handlers and listeners.
+   * @param event The event instance to publish.
+   */
   publish<T extends IEvent>(event: T): void {
     const eventType = event.constructor;
     const handlers = this.handlers.get(eventType) || [];
@@ -65,8 +77,8 @@ export class EventBus {
   }
 
   /**
-   * Returns a stream of events.
-   * Simplified version of RxJS for Sagas.
+   * Returns a stream of events for reactive processing.
+   * Used primarily by Sagas.
    */
   get stream(): IEventStream {
     return new EventStream((callback) => {
@@ -76,7 +88,8 @@ export class EventBus {
 }
 
 /**
- * Simplified ofType operator for Sagas
+ * Filters events by type in a Saga stream.
+ * @param types The event classes to filter by.
  */
 export const ofType = (...types: any[]) => {
   return (event: IEvent, next: (event: IEvent) => void) => {
@@ -87,7 +100,8 @@ export const ofType = (...types: any[]) => {
 };
 
 /**
- * Simplified map operator for Sagas
+ * Transforms events in a Saga stream.
+ * @param fn The transformation function.
  */
 export const map = (fn: (event: any) => any) => {
   return (event: IEvent, next: (result: any) => void) => {
