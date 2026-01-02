@@ -56,6 +56,14 @@ export class AppController {
 
 ## 📚 Documentation
 
+Visit our [Documentation Website](https://diariodaregiao.github.io/bunstone) (if hosted) or run it locally:
+
+```bash
+bun run docs:dev
+```
+
+### Guide
+
 - [Dependency Injection](./docs/dependency-injection.md)
 - [Routing & Parameters](./docs/routing-params.md)
 - [CQRS & Sagas](./docs/cqrs.md)

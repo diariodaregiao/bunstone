@@ -14,11 +14,15 @@
     "README.md"
   ],
   "scripts": {
-    "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun && tsc",
-    "test": "bun test"
+    "test": "bun test",
+    "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "vitepress": "^1.6.4"
   },
   "peerDependencies": {
     "typescript": "^5"
