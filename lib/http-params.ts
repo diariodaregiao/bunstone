@@ -10,87 +10,155 @@ function setParamMetadata(
   parameterIndex: number,
   type: ParamType,
   key?: string,
-  options?: unknown,
+  options?: unknown
 ) {
-  const existingParams = Reflect.getOwnMetadata(PARAM_METADATA_KEY, target, propertyKey) || [];
+  const existingParams =
+    Reflect.getOwnMetadata(PARAM_METADATA_KEY, target, propertyKey) || [];
 
   existingParams.push({ index: parameterIndex, type, key, options });
 
-  Reflect.defineMetadata(PARAM_METADATA_KEY, existingParams, target, propertyKey);
+  Reflect.defineMetadata(
+    PARAM_METADATA_KEY,
+    existingParams,
+    target,
+    propertyKey
+  );
 }
 
-export function BODY(schema?: ZodType): ParameterDecorator;
-export function BODY(): ParameterDecorator {
+export function Body(schema?: ZodType): ParameterDecorator;
+export function Body(): ParameterDecorator {
   if (arguments.length === 1) {
     const arg = arguments[0] as ZodType;
     if (isZodSchema(arg)) {
       return function (target, propertyKey, parameterIndex) {
-        setParamMetadata(target, propertyKey as string, parameterIndex, ParamType.BODY, undefined, { zodSchema: arg });
+        setParamMetadata(
+          target,
+          propertyKey as string,
+          parameterIndex,
+          ParamType.BODY,
+          undefined,
+          { zodSchema: arg }
+        );
       };
     }
   }
 
   return function (target, propertyKey, parameterIndex) {
-    setParamMetadata(target, propertyKey as string, parameterIndex, ParamType.BODY);
+    setParamMetadata(
+      target,
+      propertyKey as string,
+      parameterIndex,
+      ParamType.BODY
+    );
   };
 }
 
-export function PARAM(schema?: ZodType): ParameterDecorator;
-export function PARAM(key?: string): ParameterDecorator;
-export function PARAM(): ParameterDecorator {
+export function Param(schema?: ZodType): ParameterDecorator;
+export function Param(key?: string): ParameterDecorator;
+export function Param(): ParameterDecorator {
   let key: string | undefined;
   if (arguments.length === 1) {
     if (isZodSchema(arguments[0])) {
       return function (target, propertyKey, parameterIndex) {
-        setParamMetadata(target, propertyKey as string, parameterIndex, ParamType.PARAM, undefined, {
-          zodSchema: arguments[0] as ZodType,
-        });
+        setParamMetadata(
+          target,
+          propertyKey as string,
+          parameterIndex,
+          ParamType.PARAM,
+          undefined,
+          {
+            zodSchema: arguments[0] as ZodType,
+          }
+        );
       };
     }
     key = arguments[0] as string;
   }
 
   return function (target, propertyKey, parameterIndex) {
-    setParamMetadata(target, propertyKey as string, parameterIndex, ParamType.PARAM, key);
+    setParamMetadata(
+      target,
+      propertyKey as string,
+      parameterIndex,
+      ParamType.PARAM,
+      key
+    );
   };
 }
 
-export function QUERY(schema?: ZodType): ParameterDecorator;
-export function QUERY(key?: string): ParameterDecorator;
-export function QUERY(): ParameterDecorator {
+export function Query(schema?: ZodType): ParameterDecorator;
+export function Query(key?: string): ParameterDecorator;
+export function Query(): ParameterDecorator {
   let key: string | undefined;
   if (arguments.length === 1) {
     if (isZodSchema(arguments[0])) {
       return function (target, propertyKey, parameterIndex) {
-        setParamMetadata(target, propertyKey as string, parameterIndex, ParamType.QUERY, undefined, {
-          zodSchema: arguments[0] as ZodType,
-        });
+        setParamMetadata(
+          target,
+          propertyKey as string,
+          parameterIndex,
+          ParamType.QUERY,
+          undefined,
+          {
+            zodSchema: arguments[0] as ZodType,
+          }
+        );
       };
     }
     key = arguments[0] as string;
   }
 
   return function (target, propertyKey, parameterIndex) {
-    setParamMetadata(target, propertyKey as string, parameterIndex, ParamType.QUERY, key);
+    setParamMetadata(
+      target,
+      propertyKey as string,
+      parameterIndex,
+      ParamType.QUERY,
+      key
+    );
   };
 }
 
-export function HEADER(key: string) {
-  return function (target: any, propertyKey: string | symbol, parameterIndex: number) {
-    setParamMetadata(target, propertyKey, parameterIndex, ParamType.HEADER, key);
+export function Header(key: string) {
+  return function (
+    target: any,
+    propertyKey: string | symbol,
+    parameterIndex: number
+  ) {
+    setParamMetadata(
+      target,
+      propertyKey,
+      parameterIndex,
+      ParamType.HEADER,
+      key
+    );
   };
 }
 
-export function REQUEST() {
-  return function (target: any, propertyKey: string | symbol, parameterIndex: number) {
+export function Request() {
+  return function (
+    target: any,
+    propertyKey: string | symbol,
+    parameterIndex: number
+  ) {
     setParamMetadata(target, propertyKey, parameterIndex, ParamType.REQUEST);
   };
 }
 
-export async function processParameters(request: any, target: any, propertyKey: string): Promise<any[]> {
-  const paramMetadata = Reflect.getOwnMetadata(PARAM_METADATA_KEY, Object.getPrototypeOf(target), propertyKey) || [];
+export async function processParameters(
+  request: any,
+  target: any,
+  propertyKey: string
+): Promise<any[]> {
+  const paramMetadata =
+    Reflect.getOwnMetadata(
+      PARAM_METADATA_KEY,
+      Object.getPrototypeOf(target),
+      propertyKey
+    ) || [];
 
-  const paramTypes = Reflect.getMetadata("design:paramtypes", target, propertyKey) || [];
+  const paramTypes =
+    Reflect.getMetadata("design:paramtypes", target, propertyKey) || [];
 
   const args: any[] = new Array(paramTypes.length);
   let cachedFormData: FormData | null = null;
@@ -108,11 +176,10 @@ export async function processParameters(request: any, target: any, propertyKey: 
         break;
 
       case ParamType.QUERY:
-        const url = new URL(request.url);
         if (key) {
-          args[index] = url.searchParams.get(key);
+          args[index] = request.query?.[key];
         } else {
-          args[index] = Object.fromEntries(url.searchParams.entries());
+          args[index] = request.query;
         }
         break;
 
@@ -120,12 +187,12 @@ export async function processParameters(request: any, target: any, propertyKey: 
         if (key === undefined) {
           args[index] = request.params;
         } else {
-          args[index] = request.params?.[key!];
+          args[index] = request.params?.[key];
         }
         break;
 
       case ParamType.HEADER:
-        args[index] = request.headers.get(key!);
+        args[index] = request.headers?.[key!];
         break;
 
       case ParamType.REQUEST:
@@ -134,7 +201,10 @@ export async function processParameters(request: any, target: any, propertyKey: 
 
       case ParamType.FORM_DATA:
         cachedFormData = cachedFormData || (await readFormData(request));
-        args[index] = extractFormDataPayload(cachedFormData, metadata.options as FormDataOptions | undefined);
+        args[index] = extractFormDataPayload(
+          cachedFormData,
+          metadata.options as FormDataOptions | undefined
+        );
         break;
     }
 
@@ -191,7 +261,9 @@ async function readFormData(request: any): Promise<FormData> {
   let formData: FormData;
   try {
     formData =
-      typeof requestLike.clone === "function" ? await requestLike.clone().formData() : await requestLike.formData();
+      typeof requestLike.clone === "function"
+        ? await requestLike.clone().formData()
+        : await requestLike.formData();
   } catch (err: any) {
     const fallback = tryResolveFromBody(existingBody);
     if (fallback) {
@@ -199,8 +271,13 @@ async function readFormData(request: any): Promise<FormData> {
       return fallback;
     }
 
-    const reason = err instanceof Error ? err.message : "Body already consumed or unreadable";
-    throw new Error(`Could not read multipart form data from the request. ${reason}`);
+    const reason =
+      err instanceof Error
+        ? err.message
+        : "Body already consumed or unreadable";
+    throw new Error(
+      `Could not read multipart form data from the request. ${reason}`
+    );
   }
 
   if (!(formData instanceof FormData)) {
@@ -211,17 +288,26 @@ async function readFormData(request: any): Promise<FormData> {
   return formData;
 }
 
-function extractFormDataPayload(formData: FormData, options: FormDataOptions = {}): FormDataPayload {
+function extractFormDataPayload(
+  formData: FormData,
+  options: FormDataOptions = {}
+): FormDataPayload {
   const { fileField, allowedTypes, jsonField } = options;
   const files: File[] = [];
 
   const allowed = (allowedTypes || []).map((item) => item.toLowerCase());
-  const getFiles = fileField ? formData.getAll(fileField) : Array.from(formData.values());
+  const getFiles = fileField
+    ? formData.getAll(fileField)
+    : Array.from(formData.values());
 
   for (const value of getFiles) {
     if (value instanceof File) {
       if (allowed.length > 0 && !isAllowedFileType(value, allowed)) {
-        badRequest(`File type for "${value.name}" is not allowed. Allowed: ${allowed.join(", ")}`);
+        badRequest(
+          `File type for "${
+            value.name
+          }" is not allowed. Allowed: ${allowed.join(", ")}`
+        );
       }
 
       files.push(value);

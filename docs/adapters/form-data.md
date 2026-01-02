@@ -12,14 +12,14 @@ import { FormData, type FormDataPayload } from "@bunstone";
 
 ```ts
 class UploadController {
-  @POST("/upload")
+  @Post("/upload")
   upload(
     @FormData({
       fileField: "files", // optional: specific field to read files from
       allowedTypes: ["image/avif"], // optional: mime or extensions allowed
       jsonField: "meta", // optional: parse this field as JSON
     })
-    payload: FormDataPayload,
+    payload: FormDataPayload
   ) {
     // payload.files: File[]
     // payload.json: parsed JSON from jsonField, if provided

@@ -28,7 +28,7 @@ function HttpMethodDecorator(
  * @param pathname The path for the method.
  * @returns A method decorator.
  */
-export function GET(pathname: string = ""): MethodDecorator {
+export function Get(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("GET", pathname);
 }
 
@@ -37,26 +37,26 @@ export function GET(pathname: string = ""): MethodDecorator {
  * @param pathname The path for the method.
  * @returns A method decorator.
  */
-export function POST(pathname: string = ""): MethodDecorator {
+export function Post(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("POST", pathname);
 }
 
-export function PUT(pathname: string = ""): MethodDecorator {
+export function Put(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("PUT", pathname);
 }
 
-export function DELETE(pathname: string = ""): MethodDecorator {
+export function Delete(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("DELETE", pathname);
 }
 
-export function PATCH(pathname: string = ""): MethodDecorator {
+export function Patch(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("PATCH", pathname);
 }
 
-export function OPTIONS(pathname: string = ""): MethodDecorator {
+export function Options(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("OPTIONS", pathname);
 }
 
-export function HEAD(pathname: string = ""): MethodDecorator {
+export function Head(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("HEAD", pathname);
 }
