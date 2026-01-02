@@ -6,6 +6,12 @@ import { processParameters } from "./http-params";
 import { Logger } from "./utils/logger";
 import { resolveDependencies } from "./utils/dependency-injection";
 import "reflect-metadata";
+import { CommandBus } from "./cqrs/command-bus";
+import { QueryBus } from "./cqrs/query-bus";
+import { EventBus } from "./cqrs/event-bus";
+import { COMMAND_HANDLER_METADATA } from "./cqrs/decorators/command-handler.decorator";
+import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorator";
+import { EVENT_HANDLER_METADATA } from "./cqrs/decorators/event-handler.decorator";
 
 export type Options = {
   cors?: CORSConfig;
@@ -45,6 +51,7 @@ export class AppStartup {
     AppStartup.registerRoutes(module);
     AppStartup.registerTimeouts(module);
     AppStartup.registerCronJobs(module);
+    AppStartup.registerCqrsHandlers(module);
 
     const modules = Reflect.getMetadata("dip:modules", module) || [];
 
@@ -162,6 +169,45 @@ export class AppStartup {
           provider[cron.methodName]();
         });
       }
+    }
+  }
+
+  private static registerCqrsHandlers(module: any) {
+    const injectables: Map<any, any> = Reflect.getMetadata(
+      "dip:injectables",
+      module
+    );
+
+    if (!injectables) return;
+
+    const commandBus = injectables.get(CommandBus);
+    const queryBus = injectables.get(QueryBus);
+    const eventBus = injectables.get(EventBus);
+
+    const commandHandlers: any[] = [];
+    const queryHandlers: any[] = [];
+    const eventHandlers: any[] = [];
+
+    for (const instance of injectables.values()) {
+      if (Reflect.hasMetadata(COMMAND_HANDLER_METADATA, instance.constructor)) {
+        commandHandlers.push(instance);
+      }
+      if (Reflect.hasMetadata(QUERY_HANDLER_METADATA, instance.constructor)) {
+        queryHandlers.push(instance);
+      }
+      if (Reflect.hasMetadata(EVENT_HANDLER_METADATA, instance.constructor)) {
+        eventHandlers.push(instance);
+      }
+    }
+
+    if (commandBus && commandHandlers.length > 0) {
+      commandBus.register(commandHandlers);
+    }
+    if (queryBus && queryHandlers.length > 0) {
+      queryBus.register(queryHandlers);
+    }
+    if (eventBus && eventHandlers.length > 0) {
+      eventBus.register(eventHandlers);
     }
   }
 
