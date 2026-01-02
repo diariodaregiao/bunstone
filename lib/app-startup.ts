@@ -78,10 +78,6 @@ export class AppStartup {
         Reflect.getMetadata("design:paramtypes", controllerInstance) || [];
       const dependencies = resolveDependencies(paramsTypes, injectables);
       let controller = new controllerInstance(...dependencies);
-      controller = Object.assign(
-        controller,
-        AppStartup.getControllerHandler(module, controllerInstance)
-      );
 
       for (const method of methods) {
         AppStartup.logger.log(
@@ -178,18 +174,5 @@ export class AppStartup {
         AppStartup.elysia.use(jwt(jwtOptions));
       }
     }
-  }
-
-  private static getControllerHandler(module: any, controller: any) {
-    const injectables: Map<any, any> = Reflect.getMetadata(
-      "dip:injectables",
-      module
-    );
-
-    if (!injectables) {
-      return [];
-    }
-
-    return injectables.get(controller);
   }
 }

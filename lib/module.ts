@@ -22,7 +22,7 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
     moduleConfig.providers
   );
   const providersCrons = MapProvidersWithCron.execute(moduleConfig.providers);
-  const injectableProviders = mapInjectableProviders(moduleConfig.providers);
+  const injectableProviders = mapInjectableProviders(moduleConfig);
 
   return function (target) {
     Reflect.defineMetadata("dip:module", "is_module", target);
@@ -92,14 +92,25 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
 }
 
 /**
- * Maps injectable providers and their dependencies.
- * @param providers Array of provider classes.
- * @returns A map of provider names to instances.
+ * Maps injectable providers and their dependencies, including those from imported modules.
+ * @param moduleConfig The module configuration.
+ * @returns A map of provider classes to instances.
  */
-function mapInjectableProviders(providers: ModuleConfig["providers"] = []) {
+function mapInjectableProviders(moduleConfig: ModuleConfig) {
   const deps: Map<any, any> = new Map();
 
-  providers.forEach((provider) => {
+  // Merge injectables from imported modules
+  (moduleConfig.imports || []).forEach((mod) => {
+    const importedInjectables = Reflect.getMetadata("dip:injectables", mod);
+    if (importedInjectables instanceof Map) {
+      for (const [key, value] of importedInjectables.entries()) {
+        deps.set(key, value);
+      }
+    }
+  });
+
+  // Resolve current module's providers
+  (moduleConfig.providers || []).forEach((provider) => {
     resolveType(provider, deps);
   });
 
