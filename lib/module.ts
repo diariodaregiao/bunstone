@@ -1,9 +1,9 @@
-import type { GuardContract } from "./guard";
+import "reflect-metadata";
+import type { GuardContract } from "./interfaces/guard-contract";
 import { MapProvidersWithCron } from "./schedule/cron/mappers/map-providers-with-cron";
 import { MapProvidersWithTimeout } from "./schedule/timeout/mappers/map-providers-with-timeouts";
 import type { ModuleConfig } from "./types/module-config";
-import { resolveDependencies, resolveType } from "./utils/dependency-injection";
-import "reflect-metadata";
+import { resolveType } from "./utils/dependency-injection";
 
 /**
  * Decorator to define a module with controllers, providers, imports, and exports.
@@ -18,9 +18,7 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
 
   const modules = moduleConfig.imports;
   const controllers = mapControllers(moduleConfig.controllers);
-  const providersTimeouts = MapProvidersWithTimeout.execute(
-    moduleConfig.providers
-  );
+  const providersTimeouts = MapProvidersWithTimeout.execute(moduleConfig.providers);
   const providersCrons = MapProvidersWithCron.execute(moduleConfig.providers);
   const injectableProviders = mapInjectableProviders(moduleConfig);
 
@@ -54,10 +52,7 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
     controllersMap.set(controller, []);
 
     for (const controllerSymbol of Object.getOwnPropertySymbols(controller)) {
-      const controllerPathname = Reflect.getOwnMetadata(
-        "dip:controller:pathname",
-        controller
-      );
+      const controllerPathname = Reflect.getOwnMetadata("dip:controller:pathname", controller);
 
       const controllerGuard = Reflect.getMetadata("dip:guard", controller);
 
@@ -68,15 +63,9 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
       }[] = (controller as any)[controllerSymbol];
 
       controllerMethods.forEach((cm) => {
-        const pathname = `${
-          controllerPathname === "/" ? "" : controllerPathname
-        }${cm.pathname}`;
+        const pathname = `${controllerPathname === "/" ? "" : controllerPathname}${cm.pathname}`;
 
-        const methodGuard = Reflect.getMetadata(
-          "dip:guard",
-          controller.prototype,
-          cm.methodName
-        );
+        const methodGuard = Reflect.getMetadata("dip:guard", controller.prototype, cm.methodName);
 
         controllersMap.get(controller)?.push({
           httpMethod: cm.httpMethod,

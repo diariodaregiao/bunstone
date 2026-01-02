@@ -1,16 +1,8 @@
+import "reflect-metadata";
 import { ZodError, type ZodType } from "zod/v4";
 import { PARAM_METADATA_KEY } from "./constants";
+import { ParamType } from "./enums/param-type";
 import { isZodSchema } from "./utils/is-zod-schema";
-import "reflect-metadata";
-
-export enum ParamType {
-  BODY = "body",
-  QUERY = "query",
-  PARAM = "param",
-  HEADER = "header",
-  REQUEST = "request",
-  FORM_DATA = "form-data",
-}
 
 function setParamMetadata(
   target: any,
@@ -74,7 +66,9 @@ export function Param(): ParameterDecorator {
           parameterIndex,
           ParamType.PARAM,
           undefined,
-          { zodSchema: arguments[0] as ZodType }
+          {
+            zodSchema: arguments[0] as ZodType,
+          }
         );
       };
     }
@@ -105,7 +99,9 @@ export function Query(): ParameterDecorator {
           parameterIndex,
           ParamType.QUERY,
           undefined,
-          { zodSchema: arguments[0] as ZodType }
+          {
+            zodSchema: arguments[0] as ZodType,
+          }
         );
       };
     }
