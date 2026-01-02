@@ -19,6 +19,7 @@
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/jwt": "^1.4.0",
     "elysia": "^1.4.19",
+    "mysql2": "^3.16.0",
     "node-cron": "^4.2.1",
     "reflect-metadata": "^0.2.2",
     "zod": "^4.3.2"
