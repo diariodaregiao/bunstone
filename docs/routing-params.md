@@ -45,7 +45,7 @@ const CreateUserSchema = z.object({
 });
 
 @Post()
-create(@Body(CreateUserSchema) data: any) {
+create(@Body(CreateUserSchema) data: z.infer<typeof CreateUserSchema>) {
   return data; // data is already validated and typed
 }
 ```

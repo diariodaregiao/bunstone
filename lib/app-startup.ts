@@ -1,5 +1,6 @@
 import { cors } from "@elysiajs/cors";
 import jwt from "@elysiajs/jwt";
+import { swagger } from "@elysiajs/swagger";
 import Elysia from "elysia";
 import scheduler from "node-cron";
 import "reflect-metadata";
@@ -12,9 +13,16 @@ import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorato
 import { EVENT_HANDLER_METADATA } from "./cqrs/decorators/event-handler.decorator";
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
 import { processParameters } from "./http-params";
+import {
+  API_OPERATION_METADATA,
+  API_RESPONSE_METADATA,
+  API_TAGS_METADATA,
+} from "./openapi";
+import { PARAM_METADATA_KEY } from "./constants";
 import type { Options } from "./types/options";
 import { resolveDependencies } from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
+import { ParamType } from "./http-params";
 
 /**
  * Main entry point for the Bunstone application.
@@ -49,6 +57,15 @@ export class AppStartup {
 
     if (options?.cors) {
       AppStartup.elysia.use(cors(options.cors));
+    }
+
+    if (options?.swagger) {
+      AppStartup.elysia.use(
+        swagger({
+          path: options.swagger.path || "/swagger",
+          documentation: options.swagger.documentation,
+        })
+      );
     }
 
     AppStartup.registerModules(module);
@@ -136,6 +153,60 @@ export class AppStartup {
           throw new Error(`HTTP method ${method.httpMethod} is not supported.`);
         }
 
+        // OpenAPI Metadata
+        const controllerTags =
+          Reflect.getMetadata(API_TAGS_METADATA, controllerInstance) || [];
+        const methodTags =
+          Reflect.getMetadata(
+            API_TAGS_METADATA,
+            controllerInstance.prototype,
+            method.methodName
+          ) || [];
+        const operation = Reflect.getMetadata(
+          API_OPERATION_METADATA,
+          controllerInstance.prototype,
+          method.methodName
+        );
+        const responsesMetadata =
+          Reflect.getMetadata(
+            API_RESPONSE_METADATA,
+            controllerInstance.prototype,
+            method.methodName
+          ) || [];
+
+        const tags = [...new Set([...controllerTags, ...methodTags])];
+        const responses: Record<string, any> = {};
+        responsesMetadata.forEach((res: any) => {
+          responses[res.status.toString()] = {
+            description: res.description,
+            content: res.type
+              ? {
+                  "application/json": {
+                    schema: res.type,
+                  },
+                }
+              : undefined,
+          };
+        });
+
+        // Extract Schemas for OpenAPI
+        const paramsMetadata =
+          Reflect.getMetadata(
+            PARAM_METADATA_KEY,
+            controllerInstance.prototype,
+            method.methodName
+          ) || [];
+
+        const bodySchema = paramsMetadata.find(
+          (p: any) => p.type === ParamType.BODY
+        )?.options?.zodSchema;
+        const querySchema = paramsMetadata.find(
+          (p: any) => p.type === ParamType.QUERY
+        )?.options?.zodSchema;
+        const paramsSchema = paramsMetadata.find(
+          (p: any) => p.type === ParamType.PARAM
+        )?.options?.zodSchema;
+
         AppStartup.elysia[httpMethod as keyof Elysia](
           method.pathname,
           (req: any) =>
@@ -145,6 +216,15 @@ export class AppStartup {
               method.methodName
             ),
           {
+            body: bodySchema,
+            query: querySchema,
+            params: paramsSchema,
+            detail: {
+              tags,
+              summary: operation?.summary,
+              description: operation?.description,
+              responses,
+            },
             beforeHandle(req: any) {
               if (!method.guard) return;
               const guardInstance = new method.guard();
