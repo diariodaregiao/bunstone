@@ -1,15 +1,12 @@
-import { cors, type CORSConfig } from "@elysiajs/cors";
+import { cors } from "@elysiajs/cors";
 import jwt from "@elysiajs/jwt";
 import Elysia from "elysia";
 import scheduler from "node-cron";
-import { processParameters } from "./http-params";
-import { Logger } from "./utils/logger";
-import { resolveDependencies } from "./utils/dependency-injection";
 import "reflect-metadata";
-
-export type Options = {
-  cors?: CORSConfig;
-};
+import { processParameters } from "./http-params";
+import type { Options } from "./types/options";
+import { resolveDependencies } from "./utils/dependency-injection";
+import { Logger } from "./utils/logger";
 
 export class AppStartup {
   private static readonly elysia: Elysia = new Elysia();
@@ -31,11 +28,7 @@ export class AppStartup {
     AppStartup.elysia.listen(port);
   }
 
-  private static async executeControllerMethod(
-    req: any,
-    controller: any,
-    method: any
-  ) {
+  private static async executeControllerMethod(req: any, controller: any, method: any) {
     const args = await processParameters(req, controller, method);
     return controller[method](...args);
   }
@@ -68,25 +61,16 @@ export class AppStartup {
       return;
     }
 
-    const injectables: Map<any, any> = Reflect.getMetadata(
-      "dip:injectables",
-      module
-    );
+    const injectables: Map<any, any> = Reflect.getMetadata("dip:injectables", module);
     for (const item of controllers.entries()) {
       const [controllerInstance, methods] = item;
-      const paramsTypes =
-        Reflect.getMetadata("design:paramtypes", controllerInstance) || [];
+      const paramsTypes = Reflect.getMetadata("design:paramtypes", controllerInstance) || [];
       const dependencies = resolveDependencies(paramsTypes, injectables);
       let controller = new controllerInstance(...dependencies);
-      controller = Object.assign(
-        controller,
-        AppStartup.getControllerHandler(module, controllerInstance)
-      );
+      controller = Object.assign(controller, AppStartup.getControllerHandler(module, controllerInstance));
 
       for (const method of methods) {
-        AppStartup.logger.log(
-          `Registering ${method.httpMethod} route: ${method.pathname}`
-        );
+        AppStartup.logger.log(`Registering ${method.httpMethod} route: ${method.pathname}`);
         const httpMethod = method.httpMethod.toLowerCase();
         if (!(httpMethod in AppStartup.elysia)) {
           throw new Error(`HTTP method ${method.httpMethod} is not supported.`);
@@ -94,12 +78,7 @@ export class AppStartup {
 
         AppStartup.elysia[httpMethod as keyof Elysia](
           method.pathname,
-          (req: any) =>
-            AppStartup.executeControllerMethod(
-              req,
-              controller,
-              method.methodName
-            ),
+          (req: any) => AppStartup.executeControllerMethod(req, controller, method.methodName),
           {
             beforeHandle(req: any) {
               if (!method.guard) return;
@@ -117,15 +96,17 @@ export class AppStartup {
                 }
               }
             },
-          }
+          },
         );
       }
     }
   }
 
   private static registerTimeouts(module: any) {
-    const providersTimeouts: Map<any, { delay: number; methodName: string }[]> =
-      Reflect.getMetadata("dip:timeouts", module);
+    const providersTimeouts: Map<any, { delay: number; methodName: string }[]> = Reflect.getMetadata(
+      "dip:timeouts",
+      module,
+    );
 
     if (!providersTimeouts) {
       return;
@@ -136,9 +117,7 @@ export class AppStartup {
       const provider = new providerInstance();
 
       for (const timeout of timeouts) {
-        AppStartup.logger.log(
-          `Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`
-        );
+        AppStartup.logger.log(`Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`);
         setTimeout(() => {
           provider[timeout.methodName]();
         }, timeout.delay);
@@ -147,10 +126,10 @@ export class AppStartup {
   }
 
   private static registerCronJobs(module: any) {
-    const providersCron: Map<
-      any,
-      { expression: string; methodName: string }[]
-    > = Reflect.getMetadata("dip:crons", module);
+    const providersCron: Map<any, { expression: string; methodName: string }[]> = Reflect.getMetadata(
+      "dip:crons",
+      module,
+    );
 
     if (!providersCron) {
       return;
@@ -181,10 +160,7 @@ export class AppStartup {
   }
 
   private static getControllerHandler(module: any, controller: any) {
-    const injectables: Map<any, any> = Reflect.getMetadata(
-      "dip:injectables",
-      module
-    );
+    const injectables: Map<any, any> = Reflect.getMetadata("dip:injectables", module);
 
     if (!injectables) {
       return [];
