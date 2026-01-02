@@ -19,10 +19,12 @@ export type Options = {
 };
 
 export class AppStartup {
-  private static readonly elysia: Elysia = new Elysia();
+  private static elysia: Elysia = new Elysia();
   private static readonly logger = new Logger(AppStartup.name);
+  private static readonly registeredSagas = new WeakSet<any>();
 
   static create(module: any, options?: Options) {
+    this.elysia = new Elysia(); // Reset for each creation
     if (options?.cors) {
       AppStartup.elysia.use(cors(options.cors));
     }
@@ -30,6 +32,7 @@ export class AppStartup {
     AppStartup.registerModules(module);
     return {
       listen: this.listen,
+      getElysia: () => this.elysia,
     };
   }
 
@@ -217,6 +220,11 @@ export class AppStartup {
 
     if (eventBus && commandBus && sagas.length > 0) {
       sagas.forEach((sagaInstance) => {
+        if (AppStartup.registeredSagas.has(sagaInstance)) {
+          return;
+        }
+        AppStartup.registeredSagas.add(sagaInstance);
+
         const sagaMethods: string[] = Reflect.getMetadata(
           SAGA_METADATA,
           sagaInstance.constructor

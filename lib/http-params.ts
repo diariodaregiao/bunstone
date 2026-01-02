@@ -33,8 +33,8 @@ function setParamMetadata(
   );
 }
 
-export function BODY(schema?: ZodType): ParameterDecorator;
-export function BODY(): ParameterDecorator {
+export function Body(schema?: ZodType): ParameterDecorator;
+export function Body(): ParameterDecorator {
   if (arguments.length === 1) {
     const arg = arguments[0] as ZodType;
     if (isZodSchema(arg)) {
@@ -61,9 +61,9 @@ export function BODY(): ParameterDecorator {
   };
 }
 
-export function PARAM(schema?: ZodType): ParameterDecorator;
-export function PARAM(key?: string): ParameterDecorator;
-export function PARAM(): ParameterDecorator {
+export function Param(schema?: ZodType): ParameterDecorator;
+export function Param(key?: string): ParameterDecorator;
+export function Param(): ParameterDecorator {
   let key: string | undefined;
   if (arguments.length === 1) {
     if (isZodSchema(arguments[0])) {
@@ -92,9 +92,9 @@ export function PARAM(): ParameterDecorator {
   };
 }
 
-export function QUERY(schema?: ZodType): ParameterDecorator;
-export function QUERY(key?: string): ParameterDecorator;
-export function QUERY(): ParameterDecorator {
+export function Query(schema?: ZodType): ParameterDecorator;
+export function Query(key?: string): ParameterDecorator;
+export function Query(): ParameterDecorator {
   let key: string | undefined;
   if (arguments.length === 1) {
     if (isZodSchema(arguments[0])) {
@@ -123,7 +123,7 @@ export function QUERY(): ParameterDecorator {
   };
 }
 
-export function HEADER(key: string) {
+export function Header(key: string) {
   return function (
     target: any,
     propertyKey: string | symbol,
@@ -139,7 +139,7 @@ export function HEADER(key: string) {
   };
 }
 
-export function REQUEST() {
+export function Request() {
   return function (
     target: any,
     propertyKey: string | symbol,
@@ -180,11 +180,10 @@ export async function processParameters(
         break;
 
       case ParamType.QUERY:
-        const url = new URL(request.url);
         if (key) {
-          args[index] = url.searchParams.get(key);
+          args[index] = request.query?.[key];
         } else {
-          args[index] = Object.fromEntries(url.searchParams.entries());
+          args[index] = request.query;
         }
         break;
 
@@ -192,12 +191,12 @@ export async function processParameters(
         if (key === undefined) {
           args[index] = request.params;
         } else {
-          args[index] = request.params?.[key!];
+          args[index] = request.params?.[key];
         }
         break;
 
       case ParamType.HEADER:
-        args[index] = request.headers.get(key!);
+        args[index] = request.headers?.[key!];
         break;
 
       case ParamType.REQUEST:

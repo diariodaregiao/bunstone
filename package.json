@@ -3,6 +3,9 @@
   "module": "index.ts",
   "version": "0.0.7",
   "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

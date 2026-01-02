@@ -46,7 +46,10 @@ export class EventBus {
           if (!this.handlers.has(event)) {
             this.handlers.set(event, []);
           }
-          this.handlers.get(event)?.push(handler);
+          const handlersForEvent = this.handlers.get(event)!;
+          if (!handlersForEvent.includes(handler)) {
+            handlersForEvent.push(handler);
+          }
         });
       }
     });
