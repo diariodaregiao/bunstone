@@ -12,7 +12,10 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "noEmit": true,
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
 
     // Best practices
     "strict": true,
@@ -29,5 +32,7 @@
     // Enable decorators
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
-  }
+  },
+  "include": ["lib/**/*", "index.ts"],
+  "exclude": ["node_modules", "tests", "scenario", "test.ts", "test-module.ts"]
 }
