@@ -3,6 +3,7 @@ import jwt from "@elysiajs/jwt";
 import Elysia from "elysia";
 import scheduler from "node-cron";
 import "reflect-metadata";
+import { HttpException } from "./http-exceptions";
 import { CommandBus } from "./cqrs/command-bus";
 import { QueryBus } from "./cqrs/query-bus";
 import { EventBus } from "./cqrs/event-bus";
@@ -22,6 +23,19 @@ export class AppStartup {
 
   static create(module: any, options?: Options) {
     this.elysia = new Elysia(); // Reset for each creation
+
+    this.elysia.error({
+      HttpException,
+    });
+
+    this.elysia.onError(({ code, error, set }) => {
+      if (error instanceof HttpException) {
+        set.status = error.getStatus();
+        return error.getResponse();
+      }
+      return error;
+    });
+
     if (options?.cors) {
       AppStartup.elysia.use(cors(options.cors));
     }
