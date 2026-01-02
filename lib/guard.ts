@@ -1,29 +1,14 @@
-import type { RouteSchema, HTTPHeaders, Elysia } from "elysia";
-import { isClass } from "./utils/is-class";
 import "reflect-metadata";
+import type { ClassConstructor } from "./interfaces/class-constructor";
+import { isClass } from "./utils/is-class";
 
-export type HttpRequest = RouteSchema & {
-  headers: HTTPHeaders;
-  jwt?: {
-    sign(payload: Record<string, any>): Promise<string>;
-    verify(token?: string): Promise<false | Record<string, any>>;
-  };
-};
-
-export interface GuardContract {
-  validate(req: HttpRequest): boolean | Promise<boolean>;
-}
-
-export interface ClassConstructor {
-  new (...args: any[]): any;
-}
-
+/**
+ * Decorator to define a guard class.
+ * @param guard The guard class constructor.
+ * @returns A class or method decorator.
+ */
 export function Guard(guard: ClassConstructor) {
-  return function (
-    target: any,
-    propertyKey?: string | symbol,
-    descriptor?: PropertyDescriptor
-  ) {
+  return function (target: any, propertyKey?: string | symbol, descriptor?: PropertyDescriptor) {
     if (!("validate" in guard.prototype)) {
       throw new Error(`Guard class must implement 'validate' method.`);
     }
