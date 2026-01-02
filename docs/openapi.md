@@ -62,6 +62,23 @@ Defines the possible responses for an endpoint.
 findOne() {}
 ```
 
+### @ApiHeader() / @ApiHeaders()
+
+Defines custom headers for an endpoint or controller.
+
+```typescript
+@ApiHeader({ name: "X-Custom-Header", description: "A custom header" })
+@Controller("users")
+export class UserController {
+  @ApiHeaders([
+    { name: "X-Token", description: "Auth token", required: true },
+    { name: "X-Version", description: "API Version" },
+  ])
+  @Get()
+  findAll() {}
+}
+```
+
 ## DTOs and Schemas
 
 Bunstone uses **Zod** for validation. When you use `@Body(Schema)`, `@Query(Schema)`, or `@Param(Schema)`, the schema is automatically registered in the OpenAPI documentation.

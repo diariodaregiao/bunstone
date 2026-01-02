@@ -3,6 +3,7 @@ import "reflect-metadata";
 export const API_TAGS_METADATA = "dip:openapi:tags";
 export const API_OPERATION_METADATA = "dip:openapi:operation";
 export const API_RESPONSE_METADATA = "dip:openapi:responses";
+export const API_HEADERS_METADATA = "dip:openapi:headers";
 
 /**
  * Decorator that adds tags to a controller or method for OpenAPI.
@@ -60,5 +61,53 @@ export function ApiResponse(options: {
       target,
       propertyKey
     );
+  };
+}
+
+/**
+ * Decorator that defines a header for OpenAPI.
+ * @param options Header options.
+ */
+export function ApiHeader(options: {
+  name: string;
+  description?: string;
+  required?: boolean;
+  schema?: any;
+}) {
+  return (target: any, propertyKey?: string | symbol) => {
+    const headers =
+      (propertyKey
+        ? Reflect.getMetadata(API_HEADERS_METADATA, target, propertyKey)
+        : Reflect.getMetadata(API_HEADERS_METADATA, target)) || [];
+    headers.push(options);
+    if (propertyKey) {
+      Reflect.defineMetadata(
+        API_HEADERS_METADATA,
+        headers,
+        target,
+        propertyKey
+      );
+    } else {
+      Reflect.defineMetadata(API_HEADERS_METADATA, headers, target);
+    }
+  };
+}
+
+/**
+ * Decorator that defines multiple headers for OpenAPI.
+ * @param headers List of header options.
+ */
+export function ApiHeaders(
+  headers: {
+    name: string;
+    description?: string;
+    required?: boolean;
+    schema?: any;
+  }[]
+) {
+  return (target: any, propertyKey?: string | symbol) => {
+    headers.forEach((header) => {
+      ApiHeader(header)(target, propertyKey);
+    });
   };
 }

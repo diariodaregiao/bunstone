@@ -17,6 +17,7 @@ import {
   API_OPERATION_METADATA,
   API_RESPONSE_METADATA,
   API_TAGS_METADATA,
+  API_HEADERS_METADATA,
 } from "./openapi";
 import { PARAM_METADATA_KEY } from "./constants";
 import type { Options } from "./types/options";
@@ -189,6 +190,24 @@ export class AppStartup {
           };
         });
 
+        // OpenAPI Headers
+        const controllerHeaders =
+          Reflect.getMetadata(API_HEADERS_METADATA, controllerInstance) || [];
+        const methodHeaders =
+          Reflect.getMetadata(
+            API_HEADERS_METADATA,
+            controllerInstance.prototype,
+            method.methodName
+          ) || [];
+        const allHeaders = [...controllerHeaders, ...methodHeaders];
+        const parameters = allHeaders.map((h: any) => ({
+          name: h.name,
+          in: "header",
+          description: h.description,
+          required: h.required,
+          schema: h.schema || { type: "string" },
+        }));
+
         // Extract Schemas for OpenAPI
         const paramsMetadata =
           Reflect.getMetadata(
@@ -224,6 +243,7 @@ export class AppStartup {
               summary: operation?.summary,
               description: operation?.description,
               responses,
+              parameters,
             },
             beforeHandle(req: any) {
               if (!method.guard) return;
