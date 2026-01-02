@@ -1,14 +1,23 @@
+import { cors, type CORSConfig } from "@elysiajs/cors";
 import jwt from "@elysiajs/jwt";
 import Elysia from "elysia";
 import scheduler from "node-cron";
 import { processParameters } from "./http-params";
 import { Logger } from "./utils/logger";
 
+export type Options = {
+  cors?: CORSConfig;
+};
+
 export class AppStartup {
   private static readonly elysia: Elysia = new Elysia();
   private static readonly logger = new Logger(AppStartup.name);
 
-  static create(module: any) {
+  static create(module: any, options?: Options) {
+    if (options?.cors) {
+      AppStartup.elysia.use(cors(options.cors));
+    }
+
     AppStartup.registerModules(module);
     return {
       listen: this.listen,
