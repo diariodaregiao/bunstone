@@ -20,6 +20,8 @@ export * from "./lib/cqrs/event-bus";
 export * from "./lib/cqrs/decorators/command-handler.decorator";
 export * from "./lib/cqrs/decorators/query-handler.decorator";
 export * from "./lib/cqrs/decorators/event-handler.decorator";
+export * from "./lib/cqrs/decorators/saga.decorator";
 export * from "./lib/cqrs/interfaces/command.interface";
 export * from "./lib/cqrs/interfaces/query.interface";
 export * from "./lib/cqrs/interfaces/event.interface";
+export { ofType, map } from "./lib/cqrs/event-bus";

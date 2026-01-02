@@ -12,6 +12,7 @@ import { EventBus } from "./cqrs/event-bus";
 import { COMMAND_HANDLER_METADATA } from "./cqrs/decorators/command-handler.decorator";
 import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorator";
 import { EVENT_HANDLER_METADATA } from "./cqrs/decorators/event-handler.decorator";
+import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
 
 export type Options = {
   cors?: CORSConfig;
@@ -187,6 +188,7 @@ export class AppStartup {
     const commandHandlers: any[] = [];
     const queryHandlers: any[] = [];
     const eventHandlers: any[] = [];
+    const sagas: any[] = [];
 
     for (const instance of injectables.values()) {
       if (Reflect.hasMetadata(COMMAND_HANDLER_METADATA, instance.constructor)) {
@@ -198,6 +200,9 @@ export class AppStartup {
       if (Reflect.hasMetadata(EVENT_HANDLER_METADATA, instance.constructor)) {
         eventHandlers.push(instance);
       }
+      if (Reflect.hasMetadata(SAGA_METADATA, instance.constructor)) {
+        sagas.push(instance);
+      }
     }
 
     if (commandBus && commandHandlers.length > 0) {
@@ -208,6 +213,35 @@ export class AppStartup {
     }
     if (eventBus && eventHandlers.length > 0) {
       eventBus.register(eventHandlers);
+    }
+
+    if (eventBus && commandBus && sagas.length > 0) {
+      sagas.forEach((sagaInstance) => {
+        const sagaMethods: string[] = Reflect.getMetadata(
+          SAGA_METADATA,
+          sagaInstance.constructor
+        );
+        sagaMethods.forEach((methodName) => {
+          const sagaFn = sagaInstance[methodName];
+          if (typeof sagaFn === "function") {
+            // In NestJS, sagas return an observable of commands.
+            // We simulate this by subscribing to the event stream and executing returned commands.
+            const stream = sagaFn.call(sagaInstance, eventBus.stream);
+            if (stream && typeof stream.subscribe === "function") {
+              stream.subscribe((command: any) => {
+                if (command) {
+                  commandBus.execute(command).catch((err: any) => {
+                    AppStartup.logger.error(
+                      `Error executing command from Saga ${sagaInstance.constructor.name}.${methodName}:`,
+                      err
+                    );
+                  });
+                }
+              });
+            }
+          }
+        });
+      });
     }
   }
 
