@@ -1,4 +1,6 @@
+import { ZodError, type ZodType } from "zod/v4";
 import { PARAM_METADATA_KEY } from "./constants";
+import { isZodSchema } from "./utils/is-zod-schema";
 
 export enum ParamType {
   BODY = "body",
@@ -15,7 +17,7 @@ function setParamMetadata(
   parameterIndex: number,
   type: ParamType,
   key?: string,
-  options?: unknown,
+  options?: unknown
 ) {
   const existingParams =
     Reflect.getOwnMetadata(PARAM_METADATA_KEY, target, propertyKey) || [];
@@ -26,41 +28,96 @@ function setParamMetadata(
     PARAM_METADATA_KEY,
     existingParams,
     target,
-    propertyKey,
+    propertyKey
   );
 }
 
+export function BODY(schema?: ZodType): ParameterDecorator;
 export function BODY(): ParameterDecorator {
+  if (arguments.length === 1) {
+    const arg = arguments[0] as ZodType;
+    if (isZodSchema(arg)) {
+      return function (target, propertyKey, parameterIndex) {
+        setParamMetadata(
+          target,
+          propertyKey as string,
+          parameterIndex,
+          ParamType.BODY,
+          undefined,
+          { zodSchema: arg }
+        );
+      };
+    }
+  }
+
   return function (target, propertyKey, parameterIndex) {
     setParamMetadata(
       target,
       propertyKey as string,
       parameterIndex,
-      ParamType.BODY,
+      ParamType.BODY
     );
   };
 }
 
-export function PARAM(key?: string): ParameterDecorator {
+export function PARAM(schema?: ZodType): ParameterDecorator;
+export function PARAM(key?: string): ParameterDecorator;
+export function PARAM(): ParameterDecorator {
+  let key: string | undefined;
+  if (arguments.length === 1) {
+    if (isZodSchema(arguments[0])) {
+      return function (target, propertyKey, parameterIndex) {
+        setParamMetadata(
+          target,
+          propertyKey as string,
+          parameterIndex,
+          ParamType.PARAM,
+          undefined,
+          { zodSchema: arguments[0] as ZodType }
+        );
+      };
+    }
+    key = arguments[0] as string;
+  }
+
   return function (target, propertyKey, parameterIndex) {
     setParamMetadata(
       target,
       propertyKey as string,
       parameterIndex,
       ParamType.PARAM,
-      key,
+      key
     );
   };
 }
 
-export function QUERY(key?: string): ParameterDecorator {
+export function QUERY(schema?: ZodType): ParameterDecorator;
+export function QUERY(key?: string): ParameterDecorator;
+export function QUERY(): ParameterDecorator {
+  let key: string | undefined;
+  if (arguments.length === 1) {
+    if (isZodSchema(arguments[0])) {
+      return function (target, propertyKey, parameterIndex) {
+        setParamMetadata(
+          target,
+          propertyKey as string,
+          parameterIndex,
+          ParamType.QUERY,
+          undefined,
+          { zodSchema: arguments[0] as ZodType }
+        );
+      };
+    }
+    key = arguments[0] as string;
+  }
+
   return function (target, propertyKey, parameterIndex) {
     setParamMetadata(
       target,
       propertyKey as string,
       parameterIndex,
       ParamType.QUERY,
-      key,
+      key
     );
   };
 }
@@ -69,14 +126,14 @@ export function HEADER(key: string) {
   return function (
     target: any,
     propertyKey: string | symbol,
-    parameterIndex: number,
+    parameterIndex: number
   ) {
     setParamMetadata(
       target,
       propertyKey,
       parameterIndex,
       ParamType.HEADER,
-      key,
+      key
     );
   };
 }
@@ -85,7 +142,7 @@ export function REQUEST() {
   return function (
     target: any,
     propertyKey: string | symbol,
-    parameterIndex: number,
+    parameterIndex: number
   ) {
     setParamMetadata(target, propertyKey, parameterIndex, ParamType.REQUEST);
   };
@@ -94,13 +151,13 @@ export function REQUEST() {
 export async function processParameters(
   request: any,
   target: any,
-  propertyKey: string,
+  propertyKey: string
 ): Promise<any[]> {
   const paramMetadata =
     Reflect.getOwnMetadata(
       PARAM_METADATA_KEY,
       Object.getPrototypeOf(target),
-      propertyKey,
+      propertyKey
     ) || [];
 
   const paramTypes =
@@ -150,9 +207,22 @@ export async function processParameters(
         cachedFormData = cachedFormData || (await readFormData(request));
         args[index] = extractFormDataPayload(
           cachedFormData,
-          metadata.options as FormDataOptions | undefined,
+          metadata.options as FormDataOptions | undefined
         );
         break;
+    }
+
+    try {
+      if (metadata.options?.zodSchema) {
+        const zodSchema = metadata.options.zodSchema as ZodType;
+        if (isZodSchema(zodSchema)) {
+          args[index] = zodSchema.parse(args[index]);
+        }
+      }
+    } catch (e) {
+      if (e instanceof ZodError) {
+        badRequest(e.issues.map((issue) => issue.message).join(", "));
+      }
     }
   }
 
@@ -210,7 +280,7 @@ async function readFormData(request: any): Promise<FormData> {
         ? err.message
         : "Body already consumed or unreadable";
     throw new Error(
-      `Could not read multipart form data from the request. ${reason}`,
+      `Could not read multipart form data from the request. ${reason}`
     );
   }
 
@@ -224,7 +294,7 @@ async function readFormData(request: any): Promise<FormData> {
 
 function extractFormDataPayload(
   formData: FormData,
-  options: FormDataOptions = {},
+  options: FormDataOptions = {}
 ): FormDataPayload {
   const { fileField, allowedTypes, jsonField } = options;
   const files: File[] = [];
@@ -238,9 +308,9 @@ function extractFormDataPayload(
     if (value instanceof File) {
       if (allowed.length > 0 && !isAllowedFileType(value, allowed)) {
         badRequest(
-          `File type for "${value.name}" is not allowed. Allowed: ${allowed.join(
-            ", ",
-          )}`,
+          `File type for "${
+            value.name
+          }" is not allowed. Allowed: ${allowed.join(", ")}`
         );
       }
 

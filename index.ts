@@ -10,3 +10,5 @@ export * from "./lib/adapters/cache-adapter";
 export * from "./lib/jwt";
 export * from "./lib/jwt/jwt-module";
 export * from "./lib/injectable";
+export * from "./lib/schedule/cron/cron";
+export * from "./lib/schedule/timeout/timeout";

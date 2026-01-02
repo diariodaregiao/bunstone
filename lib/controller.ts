@@ -1,6 +1,11 @@
 import "reflect-metadata";
 import { Injectable } from "./injectable";
 
+/**
+ * Decorator to mark a class as a controller and define its base path.
+ * @param pathname The base path for the controller.
+ * @returns A class decorator.
+ */
 export function Controller(pathname: string = "/"): ClassDecorator {
   if (!pathname.startsWith("/")) {
     pathname = `/${pathname}`;
@@ -9,13 +14,13 @@ export function Controller(pathname: string = "/"): ClassDecorator {
   return function (target: any) {
     Injectable()(target);
 
-    const controllerMehods = Object.getOwnPropertyNames(
+    const controllerMethods = Object.getOwnPropertyNames(
       target.prototype
     ).filter((method) => method !== "constructor");
 
     const controllerHttpMethods = Symbol.for("dip:controller:http-methods");
 
-    for (const controllerMethod of controllerMehods) {
+    for (const controllerMethod of controllerMethods) {
       if (
         !target[controllerHttpMethods] ||
         target[controllerHttpMethods].length === 0

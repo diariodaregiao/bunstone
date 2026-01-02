@@ -2,7 +2,13 @@ import type { GuardContract } from "./guard";
 import { MapProvidersWithCron } from "./schedule/cron/mappers/map-providers-with-cron";
 import { MapProvidersWithTimeout } from "./schedule/timeout/mappers/map-providers-with-timeouts";
 import type { ModuleConfig } from "./types/module-config";
+import { resolveDependencies } from "./utils/dependency-injection";
 
+/**
+ * Decorator to define a module with controllers, providers, imports, and exports.
+ * @param moduleConfig Configuration for the module.
+ * @returns A class decorator.
+ */
 export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
   moduleConfig.controllers = moduleConfig.controllers || [];
   moduleConfig.providers = moduleConfig.providers || [];
@@ -27,6 +33,11 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
   };
 }
 
+/**
+ * Maps controllers to their routes and guards.
+ * @param controllers Array of controller classes.
+ * @returns A map of controllers to their methods.
+ */
 function mapControllers(controllers: ModuleConfig["controllers"] = []) {
   const controllersMap = new Map<
     any,
@@ -79,6 +90,11 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
   return controllersMap;
 }
 
+/**
+ * Maps injectable providers and their dependencies.
+ * @param providers Array of provider classes.
+ * @returns A map of provider names to instances.
+ */
 function mapInjectableProviders(providers: ModuleConfig["providers"] = []) {
   const deps: Map<string, any> = new Map();
 
@@ -88,18 +104,10 @@ function mapInjectableProviders(providers: ModuleConfig["providers"] = []) {
 
     const paramTypes = Reflect.getMetadata("design:paramtypes", provider) || [];
 
-    const cildrenDep = paramTypes.map((paramType: any) => {
-      mapInjectableProviders([paramType]);
-
-      if (!deps.has(paramType.name)) {
-        deps.set(paramType.name, new paramType());
-      }
-
-      return deps.get(paramType.name);
-    });
+    const childrenDep = resolveDependencies(paramTypes, deps);
 
     if (!deps.has(provider.name)) {
-      deps.set(provider.name, new provider(...cildrenDep));
+      deps.set(provider.name, new provider(...childrenDep));
     }
   });
 

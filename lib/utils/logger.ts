@@ -8,12 +8,18 @@ export enum LogLevel {
   FATAL = 4,
 }
 
+/**
+ * Options for configuring the logger.
+ */
 export interface LoggerOptions {
   level?: LogLevel;
   timestamp?: boolean;
   pretty?: boolean;
 }
 
+/**
+ * A logger class with support for different log levels, colors, and formatting.
+ */
 export class Logger {
   private level: LogLevel;
   private showTimestamp: boolean;
