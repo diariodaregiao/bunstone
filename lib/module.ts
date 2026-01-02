@@ -2,7 +2,7 @@ import type { GuardContract } from "./guard";
 import { MapProvidersWithCron } from "./schedule/cron/mappers/map-providers-with-cron";
 import { MapProvidersWithTimeout } from "./schedule/timeout/mappers/map-providers-with-timeouts";
 import type { ModuleConfig } from "./types/module-config";
-import { resolveDependencies } from "./utils/dependency-injection";
+import { resolveDependencies, resolveType } from "./utils/dependency-injection";
 import "reflect-metadata";
 
 /**
@@ -97,19 +97,10 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
  * @returns A map of provider names to instances.
  */
 function mapInjectableProviders(providers: ModuleConfig["providers"] = []) {
-  const deps: Map<string, any> = new Map();
+  const deps: Map<any, any> = new Map();
 
-  providers.map((provider) => {
-    const isInjectable = Reflect.getMetadata("injectable", provider);
-    if (!isInjectable) return;
-
-    const paramTypes = Reflect.getMetadata("design:paramtypes", provider) || [];
-
-    const childrenDep = resolveDependencies(paramTypes, deps);
-
-    if (!deps.has(provider.name)) {
-      deps.set(provider.name, new provider(...childrenDep));
-    }
+  providers.forEach((provider) => {
+    resolveType(provider, deps);
   });
 
   return deps;

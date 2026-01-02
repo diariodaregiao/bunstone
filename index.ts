@@ -1,3 +1,4 @@
+import "reflect-metadata";
 export * from "./lib/app-startup";
 export * from "./lib/controller";
 export * from "./lib/http-methods";

@@ -68,7 +68,7 @@ export class AppStartup {
       return;
     }
 
-    const injectables: Map<string, any> = Reflect.getMetadata(
+    const injectables: Map<any, any> = Reflect.getMetadata(
       "dip:injectables",
       module
     );
@@ -181,7 +181,7 @@ export class AppStartup {
   }
 
   private static getControllerHandler(module: any, controller: any) {
-    const injectables: Map<string, any> = Reflect.getMetadata(
+    const injectables: Map<any, any> = Reflect.getMetadata(
       "dip:injectables",
       module
     );
@@ -190,6 +190,6 @@ export class AppStartup {
       return [];
     }
 
-    return injectables.get(controller?.name || controller.prototype?.name);
+    return injectables.get(controller);
   }
 }
