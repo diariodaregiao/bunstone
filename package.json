@@ -1,7 +1,7 @@
 {
   "name": "@diariodaregiao/bunstone",
   "module": "index.ts",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest"
