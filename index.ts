@@ -26,3 +26,7 @@ export * from "./lib/cqrs/interfaces/command.interface";
 export * from "./lib/cqrs/interfaces/query.interface";
 export * from "./lib/cqrs/interfaces/event.interface";
 export { ofType, map } from "./lib/cqrs/event-bus";
+export type { Options } from "./lib/types/options";
+export * from "./lib/utils/logger";
+export type { ModuleConfig } from "./lib/types/module-config";
+export type { HttpRequest } from "./lib/types/http-request";
