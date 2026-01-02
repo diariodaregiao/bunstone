@@ -26,6 +26,18 @@ export function resolveDependencies(
  * @returns The resolved instance.
  */
 export function resolveType(type: any, deps: Map<any, any>): any {
+  if (!type) {
+    throw new Error(
+      "Cannot resolve dependency: type is undefined. This often happens due to circular dependencies or using 'import type' for a class that needs to be injected."
+    );
+  }
+
+  if (type === Object) {
+    throw new Error(
+      "Cannot resolve dependency: type is 'Object'. This usually happens when 'emitDecoratorMetadata' is enabled but the class is imported as a type or there is a circular dependency."
+    );
+  }
+
   if (deps.has(type)) {
     return deps.get(type);
   }
