@@ -1,0 +1,51 @@
+# Routing & Parameters
+
+Bunstone uses decorators to define routes and extract parameters from requests.
+
+## @Controller()
+
+Defines a class as a controller with an optional base path.
+
+```typescript
+@Controller("users")
+export class UserController {
+  @Get(":id")
+  findOne(@Param("id") id: string) {
+    return { id };
+  }
+}
+```
+
+## HTTP Methods
+
+- `@Get(path?)`
+- `@Post(path?)`
+- `@Put(path?)`
+- `@Delete(path?)`
+- `@Patch(path?)`
+
+## Parameter Decorators
+
+Extract data directly into your method arguments:
+
+- `@Param(name?)`: Path parameters.
+- `@Query(name?)`: Query string parameters.
+- `@Body(schema?)`: Request body (supports Zod validation).
+- `@Header(name)`: Request headers.
+- `@Request()`: The full Elysia request object.
+
+### Zod Validation
+
+You can pass a Zod schema to `@Body`, `@Query`, or `@Param` for automatic validation.
+
+```typescript
+const CreateUserSchema = z.object({
+  name: z.string(),
+  age: z.number()
+});
+
+@Post()
+create(@Body(CreateUserSchema) data: any) {
+  return data; // data is already validated and typed
+}
+```
