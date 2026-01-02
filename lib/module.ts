@@ -3,6 +3,7 @@ import { MapProvidersWithCron } from "./schedule/cron/mappers/map-providers-with
 import { MapProvidersWithTimeout } from "./schedule/timeout/mappers/map-providers-with-timeouts";
 import type { ModuleConfig } from "./types/module-config";
 import { resolveDependencies } from "./utils/dependency-injection";
+import "reflect-metadata";
 
 /**
  * Decorator to define a module with controllers, providers, imports, and exports.
