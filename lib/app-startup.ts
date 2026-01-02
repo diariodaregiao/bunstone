@@ -23,6 +23,8 @@ import { PARAM_METADATA_KEY } from "./constants";
 import type { Options } from "./types/options";
 import { resolveDependencies } from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
+import { isZodSchema } from "./utils/is-zod-schema";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 /**
  * Main entry point for the Bunstone application.
@@ -179,12 +181,16 @@ export class AppStartup {
         const elysiaResponses: Record<string, any> = {};
 
         responsesMetadata.forEach((res: any) => {
+          const schema = isZodSchema(res.type)
+            ? zodToJsonSchema(res.type)
+            : res.type;
+
           responses[res.status.toString()] = {
             description: res.description,
-            content: res.type
+            content: schema
               ? {
                   "application/json": {
-                    schema: res.type,
+                    schema: schema,
                   },
                 }
               : undefined,
@@ -209,7 +215,9 @@ export class AppStartup {
           in: "header",
           description: h.description,
           required: h.required,
-          schema: h.schema || { type: "string" },
+          schema: isZodSchema(h.schema)
+            ? zodToJsonSchema(h.schema)
+            : h.schema || { type: "string" },
         }));
 
         // Extract Schemas for OpenAPI
@@ -253,7 +261,41 @@ export class AppStartup {
               summary: operation?.summary,
               description: operation?.description,
               responses,
-              parameters,
+              parameters: [
+                ...parameters,
+                ...(querySchema && isZodSchema(querySchema)
+                  ? Object.entries(
+                      (zodToJsonSchema(querySchema) as any).properties || {}
+                    ).map(([name, schema]: [string, any]) => ({
+                      name,
+                      in: "query",
+                      required: (
+                        (zodToJsonSchema(querySchema) as any).required || []
+                      ).includes(name),
+                      schema,
+                    }))
+                  : []),
+                ...(paramsSchema && isZodSchema(paramsSchema)
+                  ? Object.entries(
+                      (zodToJsonSchema(paramsSchema) as any).properties || {}
+                    ).map(([name, schema]: [string, any]) => ({
+                      name,
+                      in: "path",
+                      required: true,
+                      schema,
+                    }))
+                  : []),
+              ],
+              requestBody:
+                bodySchema && isZodSchema(bodySchema)
+                  ? {
+                      content: {
+                        "application/json": {
+                          schema: zodToJsonSchema(bodySchema),
+                        },
+                      },
+                    }
+                  : undefined,
             },
             beforeHandle(req: any) {
               if (!method.guard) return;
