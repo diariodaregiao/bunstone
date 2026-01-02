@@ -1,4 +1,5 @@
 import "reflect-metadata";
+export * from "./lib/openapi";
 export * from "./lib/app-startup";
 export * from "./lib/controller";
 export * from "./lib/http-methods";
@@ -22,7 +23,6 @@ export * from "./lib/cqrs/decorators/command-handler.decorator";
 export * from "./lib/cqrs/decorators/query-handler.decorator";
 export * from "./lib/cqrs/decorators/event-handler.decorator";
 export * from "./lib/cqrs/decorators/saga.decorator";
-export * from "./lib/openapi";
 export * from "./lib/cqrs/interfaces/command.interface";
 export * from "./lib/cqrs/interfaces/query.interface";
 export * from "./lib/cqrs/interfaces/event.interface";
