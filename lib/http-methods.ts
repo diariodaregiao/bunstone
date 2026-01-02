@@ -1,3 +1,9 @@
+/**
+ * Creates a method decorator for HTTP methods.
+ * @param httpMethod The HTTP method (e.g., 'GET', 'POST').
+ * @param pathname The path for the method.
+ * @returns A method decorator.
+ */
 function HttpMethodDecorator(
   httpMethod: string,
   pathname: string = ""
@@ -15,10 +21,20 @@ function HttpMethodDecorator(
   };
 }
 
+/**
+ * Decorator for GET HTTP method.
+ * @param pathname The path for the method.
+ * @returns A method decorator.
+ */
 export function GET(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("GET", pathname);
 }
 
+/**
+ * Decorator for POST HTTP method.
+ * @param pathname The path for the method.
+ * @returns A method decorator.
+ */
 export function POST(pathname: string = ""): MethodDecorator {
   return HttpMethodDecorator("POST", pathname);
 }

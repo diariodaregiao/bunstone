@@ -4,6 +4,7 @@ import scheduler from "node-cron";
 import { processParameters } from "./http-params";
 import { Logger } from "./utils/logger";
 import { cors, type CORSConfig } from "@elysiajs/cors";
+import { resolveDependencies } from "./utils/dependency-injection";
 
 export type Options = {
   cors?: CORSConfig;
@@ -61,9 +62,7 @@ export class AppStartup {
       const [controllerInstance, methods] = item;
       const paramsTypes =
         Reflect.getMetadata("design:paramtypes", controllerInstance) || [];
-      const dependencies = paramsTypes.map((paramType: any) => {
-        return injectables.get(paramType.name);
-      });
+      const dependencies = resolveDependencies(paramsTypes, injectables);
       let controller = new controllerInstance(...dependencies);
       controller = Object.assign(
         controller,
@@ -140,9 +139,7 @@ export class AppStartup {
       const provider = new providerInstance();
 
       for (const cron of crons) {
-        AppStartup.logger.log(
-          `Scheduling timeout for method: ${cron.methodName}`
-        );
+        AppStartup.logger.log(`Scheduling cron for method: ${cron.methodName}`);
         scheduler.schedule(cron.expression, () => {
           provider[cron.methodName]();
         });
