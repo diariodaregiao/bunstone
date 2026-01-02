@@ -20,8 +20,9 @@ function setParamMetadata(
   key?: string,
   options?: unknown
 ) {
+  // console.log(`Setting param metadata for ${String(propertyKey)} at index ${parameterIndex}`);
   const existingParams =
-    Reflect.getOwnMetadata(PARAM_METADATA_KEY, target, propertyKey) || [];
+    Reflect.getMetadata(PARAM_METADATA_KEY, target, propertyKey) || [];
 
   existingParams.push({ index: parameterIndex, type, key, options });
 
@@ -159,7 +160,7 @@ export async function processParameters(
   propertyKey: string
 ): Promise<any[]> {
   const paramMetadata =
-    Reflect.getOwnMetadata(
+    Reflect.getMetadata(
       PARAM_METADATA_KEY,
       Object.getPrototypeOf(target),
       propertyKey

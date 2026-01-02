@@ -28,7 +28,7 @@ async function scaffold() {
       dependencies: {
         "@diariodaregiao/bunstone": "latest",
         "reflect-metadata": "^0.2.2",
-        zod: "^3.23.8",
+        zod: "^4.3.4",
       },
       devDependencies: {
         "@types/bun": "latest",

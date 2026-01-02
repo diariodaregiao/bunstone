@@ -134,14 +134,14 @@ export class AppStartup {
       module
     );
     for (const item of controllers.entries()) {
-      const [controllerInstance, methods] = item;
+      const [ControllerClass, methods] = item;
       const paramsTypes =
-        Reflect.getMetadata("design:paramtypes", controllerInstance) || [];
+        Reflect.getMetadata("design:paramtypes", ControllerClass) || [];
       const dependencies = resolveDependencies(paramsTypes, injectables);
-      let controller = new controllerInstance(...dependencies);
-      controller = Object.assign(
-        controller,
-        AppStartup.getControllerHandler(module, controllerInstance)
+      let controllerInstance = new ControllerClass(...dependencies);
+      controllerInstance = Object.assign(
+        controllerInstance,
+        AppStartup.getControllerHandler(module, ControllerClass)
       );
 
       for (const method of methods) {
@@ -154,26 +154,23 @@ export class AppStartup {
         }
 
         // OpenAPI Metadata
-        const controllerClass = controllerInstance.constructor;
-        const controllerProto = Object.getPrototypeOf(controllerInstance);
-
         const controllerTags =
-          Reflect.getMetadata(API_TAGS_METADATA, controllerClass) || [];
+          Reflect.getMetadata(API_TAGS_METADATA, ControllerClass) || [];
         const methodTags =
           Reflect.getMetadata(
             API_TAGS_METADATA,
-            controllerProto,
+            ControllerClass.prototype,
             method.methodName
           ) || [];
         const operation = Reflect.getMetadata(
           API_OPERATION_METADATA,
-          controllerProto,
+          ControllerClass.prototype,
           method.methodName
         );
         const responsesMetadata =
           Reflect.getMetadata(
             API_RESPONSE_METADATA,
-            controllerProto,
+            ControllerClass.prototype,
             method.methodName
           ) || [];
 
@@ -199,11 +196,11 @@ export class AppStartup {
 
         // OpenAPI Headers
         const controllerHeaders =
-          Reflect.getMetadata(API_HEADERS_METADATA, controllerClass) || [];
+          Reflect.getMetadata(API_HEADERS_METADATA, ControllerClass) || [];
         const methodHeaders =
           Reflect.getMetadata(
             API_HEADERS_METADATA,
-            controllerProto,
+            ControllerClass.prototype,
             method.methodName
           ) || [];
         const allHeaders = [...controllerHeaders, ...methodHeaders];
@@ -219,7 +216,7 @@ export class AppStartup {
         const paramsMetadata =
           Reflect.getMetadata(
             PARAM_METADATA_KEY,
-            controllerProto,
+            ControllerClass.prototype,
             method.methodName
           ) || [];
 
@@ -243,7 +240,7 @@ export class AppStartup {
           (req: any) =>
             AppStartup.executeControllerMethod(
               req,
-              controller,
+              controllerInstance,
               method.methodName
             ),
           {
