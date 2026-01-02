@@ -5,9 +5,17 @@ import { SQL } from "bun";
  */
 export class DbWrapper {
   private _mysql: SQL;
+  private static _instance: DbWrapper | null = null;
 
   constructor(connectionString: string) {
     this._mysql = new SQL(connectionString);
+  }
+
+  static getInstance(connectionString: string): DbWrapper {
+    if (!DbWrapper._instance) {
+      DbWrapper._instance = new DbWrapper(connectionString);
+    }
+    return DbWrapper._instance;
   }
 
   async query<T = any>(queryString: string): Promise<T[]> {
