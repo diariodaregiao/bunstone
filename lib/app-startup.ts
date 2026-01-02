@@ -1,10 +1,7 @@
-import { cors, type CORSConfig } from "@elysiajs/cors";
+import { cors } from "@elysiajs/cors";
 import jwt from "@elysiajs/jwt";
 import Elysia from "elysia";
 import scheduler from "node-cron";
-import { processParameters } from "./http-params";
-import { Logger } from "./utils/logger";
-import { resolveDependencies } from "./utils/dependency-injection";
 import "reflect-metadata";
 import { HttpException } from "./http-exceptions";
 import { CommandBus } from "./cqrs/command-bus";
@@ -14,10 +11,10 @@ import { COMMAND_HANDLER_METADATA } from "./cqrs/decorators/command-handler.deco
 import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorator";
 import { EVENT_HANDLER_METADATA } from "./cqrs/decorators/event-handler.decorator";
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
-
-export type Options = {
-  cors?: CORSConfig;
-};
+import { processParameters } from "./http-params";
+import type { Options } from "./types/options";
+import { resolveDependencies } from "./utils/dependency-injection";
+import { Logger } from "./utils/logger";
 
 export class AppStartup {
   private static elysia: Elysia = new Elysia();
@@ -103,6 +100,10 @@ export class AppStartup {
         Reflect.getMetadata("design:paramtypes", controllerInstance) || [];
       const dependencies = resolveDependencies(paramsTypes, injectables);
       let controller = new controllerInstance(...dependencies);
+      controller = Object.assign(
+        controller,
+        AppStartup.getControllerHandler(module, controllerInstance)
+      );
 
       for (const method of methods) {
         AppStartup.logger.log(
@@ -276,5 +277,18 @@ export class AppStartup {
         AppStartup.elysia.use(jwt(jwtOptions));
       }
     }
+  }
+
+  private static getControllerHandler(module: any, controller: any) {
+    const injectables: Map<any, any> = Reflect.getMetadata(
+      "dip:injectables",
+      module
+    );
+
+    if (!injectables) {
+      return [];
+    }
+
+    return injectables.get(controller);
   }
 }

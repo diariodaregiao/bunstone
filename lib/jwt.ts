@@ -1,4 +1,6 @@
-import { Guard, type GuardContract, type HttpRequest } from "./guard";
+import { Guard } from "./guard";
+import type { GuardContract } from "./interfaces/guard-contract";
+import { type HttpRequest } from "./types/http-request";
 import { isClass } from "./utils/is-class";
 
 async function validateTokenFromRequest(req: HttpRequest) {
@@ -21,12 +23,12 @@ class JwtGuard implements GuardContract {
   }
 }
 
+/**
+ * Decorator to define an injectable class. Don`t necessary instantiate nanually
+ * @returns A class decorator.
+ */
 export function Jwt() {
-  return function (
-    target: any,
-    propertyKey?: string | symbol,
-    descriptor?: PropertyDescriptor
-  ) {
+  return function (target: any, propertyKey?: string | symbol, descriptor?: PropertyDescriptor) {
     if (isClass(target)) {
       Guard(JwtGuard)(target);
       return;
