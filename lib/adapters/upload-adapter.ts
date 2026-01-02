@@ -1,5 +1,6 @@
 import { s3, S3Client, type S3Options } from "bun";
 import { Injectable } from "../injectable";
+import "reflect-metadata";
 
 export type S3UploadBody = Parameters<S3Client["write"]>[1];
 

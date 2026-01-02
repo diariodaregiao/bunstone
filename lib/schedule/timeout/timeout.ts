@@ -1,3 +1,5 @@
+import "reflect-metadata";
+
 export function Timeout(delay: number) {
   if (!delay || delay < 0) {
     throw new Error("Delay must be a positive number.");

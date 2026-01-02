@@ -1,6 +1,7 @@
 import { ZodError, type ZodType } from "zod/v4";
 import { PARAM_METADATA_KEY } from "./constants";
 import { isZodSchema } from "./utils/is-zod-schema";
+import "reflect-metadata";
 
 export enum ParamType {
   BODY = "body",

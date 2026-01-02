@@ -1,3 +1,5 @@
+import "reflect-metadata";
+
 /**
  * Creates a method decorator for HTTP methods.
  * @param httpMethod The HTTP method (e.g., 'GET', 'POST').

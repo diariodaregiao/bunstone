@@ -1,5 +1,6 @@
 import type { RouteSchema, HTTPHeaders, Elysia } from "elysia";
 import { isClass } from "./utils/is-class";
+import "reflect-metadata";
 
 export type HttpRequest = RouteSchema & {
   headers: HTTPHeaders;

@@ -5,6 +5,7 @@ import scheduler from "node-cron";
 import { processParameters } from "./http-params";
 import { Logger } from "./utils/logger";
 import { resolveDependencies } from "./utils/dependency-injection";
+import "reflect-metadata";
 
 export type Options = {
   cors?: CORSConfig;

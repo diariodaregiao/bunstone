@@ -1,3 +1,5 @@
+import "reflect-metadata";
+
 export function Cron(expression: string) {
   if (!expression) {
     throw new Error("Invalid cron expression.");

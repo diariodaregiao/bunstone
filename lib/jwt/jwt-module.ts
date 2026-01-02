@@ -1,4 +1,5 @@
 import type { JWTOption } from "@elysiajs/jwt";
+import "reflect-metadata";
 
 export class JwtModule {
   private static options: JWTOption;
