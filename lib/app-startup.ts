@@ -177,6 +177,8 @@ export class AppStartup {
 
         const tags = [...new Set([...controllerTags, ...methodTags])];
         const responses: Record<string, any> = {};
+        const elysiaResponses: Record<string, any> = {};
+
         responsesMetadata.forEach((res: any) => {
           responses[res.status.toString()] = {
             description: res.description,
@@ -188,6 +190,9 @@ export class AppStartup {
                 }
               : undefined,
           };
+          if (res.type) {
+            elysiaResponses[res.status.toString()] = res.type;
+          }
         });
 
         // OpenAPI Headers
@@ -238,6 +243,7 @@ export class AppStartup {
             body: bodySchema,
             query: querySchema,
             params: paramsSchema,
+            response: elysiaResponses,
             detail: {
               tags,
               summary: operation?.summary,
