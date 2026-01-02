@@ -65,7 +65,7 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
         httpMethod: string;
         pathname: string;
         methodName: string;
-      }[] = controller[controllerSymbol];
+      }[] = (controller as any)[controllerSymbol];
 
       controllerMethods.forEach((cm) => {
         const pathname = `${

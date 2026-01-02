@@ -64,6 +64,10 @@ export class AppStartup {
       }[]
     > = Reflect.getMetadata("dip:module:routes", module);
 
+    if (!controllers) {
+      return;
+    }
+
     const injectables: Map<string, any> = Reflect.getMetadata(
       "dip:injectables",
       module
@@ -123,6 +127,10 @@ export class AppStartup {
     const providersTimeouts: Map<any, { delay: number; methodName: string }[]> =
       Reflect.getMetadata("dip:timeouts", module);
 
+    if (!providersTimeouts) {
+      return;
+    }
+
     for (const item of providersTimeouts.entries()) {
       const [providerInstance, timeouts] = item;
       const provider = new providerInstance();
@@ -143,6 +151,10 @@ export class AppStartup {
       any,
       { expression: string; methodName: string }[]
     > = Reflect.getMetadata("dip:crons", module);
+
+    if (!providersCron) {
+      return;
+    }
 
     for (const item of providersCron.entries()) {
       const [providerInstance, crons] = item;

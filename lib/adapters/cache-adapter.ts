@@ -13,7 +13,7 @@ export type CacheAdapterConfig = {
 };
 
 @Injectable()
-export class CacheAdatper {
+export class CacheAdapter {
   private readonly client: RedisClient;
 
   constructor(config?: CacheAdapterConfig) {
@@ -23,7 +23,7 @@ export class CacheAdatper {
   async set(
     key: string,
     value: CacheValue,
-    options?: CacheSetOptions,
+    options?: CacheSetOptions
   ): Promise<void> {
     assertValidKey(key);
     const payload = JSON.stringify(value);
