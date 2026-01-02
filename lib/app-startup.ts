@@ -1,9 +1,9 @@
+import { cors, type CORSConfig } from "@elysiajs/cors";
 import jwt from "@elysiajs/jwt";
 import Elysia from "elysia";
 import scheduler from "node-cron";
 import { processParameters } from "./http-params";
 import { Logger } from "./utils/logger";
-import { cors, type CORSConfig } from "@elysiajs/cors";
 import { resolveDependencies } from "./utils/dependency-injection";
 
 export type Options = {
@@ -19,11 +19,7 @@ export class AppStartup {
       AppStartup.elysia.use(cors(options.cors));
     }
 
-    AppStartup.startWithJWT(module);
-    AppStartup.registerRoutes(module);
-    AppStartup.registerTimeouts(module);
-    AppStartup.registerCronJobs(module);
-
+    AppStartup.registerModules(module);
     return {
       listen: this.listen,
     };
@@ -41,6 +37,19 @@ export class AppStartup {
   ) {
     const args = await processParameters(req, controller, method);
     return controller[method](...args);
+  }
+
+  private static registerModules(module: any) {
+    AppStartup.startWithJWT(module);
+    AppStartup.registerRoutes(module);
+    AppStartup.registerTimeouts(module);
+    AppStartup.registerCronJobs(module);
+
+    const modules = Reflect.getMetadata("dip:modules", module) || [];
+
+    for (const mod of modules) {
+      AppStartup.registerModules(mod);
+    }
   }
 
   private static registerRoutes(module: any) {
