@@ -47,7 +47,7 @@ export class DbWrapper {
    * 
    */
   async transaction(callback: (trx: SQL) => Promise<void>): Promise<void> {
-    await this._mysql.transaction(async (trx) => {
+    await this._mysql.begin(async (trx) => {
       await callback(trx);
     });
   }
