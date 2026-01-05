@@ -1,15 +1,76 @@
-# diario-dip
+# Bunstone Framework
 
-To install dependencies:
+Bunstone is a high-performance, decorator-based web framework for [Bun](https://bun.sh), inspired by NestJS and built on top of [ElysiaJS](https://elysiajs.com). It brings powerful Dependency Injection, CQRS, Sagas, and modular architecture to the Bun ecosystem.
 
-```bash
-bun install
-```
+## 🚀 Quick Start
 
-To run:
+Scaffold a new project in seconds:
 
 ```bash
-bun run index.ts
+npx @diariodaregiao/bunstone my-app
+cd my-app
+bun dev
 ```
 
-This project was created using `bun init` in bun v1.2.20. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+## 🏗️ Core Concepts
+
+### Modular Architecture
+
+Organize your application into modules using the `@Module` decorator.
+
+```typescript
+@Module({
+  imports: [UserModule, AuthModule],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
+```
+
+### Dependency Injection
+
+Bunstone features a recursive DI container that handles singletons and nested dependencies automatically.
+
+```typescript
+@Injectable()
+export class AppService {
+  getHello() {
+    return "Hello World!";
+  }
+}
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+}
+```
+
+## 🛠️ Features
+
+- **CQRS**: Built-in Command, Query, and Event buses.
+- **Sagas**: Reactive event-to-command streams.
+- **Guards & JWT**: Easy route protection and JWT integration.
+- **Zod Validation**: Automatic request body/param validation.
+- **Scheduling**: Decorator-based Cron jobs and Timeouts.
+- **Adapters**: Built-in support for Form-Data, File Uploads, and Caching.
+
+## 📚 Documentation
+
+Visit our [Documentation Website](https://diariodaregiao.github.io/bunstone) (if hosted) or run it locally:
+
+```bash
+bun run docs:dev
+```
+
+### Guide
+
+- [Dependency Injection](./docs/dependency-injection.md)
+- [Routing & Parameters](./docs/routing-params.md)
+- [CQRS & Sagas](./docs/cqrs.md)
+- [Guards & JWT](./docs/guards-jwt.md)
+- [Scheduling (Cron/Timeout)](./docs/scheduling.md)
+- [Adapters](./docs/adapters/form-data.md)
+
+## 📄 License
+
+MIT

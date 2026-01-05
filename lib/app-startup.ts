@@ -1,5 +1,6 @@
 import { cors } from "@elysiajs/cors";
 import jwt from "@elysiajs/jwt";
+import { swagger } from "@elysiajs/swagger";
 import Elysia from "elysia";
 import scheduler from "node-cron";
 import "reflect-metadata";
@@ -12,15 +13,34 @@ import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorato
 import { EVENT_HANDLER_METADATA } from "./cqrs/decorators/event-handler.decorator";
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
 import { processParameters } from "./http-params";
+import {
+  API_OPERATION_METADATA,
+  API_RESPONSE_METADATA,
+  API_TAGS_METADATA,
+  API_HEADERS_METADATA,
+} from "./openapi";
+import { PARAM_METADATA_KEY } from "./constants";
 import type { Options } from "./types/options";
 import { resolveDependencies } from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
+import { ParamType } from "./http-params";
 
+/**
+ * Main entry point for the Bunstone application.
+ * Handles module registration, route setup, and server startup.
+ */
 export class AppStartup {
   private static elysia: Elysia = new Elysia();
   private static readonly logger = new Logger(AppStartup.name);
   private static readonly registeredSagas = new WeakSet<any>();
 
+  /**
+   * Initializes the application from a root module.
+   *
+   * @param module The root module of the application.
+   * @param options Optional configuration (e.g., CORS).
+   * @returns An object with a `listen` method to start the server.
+   */
   static create(module: any, options?: Options) {
     this.elysia = new Elysia(); // Reset for each creation
 
@@ -40,13 +60,33 @@ export class AppStartup {
       AppStartup.elysia.use(cors(options.cors));
     }
 
+    if (options?.swagger) {
+      AppStartup.elysia.use(
+        swagger({
+          path: options.swagger.path || "/swagger",
+          documentation: options.swagger.documentation,
+        })
+      );
+    }
+
     AppStartup.registerModules(module);
     return {
+      /**
+       * Starts the server on the specified port.
+       * @param port The port number to listen on.
+       */
       listen: this.listen,
+      /**
+       * Returns the underlying Elysia instance.
+       */
       getElysia: () => this.elysia,
     };
   }
 
+  /**
+   * Starts the server on the specified port.
+   * @param port The port number to listen on.
+   */
   static listen(port: number) {
     AppStartup.logger.log(`App is running at http://localhost:${port}`);
     AppStartup.elysia.listen(port);
@@ -114,6 +154,78 @@ export class AppStartup {
           throw new Error(`HTTP method ${method.httpMethod} is not supported.`);
         }
 
+        // OpenAPI Metadata
+        const controllerTags =
+          Reflect.getMetadata(API_TAGS_METADATA, controllerInstance) || [];
+        const methodTags =
+          Reflect.getMetadata(
+            API_TAGS_METADATA,
+            controllerInstance.prototype,
+            method.methodName
+          ) || [];
+        const operation = Reflect.getMetadata(
+          API_OPERATION_METADATA,
+          controllerInstance.prototype,
+          method.methodName
+        );
+        const responsesMetadata =
+          Reflect.getMetadata(
+            API_RESPONSE_METADATA,
+            controllerInstance.prototype,
+            method.methodName
+          ) || [];
+
+        const tags = [...new Set([...controllerTags, ...methodTags])];
+        const responses: Record<string, any> = {};
+        responsesMetadata.forEach((res: any) => {
+          responses[res.status.toString()] = {
+            description: res.description,
+            content: res.type
+              ? {
+                  "application/json": {
+                    schema: res.type,
+                  },
+                }
+              : undefined,
+          };
+        });
+
+        // OpenAPI Headers
+        const controllerHeaders =
+          Reflect.getMetadata(API_HEADERS_METADATA, controllerInstance) || [];
+        const methodHeaders =
+          Reflect.getMetadata(
+            API_HEADERS_METADATA,
+            controllerInstance.prototype,
+            method.methodName
+          ) || [];
+        const allHeaders = [...controllerHeaders, ...methodHeaders];
+        const parameters = allHeaders.map((h: any) => ({
+          name: h.name,
+          in: "header",
+          description: h.description,
+          required: h.required,
+          schema: h.schema || { type: "string" },
+        }));
+
+        // Extract Schemas for OpenAPI
+        const paramsMetadata =
+          Reflect.getMetadata(
+            PARAM_METADATA_KEY,
+            controllerInstance.prototype,
+            method.methodName
+          ) || [];
+
+        const bodySchema = paramsMetadata.find(
+          (p: any) => p.type === ParamType.BODY
+        )?.options?.zodSchema;
+        const querySchema = paramsMetadata.find(
+          (p: any) => p.type === ParamType.QUERY
+        )?.options?.zodSchema;
+        const paramsSchema = paramsMetadata.find(
+          (p: any) => p.type === ParamType.PARAM
+        )?.options?.zodSchema;
+
         AppStartup.elysia[httpMethod as keyof Elysia](
           method.pathname,
           (req: any) =>
@@ -123,6 +235,16 @@ export class AppStartup {
               method.methodName
             ),
           {
+            body: bodySchema,
+            query: querySchema,
+            params: paramsSchema,
+            detail: {
+              tags,
+              summary: operation?.summary,
+              description: operation?.description,
+              responses,
+              parameters,
+            },
             beforeHandle(req: any) {
               if (!method.guard) return;
               const guardInstance = new method.guard();

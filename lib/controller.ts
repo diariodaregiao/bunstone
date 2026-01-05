@@ -2,9 +2,16 @@ import "reflect-metadata";
 import { Injectable } from "./injectable";
 
 /**
- * Decorator to mark a class as a controller and define its base path.
- * @param pathname The base path for the controller.
- * @returns A class decorator.
+ * Decorator that marks a class as an HTTP controller.
+ * Controllers are responsible for handling incoming requests and returning responses.
+ *
+ * @param pathname The base path for all routes defined within this controller. Defaults to "/".
+ *
+ * @example
+ * ```typescript
+ * @Controller('users')
+ * export class UserController {}
+ * ```
  */
 export function Controller(pathname: string = "/"): ClassDecorator {
   if (!pathname.startsWith("/")) {

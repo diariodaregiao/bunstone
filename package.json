@@ -1,16 +1,28 @@
 {
   "name": "@diariodaregiao/bunstone",
-  "module": "index.ts",
-  "version": "0.0.11",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "version": "0.0.17",
   "type": "module",
   "bin": {
     "bunstone": "./bin/cli.ts"
   },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "vitepress": "^1.6.4"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -18,6 +30,7 @@
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/jwt": "^1.4.0",
+    "@elysiajs/swagger": "^1.3.1",
     "elysia": "^1.4.19",
     "node-cron": "^4.2.1",
     "reflect-metadata": "^0.2.2",

@@ -24,11 +24,15 @@ class JwtGuard implements GuardContract {
 }
 
 /**
- * Decorator to define an injectable class. Don`t necessary instantiate nanually
- * @returns A class decorator.
+ * Decorator that enables JWT protection for a controller or a specific method.
+ * Requires the JwtModule to be configured in the root module.
  */
 export function Jwt() {
-  return function (target: any, propertyKey?: string | symbol, descriptor?: PropertyDescriptor) {
+  return function (
+    target: any,
+    propertyKey?: string | symbol,
+    descriptor?: PropertyDescriptor
+  ) {
     if (isClass(target)) {
       Guard(JwtGuard)(target);
       return;

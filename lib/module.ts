@@ -6,9 +6,19 @@ import type { ModuleConfig } from "./types/module-config";
 import { resolveType } from "./utils/dependency-injection";
 
 /**
- * Decorator to define a module with controllers, providers, imports, and exports.
- * @param moduleConfig Configuration for the module.
- * @returns A class decorator.
+ * Decorator that marks a class as a module.
+ * Modules are used to organize the application structure and manage dependency injection scopes.
+ *
+ * @param moduleConfig Configuration object defining controllers, providers, imports, and exports.
+ *
+ * @example
+ * ```typescript
+ * @Module({
+ *   controllers: [AppController],
+ *   providers: [AppService],
+ * })
+ * export class AppModule {}
+ * ```
  */
 export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
   moduleConfig.controllers = moduleConfig.controllers || [];
@@ -18,7 +28,9 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
 
   const modules = moduleConfig.imports;
   const controllers = mapControllers(moduleConfig.controllers);
-  const providersTimeouts = MapProvidersWithTimeout.execute(moduleConfig.providers);
+  const providersTimeouts = MapProvidersWithTimeout.execute(
+    moduleConfig.providers
+  );
   const providersCrons = MapProvidersWithCron.execute(moduleConfig.providers);
   const injectableProviders = mapInjectableProviders(moduleConfig);
 
@@ -52,7 +64,10 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
     controllersMap.set(controller, []);
 
     for (const controllerSymbol of Object.getOwnPropertySymbols(controller)) {
-      const controllerPathname = Reflect.getOwnMetadata("dip:controller:pathname", controller);
+      const controllerPathname = Reflect.getOwnMetadata(
+        "dip:controller:pathname",
+        controller
+      );
 
       const controllerGuard = Reflect.getMetadata("dip:guard", controller);
 
@@ -63,9 +78,15 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
       }[] = (controller as any)[controllerSymbol];
 
       controllerMethods.forEach((cm) => {
-        const pathname = `${controllerPathname === "/" ? "" : controllerPathname}${cm.pathname}`;
+        const pathname = `${
+          controllerPathname === "/" ? "" : controllerPathname
+        }${cm.pathname}`;
 
-        const methodGuard = Reflect.getMetadata("dip:guard", controller.prototype, cm.methodName);
+        const methodGuard = Reflect.getMetadata(
+          "dip:guard",
+          controller.prototype,
+          cm.methodName
+        );
 
         controllersMap.get(controller)?.push({
           httpMethod: cm.httpMethod,
