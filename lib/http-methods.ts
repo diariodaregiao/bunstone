@@ -6,20 +6,22 @@ import "reflect-metadata";
  * @param pathname The path for the method.
  * @returns A method decorator.
  */
-function HttpMethodDecorator(
-  httpMethod: string,
-  pathname: string = ""
-): MethodDecorator {
+function HttpMethodDecorator(httpMethod: string, pathname: string = ""): any {
   if (!pathname.startsWith("/")) {
     pathname = `/${pathname}`;
   }
 
-  return function (target, propertyKey, descriptor) {
+  return function (
+    target: any,
+    propertyKey: string | symbol,
+    descriptor: PropertyDescriptor
+  ) {
     Reflect.defineMetadata(
       "dip:http-method",
       `${httpMethod} ${pathname}`,
       descriptor.value as Function
     );
+    return descriptor;
   };
 }
 
@@ -27,7 +29,7 @@ function HttpMethodDecorator(
  * Route decorator for GET requests.
  * @param pathname Optional path for the route.
  */
-export function Get(pathname: string = ""): MethodDecorator {
+export function Get(pathname: string = ""): any {
   return HttpMethodDecorator("GET", pathname);
 }
 
@@ -35,7 +37,7 @@ export function Get(pathname: string = ""): MethodDecorator {
  * Route decorator for POST requests.
  * @param pathname Optional path for the route.
  */
-export function Post(pathname: string = ""): MethodDecorator {
+export function Post(pathname: string = ""): any {
   return HttpMethodDecorator("POST", pathname);
 }
 
@@ -43,7 +45,7 @@ export function Post(pathname: string = ""): MethodDecorator {
  * Route decorator for PUT requests.
  * @param pathname Optional path for the route.
  */
-export function Put(pathname: string = ""): MethodDecorator {
+export function Put(pathname: string = ""): any {
   return HttpMethodDecorator("PUT", pathname);
 }
 
@@ -51,7 +53,7 @@ export function Put(pathname: string = ""): MethodDecorator {
  * Route decorator for DELETE requests.
  * @param pathname Optional path for the route.
  */
-export function Delete(pathname: string = ""): MethodDecorator {
+export function Delete(pathname: string = ""): any {
   return HttpMethodDecorator("DELETE", pathname);
 }
 
@@ -59,7 +61,7 @@ export function Delete(pathname: string = ""): MethodDecorator {
  * Route decorator for PATCH requests.
  * @param pathname Optional path for the route.
  */
-export function Patch(pathname: string = ""): MethodDecorator {
+export function Patch(pathname: string = ""): any {
   return HttpMethodDecorator("PATCH", pathname);
 }
 
@@ -67,7 +69,7 @@ export function Patch(pathname: string = ""): MethodDecorator {
  * Route decorator for OPTIONS requests.
  * @param pathname Optional path for the route.
  */
-export function Options(pathname: string = ""): MethodDecorator {
+export function Options(pathname: string = ""): any {
   return HttpMethodDecorator("OPTIONS", pathname);
 }
 
@@ -75,6 +77,6 @@ export function Options(pathname: string = ""): MethodDecorator {
  * Route decorator for HEAD requests.
  * @param pathname Optional path for the route.
  */
-export function Head(pathname: string = ""): MethodDecorator {
+export function Head(pathname: string = ""): any {
   return HttpMethodDecorator("HEAD", pathname);
 }

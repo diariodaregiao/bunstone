@@ -34,5 +34,5 @@
     "emitDecoratorMetadata": true
   },
   "include": ["lib/**/*", "index.ts"],
-  "exclude": ["node_modules", "tests", "scenario", "test.ts", "test-module.ts"]
+  "exclude": ["node_modules", "tests"]
 }

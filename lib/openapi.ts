@@ -9,8 +9,23 @@ export const API_HEADERS_METADATA = "dip:openapi:headers";
  * Decorator that adds tags to a controller or method for OpenAPI.
  * @param tags List of tags.
  */
-export function ApiTags(...tags: string[]) {
-  return (target: any, propertyKey?: string | symbol) => {
+export function ApiTags(...tags: string[]): any {
+  return (target: any, propertyKey?: string | symbol, descriptor?: any) => {
+    // Stage 3 support
+    if (
+      propertyKey &&
+      typeof propertyKey === "object" &&
+      "kind" in propertyKey
+    ) {
+      const context = propertyKey as any;
+      if (context.kind === "class") {
+        Reflect.defineMetadata(API_TAGS_METADATA, tags, target);
+      } else if (context.kind === "method") {
+        Reflect.defineMetadata(API_TAGS_METADATA, tags, target);
+      }
+      return;
+    }
+
     if (propertyKey) {
       Reflect.defineMetadata(API_TAGS_METADATA, tags, target, propertyKey);
     } else {
@@ -28,8 +43,22 @@ export function ApiTags(...tags: string[]) {
 export function ApiOperation(options: {
   summary?: string;
   description?: string;
-}) {
-  return (target: any, propertyKey: string | symbol) => {
+}): any {
+  return (
+    target: any,
+    propertyKey: string | symbol,
+    descriptor?: PropertyDescriptor
+  ) => {
+    // Stage 3 support
+    if (
+      propertyKey &&
+      typeof propertyKey === "object" &&
+      "kind" in propertyKey
+    ) {
+      Reflect.defineMetadata(API_OPERATION_METADATA, options, target);
+      return;
+    }
+
     Reflect.defineMetadata(
       API_OPERATION_METADATA,
       options,
@@ -50,8 +79,25 @@ export function ApiResponse(options: {
   status: number;
   description: string;
   type?: any;
-}) {
-  return (target: any, propertyKey: string | symbol) => {
+}): any {
+  return (
+    target: any,
+    propertyKey: string | symbol,
+    descriptor?: PropertyDescriptor
+  ) => {
+    // Stage 3 support
+    if (
+      propertyKey &&
+      typeof propertyKey === "object" &&
+      "kind" in propertyKey
+    ) {
+      const responses =
+        Reflect.getMetadata(API_RESPONSE_METADATA, target) || [];
+      responses.push(options);
+      Reflect.defineMetadata(API_RESPONSE_METADATA, responses, target);
+      return;
+    }
+
     const responses =
       Reflect.getMetadata(API_RESPONSE_METADATA, target, propertyKey) || [];
     responses.push(options);
@@ -73,8 +119,21 @@ export function ApiHeader(options: {
   description?: string;
   required?: boolean;
   schema?: any;
-}) {
-  return (target: any, propertyKey?: string | symbol) => {
+}): any {
+  return (target: any, propertyKey?: string | symbol, descriptor?: any) => {
+    // Stage 3 support
+    if (
+      propertyKey &&
+      typeof propertyKey === "object" &&
+      "kind" in propertyKey
+    ) {
+      const context = propertyKey as any;
+      const headers = Reflect.getMetadata(API_HEADERS_METADATA, target) || [];
+      headers.push(options);
+      Reflect.defineMetadata(API_HEADERS_METADATA, headers, target);
+      return;
+    }
+
     const headers =
       (propertyKey
         ? Reflect.getMetadata(API_HEADERS_METADATA, target, propertyKey)
