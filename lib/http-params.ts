@@ -33,12 +33,12 @@ function setParamMetadata(
   );
 }
 
-export function Body(schema?: ZodType): ParameterDecorator;
-export function Body(): ParameterDecorator {
+export function Body(schema?: ZodType): any;
+export function Body(): any {
   if (arguments.length === 1) {
     const arg = arguments[0] as ZodType;
     if (isZodSchema(arg)) {
-      return function (target, propertyKey, parameterIndex) {
+      return function (target: any, propertyKey: any, parameterIndex: any) {
         setParamMetadata(
           target,
           propertyKey as string,
@@ -51,7 +51,7 @@ export function Body(): ParameterDecorator {
     }
   }
 
-  return function (target, propertyKey, parameterIndex) {
+  return function (target: any, propertyKey: any, parameterIndex: any) {
     setParamMetadata(
       target,
       propertyKey as string,
@@ -61,13 +61,13 @@ export function Body(): ParameterDecorator {
   };
 }
 
-export function Param(schema?: ZodType): ParameterDecorator;
-export function Param(key?: string): ParameterDecorator;
-export function Param(): ParameterDecorator {
+export function Param(schema?: ZodType): any;
+export function Param(key?: string): any;
+export function Param(): any {
   let key: string | undefined;
   if (arguments.length === 1) {
     if (isZodSchema(arguments[0])) {
-      return function (target, propertyKey, parameterIndex) {
+      return function (target: any, propertyKey: any, parameterIndex: any) {
         setParamMetadata(
           target,
           propertyKey as string,
@@ -83,7 +83,7 @@ export function Param(): ParameterDecorator {
     key = arguments[0] as string;
   }
 
-  return function (target, propertyKey, parameterIndex) {
+  return function (target: any, propertyKey: any, parameterIndex: any) {
     setParamMetadata(
       target,
       propertyKey as string,
@@ -94,13 +94,13 @@ export function Param(): ParameterDecorator {
   };
 }
 
-export function Query(schema?: ZodType): ParameterDecorator;
-export function Query(key?: string): ParameterDecorator;
-export function Query(): ParameterDecorator {
+export function Query(schema?: ZodType): any;
+export function Query(key?: string): any;
+export function Query(): any {
   let key: string | undefined;
   if (arguments.length === 1) {
     if (isZodSchema(arguments[0])) {
-      return function (target, propertyKey, parameterIndex) {
+      return function (target: any, propertyKey: any, parameterIndex: any) {
         setParamMetadata(
           target,
           propertyKey as string,
@@ -116,7 +116,7 @@ export function Query(): ParameterDecorator {
     key = arguments[0] as string;
   }
 
-  return function (target, propertyKey, parameterIndex) {
+  return function (target: any, propertyKey: any, parameterIndex: any) {
     setParamMetadata(
       target,
       propertyKey as string,
@@ -127,12 +127,8 @@ export function Query(): ParameterDecorator {
   };
 }
 
-export function Header(key: string) {
-  return function (
-    target: any,
-    propertyKey: string | symbol,
-    parameterIndex: number
-  ) {
+export function Header(key: string): any {
+  return function (target: any, propertyKey: any, parameterIndex: any) {
     setParamMetadata(
       target,
       propertyKey,
@@ -143,13 +139,15 @@ export function Header(key: string) {
   };
 }
 
-export function Request() {
-  return function (
-    target: any,
-    propertyKey: string | symbol,
-    parameterIndex: number
-  ) {
+export function Request(): any {
+  return function (target: any, propertyKey: any, parameterIndex: any) {
     setParamMetadata(target, propertyKey, parameterIndex, ParamType.REQUEST);
+  };
+}
+
+export function FormData(): any {
+  return function (target: any, propertyKey: any, parameterIndex: any) {
+    setParamMetadata(target, propertyKey, parameterIndex, ParamType.FORM_DATA);
   };
 }
 

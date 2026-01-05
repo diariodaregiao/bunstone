@@ -20,7 +20,7 @@ import { resolveType } from "./utils/dependency-injection";
  * export class AppModule {}
  * ```
  */
-export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
+export function Module(moduleConfig: ModuleConfig = {}): any {
   moduleConfig.controllers = moduleConfig.controllers || [];
   moduleConfig.providers = moduleConfig.providers || [];
   moduleConfig.imports = moduleConfig.imports || [];
@@ -34,7 +34,7 @@ export function Module(moduleConfig: ModuleConfig = {}): ClassDecorator {
   const providersCrons = MapProvidersWithCron.execute(moduleConfig.providers);
   const injectableProviders = mapInjectableProviders(moduleConfig);
 
-  return function (target) {
+  return function (target: any, context?: any) {
     Reflect.defineMetadata("dip:module", "is_module", target);
     Reflect.defineMetadata("dip:module:routes", controllers, target);
     Reflect.defineMetadata("dip:timeouts", providersTimeouts, target);

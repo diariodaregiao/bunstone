@@ -13,7 +13,7 @@ import { Injectable } from "./injectable";
  * export class UserController {}
  * ```
  */
-export function Controller(pathname: string = "/"): ClassDecorator {
+export function Controller(pathname: string = "/"): any {
   if (!pathname.startsWith("/")) {
     pathname = `/${pathname}`;
   }
@@ -35,16 +35,20 @@ export function Controller(pathname: string = "/"): ClassDecorator {
         target[controllerHttpMethods] = [];
       }
 
-      const [httpMethod, pathname] = Reflect.getMetadata(
+      const metadata = Reflect.getMetadata(
         "dip:http-method",
         target.prototype[controllerMethod]
-      ).split(" ");
+      );
 
-      target[controllerHttpMethods].push({
-        httpMethod,
-        pathname,
-        methodName: controllerMethod,
-      });
+      if (metadata) {
+        const [httpMethod, pathname] = metadata.split(" ");
+
+        target[controllerHttpMethods].push({
+          httpMethod,
+          pathname,
+          methodName: controllerMethod,
+        });
+      }
     }
 
     Reflect.defineMetadata("dip:controller", "is_controller", target);

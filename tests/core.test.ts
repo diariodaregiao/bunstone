@@ -34,8 +34,21 @@ import {
   Jwt,
   JwtModule,
 } from "../index";
-import type { GuardContract } from "../lib/guard";
 import { z } from "zod";
+import { GuardContract } from "../lib/interfaces/guard-contract";
+
+const UserSchema = z.object({
+  name: z.string().min(3),
+  age: z.number(),
+});
+
+@Controller("validation")
+class ValidationController {
+  @Post("user")
+  createUser(@Body(UserSchema) user: any) {
+    return user;
+  }
+}
 
 describe("Bunstone Framework Core", () => {
   @Injectable()
@@ -110,14 +123,6 @@ describe("Bunstone Framework Core", () => {
       name: z.string().min(3),
       age: z.number(),
     });
-
-    @Controller("validation")
-    class ValidationController {
-      @Post("user")
-      createUser(@Body(UserSchema) user: any) {
-        return user;
-      }
-    }
 
     @Module({ controllers: [ValidationController] })
     class ValidationModule {}

@@ -10,8 +10,8 @@ import "reflect-metadata";
  * export class UserService {}
  * ```
  */
-export function Injectable() {
-  return function (target: any) {
+export function Injectable(): any {
+  return function (target: any, context?: any) {
     Reflect.defineMetadata("injectable", true, target);
   };
 }
