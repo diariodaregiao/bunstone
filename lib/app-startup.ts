@@ -23,8 +23,7 @@ import { PARAM_METADATA_KEY } from "./constants";
 import type { Options } from "./types/options";
 import { resolveDependencies } from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
-import { isZodSchema } from "./utils/is-zod-schema";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { ParamType } from "./http-params";
 
 /**
  * Main entry point for the Bunstone application.
@@ -136,14 +135,14 @@ export class AppStartup {
       module
     );
     for (const item of controllers.entries()) {
-      const [ControllerClass, methods] = item;
+      const [controllerInstance, methods] = item;
       const paramsTypes =
-        Reflect.getMetadata("design:paramtypes", ControllerClass) || [];
+        Reflect.getMetadata("design:paramtypes", controllerInstance) || [];
       const dependencies = resolveDependencies(paramsTypes, injectables);
-      let controllerInstance = new ControllerClass(...dependencies);
-      controllerInstance = Object.assign(
-        controllerInstance,
-        AppStartup.getControllerHandler(module, ControllerClass)
+      let controller = new controllerInstance(...dependencies);
+      controller = Object.assign(
+        controller,
+        AppStartup.getControllerHandler(module, controllerInstance)
       );
 
       for (const method of methods) {
@@ -157,56 +156,47 @@ export class AppStartup {
 
         // OpenAPI Metadata
         const controllerTags =
-          Reflect.getMetadata(API_TAGS_METADATA, ControllerClass) || [];
+          Reflect.getMetadata(API_TAGS_METADATA, controllerInstance) || [];
         const methodTags =
           Reflect.getMetadata(
             API_TAGS_METADATA,
-            ControllerClass.prototype,
+            controllerInstance.prototype,
             method.methodName
           ) || [];
         const operation = Reflect.getMetadata(
           API_OPERATION_METADATA,
-          ControllerClass.prototype,
+          controllerInstance.prototype,
           method.methodName
         );
         const responsesMetadata =
           Reflect.getMetadata(
             API_RESPONSE_METADATA,
-            ControllerClass.prototype,
+            controllerInstance.prototype,
             method.methodName
           ) || [];
 
         const tags = [...new Set([...controllerTags, ...methodTags])];
         const responses: Record<string, any> = {};
-        const elysiaResponses: Record<string, any> = {};
-
         responsesMetadata.forEach((res: any) => {
-          const schema = isZodSchema(res.type)
-            ? zodToJsonSchema(res.type)
-            : res.type;
-
           responses[res.status.toString()] = {
             description: res.description,
-            content: schema
+            content: res.type
               ? {
                   "application/json": {
-                    schema: schema,
+                    schema: res.type,
                   },
                 }
               : undefined,
           };
-          if (res.type) {
-            elysiaResponses[res.status.toString()] = res.type;
-          }
         });
 
         // OpenAPI Headers
         const controllerHeaders =
-          Reflect.getMetadata(API_HEADERS_METADATA, ControllerClass) || [];
+          Reflect.getMetadata(API_HEADERS_METADATA, controllerInstance) || [];
         const methodHeaders =
           Reflect.getMetadata(
             API_HEADERS_METADATA,
-            ControllerClass.prototype,
+            controllerInstance.prototype,
             method.methodName
           ) || [];
         const allHeaders = [...controllerHeaders, ...methodHeaders];
@@ -215,87 +205,45 @@ export class AppStartup {
           in: "header",
           description: h.description,
           required: h.required,
-          schema: isZodSchema(h.schema)
-            ? zodToJsonSchema(h.schema)
-            : h.schema || { type: "string" },
+          schema: h.schema || { type: "string" },
         }));
 
         // Extract Schemas for OpenAPI
         const paramsMetadata =
           Reflect.getMetadata(
             PARAM_METADATA_KEY,
-            ControllerClass.prototype,
+            controllerInstance.prototype,
             method.methodName
           ) || [];
 
-        const bodySchema = paramsMetadata.find((p: any) => p.type === "body")
-          ?.options?.zodSchema;
-        const querySchema = paramsMetadata.find((p: any) => p.type === "query")
-          ?.options?.zodSchema;
-        const paramsSchema = paramsMetadata.find((p: any) => p.type === "param")
-          ?.options?.zodSchema;
-
-        if (bodySchema || querySchema || paramsSchema) {
-          AppStartup.logger.info(
-            `Schemas detected for ${method.httpMethod} ${method.pathname}: ${
-              bodySchema ? "[Body] " : ""
-            }${querySchema ? "[Query] " : ""}${paramsSchema ? "[Params]" : ""}`
-          );
-        }
+        const bodySchema = paramsMetadata.find(
+          (p: any) => p.type === ParamType.BODY
+        )?.options?.zodSchema;
+        const querySchema = paramsMetadata.find(
+          (p: any) => p.type === ParamType.QUERY
+        )?.options?.zodSchema;
+        const paramsSchema = paramsMetadata.find(
+          (p: any) => p.type === ParamType.PARAM
+        )?.options?.zodSchema;
 
         AppStartup.elysia[httpMethod as keyof Elysia](
           method.pathname,
           (req: any) =>
             AppStartup.executeControllerMethod(
               req,
-              controllerInstance,
+              controller,
               method.methodName
             ),
           {
             body: bodySchema,
             query: querySchema,
             params: paramsSchema,
-            response: elysiaResponses,
             detail: {
               tags,
               summary: operation?.summary,
               description: operation?.description,
               responses,
-              parameters: [
-                ...parameters,
-                ...(querySchema && isZodSchema(querySchema)
-                  ? Object.entries(
-                      (zodToJsonSchema(querySchema) as any).properties || {}
-                    ).map(([name, schema]: [string, any]) => ({
-                      name,
-                      in: "query",
-                      required: (
-                        (zodToJsonSchema(querySchema) as any).required || []
-                      ).includes(name),
-                      schema,
-                    }))
-                  : []),
-                ...(paramsSchema && isZodSchema(paramsSchema)
-                  ? Object.entries(
-                      (zodToJsonSchema(paramsSchema) as any).properties || {}
-                    ).map(([name, schema]: [string, any]) => ({
-                      name,
-                      in: "path",
-                      required: true,
-                      schema,
-                    }))
-                  : []),
-              ],
-              requestBody:
-                bodySchema && isZodSchema(bodySchema)
-                  ? {
-                      content: {
-                        "application/json": {
-                          schema: zodToJsonSchema(bodySchema),
-                        },
-                      },
-                    }
-                  : undefined,
+              parameters,
             },
             beforeHandle(req: any) {
               if (!method.guard) return;

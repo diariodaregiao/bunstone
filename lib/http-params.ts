@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ZodError, type ZodType } from "zod";
+import { ZodError, type ZodType } from "zod/v4";
 import { PARAM_METADATA_KEY } from "./constants";
 import { isZodSchema } from "./utils/is-zod-schema";
 
@@ -20,9 +20,8 @@ function setParamMetadata(
   key?: string,
   options?: unknown
 ) {
-  // console.log(`Setting param metadata for ${String(propertyKey)} at index ${parameterIndex}`);
   const existingParams =
-    Reflect.getMetadata(PARAM_METADATA_KEY, target, propertyKey) || [];
+    Reflect.getOwnMetadata(PARAM_METADATA_KEY, target, propertyKey) || [];
 
   existingParams.push({ index: parameterIndex, type, key, options });
 
@@ -160,7 +159,7 @@ export async function processParameters(
   propertyKey: string
 ): Promise<any[]> {
   const paramMetadata =
-    Reflect.getMetadata(
+    Reflect.getOwnMetadata(
       PARAM_METADATA_KEY,
       Object.getPrototypeOf(target),
       propertyKey

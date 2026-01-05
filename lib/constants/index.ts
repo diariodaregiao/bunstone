@@ -1,1 +1,1 @@
-export const PARAM_METADATA_KEY = "dip:params";
+export const PARAM_METADATA_KEY = Symbol("paramMetadata");

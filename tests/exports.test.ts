@@ -1,4 +1,4 @@
-import { ApiTags, ApiOperation } from "../index";
+import { ApiTags, ApiOperation } from "./index";
 import { expect, test, describe } from "bun:test";
 
 describe("Exports", () => {

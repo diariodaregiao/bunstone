@@ -79,99 +79,19 @@ export class UserController {
 }
 ```
 
-## Zod Integration
+## DTOs and Schemas
 
-Bunstone automatically extracts Zod schemas from your decorators and includes them in the OpenAPI documentation.
-
-### Request Body, Query, and Params
-
-When you use a Zod schema in `@Body()`, `@Query()`, or `@Param()`, it is automatically registered as the schema for that part of the request.
+Bunstone uses **Zod** for validation. When you use `@Body(Schema)`, `@Query(Schema)`, or `@Param(Schema)`, the schema is automatically registered in the OpenAPI documentation.
 
 ```typescript
-import { z } from 'zod';
-
 const CreateUserSchema = z.object({
-  name: z.string().min(3).describe('The name of the user'),
-  email: z.string().email().describe('The email of the user')
+  name: z.string(),
+  email: z.string().email()
 });
 
 @Post()
+@ApiOperation({ summary: 'Create user' })
 create(@Body(CreateUserSchema) body: any) {
   return body;
 }
-```
-
-### Response Schemas
-
-You can also document your response schemas using `@ApiResponse`. This is useful for documenting the structure of the data your API returns.
-
-```typescript
-const UserResponseSchema = z.object({
-  id: z.string().uuid().describe('The unique identifier of the user'),
-  name: z.string().describe('The full name of the user'),
-  email: z.string().email().describe('The email address')
-});
-
-@Get(':id')
-@ApiResponse({
-  status: 200,
-  description: 'User found',
-  type: UserResponseSchema
-})
-findOne(@Param('id') id: string) {
-  return { id, name: 'John Doe', email: 'john@example.com' };
-}
-```
-
-### Schema Descriptions and Metadata
-
-Zod provides a `.describe()` method that Bunstone uses to populate the `description` field in OpenAPI. You can also use other Zod features like `.optional()`, `.default()`, and validations (like `.email()`, `.min()`), which will be correctly reflected in the Swagger UI.
-
-```typescript
-const AdvancedSchema = z.object({
-  username: z
-    .string()
-    .min(5)
-    .max(20)
-    .describe("The unique username for the account"),
-  age: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe("The age of the user (optional)"),
-  role: z.enum(["admin", "user"]).default("user").describe("The user role"),
-});
-```
-
-### Response Schemas
-
-You can also document your response schemas using `@ApiResponse`.
-
-```typescript
-const UserResponseSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string()
-});
-
-@Get(':id')
-@ApiResponse({
-  status: 200,
-  description: 'User found',
-  type: UserResponseSchema
-})
-findOne(@Param('id') id: string) {
-  return { id, name: 'John Doe', email: 'john@example.com' };
-}
-```
-
-### Schema Descriptions
-
-Use Zod's `.describe()` method to add descriptions to individual fields in your schemas. These will appear in the Swagger UI.
-
-```typescript
-const Schema = z.object({
-  username: z.string().describe("Unique username for the account"),
-});
 ```
