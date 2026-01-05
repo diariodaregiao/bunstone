@@ -1,7 +1,9 @@
 import { SQL } from "bun";
 
 /**
- * A wrapper class for database operations using Bun's SQL module.
+ * Creates a new database wrapper instance.
+ * @param connectionString - The database connection string, in the format:
+ * "mysql://user:password@host:port/database"
  */
 export class DbWrapper {
   private _mysql: SQL;
@@ -18,8 +20,14 @@ export class DbWrapper {
     return DbWrapper._instance;
   }
 
+  /**
+   * Method to execute a query against the database.
+   * @param queryString 
+   * @returns Array with the query results.
+   */
   async query<T = any>(queryString: string): Promise<T[]> {
-    return await this._mysql`${queryString}`;
+    const res =  await this._mysql.unsafe<T>(queryString) as T[];
+    return res
   }
 
   async transaction(queries: ((trx: SQL) => Promise<void>)[]): Promise<void> {
