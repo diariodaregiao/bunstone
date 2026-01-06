@@ -16,15 +16,52 @@ dbWrapper is a utility object for interacting with the database using Bun SQL
   DATABASE_NAME=
 ```
 
-- If `DATABASE_URL` is set, it will be used as the main connection string.
-  Otherwise, the other values `(HOSTNAME, PORT, USERNAME, PASSWORD, NAME)` will be used to build the connection.
+- `DATABASE_URL` is required and used as the main connection string.
+- The other values `(ADAPTER, HOSTNAME, PORT, USERNAME, PASSWORD, NAME)` are used as connection options.
 
 ### Shared methods
 
 The following methods are exported:
 
-- `Query`: Performs a query on the database, receives a tagged template function representing the SQL as a parameter and returns an array in which each line of the query is an object.
-- `Transaction`: Executes a block of code within a transaction, If an error occurs, the transaction will be automatically rolled back, receives template function representing SQL and returns void.
+- `query`: Performs a query on the database. Receives a builder function that gets a Bun SQL tagged-template function.
+- `transaction`: Executes a block of code within a transaction. If an error occurs, the transaction will be automatically rolled back.
+
+### Usage
+
+Import:
+
+```ts
+import { dbWrapper } from "@diariodaregiao/bunstone";
+```
+
+Query example:
+
+```ts
+type UserRow = { id: number; name: string };
+
+const users = (await dbWrapper.query(async (sql) => {
+  return await sql`SELECT id, name FROM users`;
+})) as UserRow[];
+```
+
+Query with parameters (safe binding):
+
+```ts
+const userId = 123;
+
+const user = (await dbWrapper.query(async (sql) => {
+  return await sql`SELECT id, name FROM users WHERE id = ${userId}`;
+})) as Array<{ id: number; name: string }>;
+```
+
+Transaction example:
+
+```ts
+await dbWrapper.transaction(async (trx) => {
+  await trx`INSERT INTO users (name) VALUES (${"Alice"})`;
+  await trx`UPDATE counters SET value = value + 1 WHERE name = ${"users"}`;
+});
+```
 
 ### Info about types:
 
