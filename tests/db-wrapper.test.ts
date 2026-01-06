@@ -1,86 +1,90 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { mockBegin, mockUnsafe, resetSQLMocks } from "./mocks/sql.mock";
+import { mockBegin, mockSqlTag, mockTrxTag, resetSQLMocks, type MockSQLTag } from "./mocks/sql.mock";
 
-class TestableDbWrapper {
-  private _mysql: { unsafe: typeof mockUnsafe; begin: typeof mockBegin };
-  private static _instance: TestableDbWrapper | null = null;
+type DbWrapperLike = {
+  query: <T = any>(builder: (db: MockSQLTag) => Promise<T>) => Promise<T[]>;
+  transaction: (callback: (trx: MockSQLTag) => Promise<any>) => Promise<any>;
+};
 
-  constructor(_connectionString: string) {
-    this._mysql = { unsafe: mockUnsafe, begin: mockBegin };
-  }
-
-  static getInstance(connectionString: string): TestableDbWrapper {
-    if (!TestableDbWrapper._instance) {
-      TestableDbWrapper._instance = new TestableDbWrapper(connectionString);
-    }
-    return TestableDbWrapper._instance;
-  }
-
-  static resetInstance(): void {
-    TestableDbWrapper._instance = null;
-  }
-
-  async query<T = any>(queryString: string): Promise<T[]> {
-    //@ts-ignore
-    const res = (await this._mysql.unsafe(queryString)) as T[];
-    return res;
-  }
-
-  async transaction(callback: (trx: any) => Promise<void>): Promise<void> {
-    await this._mysql.begin(async (trx: any) => {
-      await callback(trx);
-    });
-  }
+function createTestableDbWrapper(): DbWrapperLike {
+  return {
+    query: async <T = any>(builder: (db: MockSQLTag) => Promise<T>): Promise<T[]> => {
+      const result = await builder(mockSqlTag);
+      return result as T[];
+    },
+    transaction: async (callback: (trx: MockSQLTag) => Promise<any>): Promise<any> => {
+      await mockBegin(async (trx) => {
+        await callback(trx);
+      });
+    },
+  };
 }
 
 describe("DbWrapper", () => {
-  const connectionString = "mysql://user:pass@localhost:3306/db";
-
   beforeEach(() => {
     resetSQLMocks();
-    TestableDbWrapper.resetInstance();
   });
 
-  test("should create a new instance via constructor without connecting to DB", () => {
-    const db = new TestableDbWrapper(connectionString);
-    expect(db).toBeInstanceOf(TestableDbWrapper);
-  });
-
-  test("should implement singleton pattern via getInstance", () => {
-    const instance1 = TestableDbWrapper.getInstance(connectionString);
-    const instance2 = TestableDbWrapper.getInstance(connectionString);
-    expect(instance1).toBe(instance2);
-  });
-
-  test("should execute query using mocked unsafe", async () => {
-    const db = new TestableDbWrapper(connectionString);
-    const query = "SELECT * FROM users";
+  test("query: should return result from builder", async () => {
+    const db = createTestableDbWrapper();
     const mockData = [{ id: 1, name: "Mocked User" }];
-    mockUnsafe.mockResolvedValue(mockData as any);
 
-    const result = await db.query(query);
+    const builder = async (_sql: MockSQLTag) => mockData;
+
+    const result = await db.query(builder);
+
+    expect(result).toEqual(mockData as any[]);
+  });
+
+  test("query: should pass SQL tag to builder", async () => {
+    const db = createTestableDbWrapper();
+    const mockData = [{ id: 1, name: "Mocked User" }];
+    (mockSqlTag as any).mockResolvedValue(mockData as any);
+
+    const builder = async (sql: MockSQLTag) => {
+      return (await sql`SELECT * FROM users`) as any;
+    };
+
+    const result = await db.query(builder);
 
     expect(result).toEqual(mockData);
-    expect(mockUnsafe).toHaveBeenCalledWith(query);
+    expect(mockSqlTag).toHaveBeenCalledTimes(1);
+    expect((mockSqlTag as any).mock.calls[0][0][0]).toBe("SELECT * FROM users");
   });
 
-  test("should execute transaction using mocked begin", async () => {
-    const db = new TestableDbWrapper(connectionString);
-    const transactionCallback = async (trx: any) => {
-      await trx.unsafe("INSERT INTO test VALUES (1)");
+  test("transaction: should execute callback inside begin", async () => {
+    const db = createTestableDbWrapper();
+    const transactionCallback = async (trx: MockSQLTag) => {
+      await trx`INSERT INTO test VALUES (${1})`;
     };
 
     await db.transaction(transactionCallback);
 
     expect(mockBegin).toHaveBeenCalled();
-    expect(mockUnsafe).toHaveBeenCalledWith("INSERT INTO test VALUES (1)");
+    expect(mockTrxTag).toHaveBeenCalledTimes(1);
+    expect((mockTrxTag as any).mock.calls[0][0][0]).toBe("INSERT INTO test VALUES (");
+    expect((mockTrxTag as any).mock.calls[0][0][1]).toBe(")");
+    expect((mockTrxTag as any).mock.calls[0][1]).toBe(1);
   });
 
-  test("should handle errors in query without hitting DB", async () => {
-    const db = new TestableDbWrapper(connectionString);
+  test("query: should propagate errors", async () => {
+    const db = createTestableDbWrapper();
     const error = new Error("Mocked Query Failure");
-    mockUnsafe.mockRejectedValue(error as any);
 
-    await expect(db.query("SELECT * FROM error")).rejects.toThrow("Mocked Query Failure");
+    const builder = async (_sql: MockSQLTag) => {
+      throw error;
+    };
+
+    await expect(db.query(builder)).rejects.toThrow("Mocked Query Failure");
+  });
+
+  test("transaction: should propagate callback errors", async () => {
+    const db = createTestableDbWrapper();
+
+    await expect(
+      db.transaction(async (_trx) => {
+        throw new Error("Mocked Transaction Failure");
+      }),
+    ).rejects.toThrow("Mocked Transaction Failure");
   });
 });

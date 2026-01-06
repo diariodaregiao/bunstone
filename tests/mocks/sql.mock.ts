@@ -1,12 +1,16 @@
 import { mock } from "bun:test";
 
-export const mockUnsafe = mock(() => Promise.resolve([]));
-export const mockBegin = mock(async (callback: any) => {
-  const trx = { unsafe: mockUnsafe };
-  await callback(trx);
+export type MockSQLTag = (query: TemplateStringsArray, ...args: any[]) => Promise<any>;
+
+export const mockSqlTag = mock(() => Promise.resolve([])) as unknown as MockSQLTag;
+export const mockTrxTag = mock(() => Promise.resolve([])) as unknown as MockSQLTag;
+
+export const mockBegin = mock(async (callback: (trx: MockSQLTag) => Promise<any>) => {
+  await callback(mockTrxTag);
 });
 
 export function resetSQLMocks() {
-  mockUnsafe.mockClear();
+  (mockSqlTag as any).mockClear();
+  (mockTrxTag as any).mockClear();
   mockBegin.mockClear();
 }
