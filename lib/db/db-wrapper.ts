@@ -74,7 +74,7 @@ export const dbWrapper = {
    * Executes a query in the database.
    *
    * @template T The expected result type
-   * @param {(db: SQLTag) => Promise<T>} builder Function that receives the SQL instance and returns the query
+   * @param {SQLTag} swl A tagged template function representing the SQL query to execute
    * @returns {Promise<T[]>} Query result as an array
    *
    * @example
@@ -89,7 +89,7 @@ export const dbWrapper = {
    * Executes a block of code within a transaction.
    * If an error occurs, the transaction will be automatically rolled back.
    *
-   * @param {(trx: SQL) => Promise<any>} callback Function that receives the SQL instance of the transaction
+   * @param {SQLTag} trx A tagged template function representing SQL queries executed within the transaction
    * @returns {Promise<any>} Result of the callback execution
    *
    * @example
