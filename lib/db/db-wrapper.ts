@@ -74,7 +74,7 @@ export const dbWrapper = {
    * Executes a query in the database.
    *
    * @template T The expected result type
-   * @param {SQLTag} swl A tagged template function representing the SQL query to execute
+   * @param {SQLTag} sql A tagged template function representing the SQL query to execute
    * @returns {Promise<T[]>} Query result as an array
    *
    * @example
