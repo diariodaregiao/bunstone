@@ -17,7 +17,6 @@ export * from "./lib/cqrs/interfaces/event.interface";
 export * from "./lib/cqrs/interfaces/query.interface";
 export * from "./lib/cqrs/query-bus";
 export { SqlModule, SqlService } from "./lib/database/sql-module";
-export { dbWrapper } from "./lib/db/db-wrapper";
 export * from "./lib/guard";
 export * from "./lib/http-exceptions";
 export * from "./lib/http-methods";
