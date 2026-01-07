@@ -18,9 +18,13 @@ export class SqlService {
     return await sql.unsafe(query, params);
   }
 
-  async transaction(query: string, params?: any[]): Promise<void> {
+  async transaction(queries: Array<{ query: string; params?: any[] }>): Promise<void> {
     const sql = this.getSqlInstance();
-    return await sql.begin(() => sql.unsafe(query, params));
+    await sql.begin(async (trx) => {
+      for (const { query, params } of queries) {
+        await trx.unsafe(query, params);
+      }
+    });
   }
 
   async bulkInsert<T = any>(table: string, values: T[]): Promise<void> {
