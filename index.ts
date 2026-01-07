@@ -16,7 +16,8 @@ export * from "./lib/cqrs/interfaces/command.interface";
 export * from "./lib/cqrs/interfaces/event.interface";
 export * from "./lib/cqrs/interfaces/query.interface";
 export * from "./lib/cqrs/query-bus";
-export { DbWrapper } from "./lib/db/db-wrapper";
+export { SqlModule, SqlService } from "./lib/database/sql-module";
+export { dbWrapper } from "./lib/db/db-wrapper";
 export * from "./lib/guard";
 export * from "./lib/http-exceptions";
 export * from "./lib/http-methods";
@@ -32,4 +33,3 @@ export type { HttpRequest } from "./lib/types/http-request";
 export type { ModuleConfig } from "./lib/types/module-config";
 export type { Options } from "./lib/types/options";
 export * from "./lib/utils/logger";
-
