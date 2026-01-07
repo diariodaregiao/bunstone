@@ -7,17 +7,9 @@ Bunstone is a decorator-based framework for Bun, inspired by NestJS. It provides
 You can scaffold a new project using our CLI:
 
 ```bash
-bunstone new my-app
+npx @diariodaregiao/bunstone new my-app
 # or shorthand
-bunstone my-app
-```
-
-Or if you are using it via `bun x`:
-
-```bash
-bun x @diariodaregiao/bunstone new my-app
-# or shorthand
-bun x @diariodaregiao/bunstone my-app
+npx @diariodaregiao/bunstone my-app
 ```
 
 ## Basic Setup
