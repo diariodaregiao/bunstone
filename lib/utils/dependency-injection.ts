@@ -4,6 +4,26 @@ import "reflect-metadata";
  * Utility functions for dependency injection.
  */
 
+export class GlobalRegistry {
+  private static globalDeps: Map<any, any> = new Map();
+
+  static register(type: any, instance: any) {
+    this.globalDeps.set(type, instance);
+  }
+
+  static get(type: any) {
+    return this.globalDeps.get(type);
+  }
+
+  static has(type: any) {
+    return this.globalDeps.has(type);
+  }
+
+  static getAll() {
+    return this.globalDeps;
+  }
+}
+
 /**
  * Resolves dependencies for a constructor based on parameter types.
  * @param paramTypes Array of parameter types.
@@ -42,9 +62,19 @@ export function resolveType(type: any, deps: Map<any, any>): any {
     return deps.get(type);
   }
 
+  if (GlobalRegistry.has(type)) {
+    return GlobalRegistry.get(type);
+  }
+
   // Also check by name for backward compatibility or if different references of the same class exist
   if (typeof type === "function" && type.name) {
     for (const [key, value] of deps.entries()) {
+      if (typeof key === "function" && key.name === type.name) {
+        return value;
+      }
+    }
+
+    for (const [key, value] of GlobalRegistry.getAll().entries()) {
       if (typeof key === "function" && key.name === type.name) {
         return value;
       }

@@ -36,6 +36,7 @@ export function Module(moduleConfig: ModuleConfig = {}): any {
 
   return function (target: any, context?: any) {
     Reflect.defineMetadata("dip:module", "is_module", target);
+    Reflect.defineMetadata("dip:module:global", !!moduleConfig.global, target);
     Reflect.defineMetadata("dip:module:routes", controllers, target);
     Reflect.defineMetadata("dip:timeouts", providersTimeouts, target);
     Reflect.defineMetadata("dip:modules", modules, target);

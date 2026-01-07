@@ -23,6 +23,7 @@ export default defineConfig({
           { text: "Guards & JWT", link: "/guards-jwt" },
           { text: "CQRS", link: "/cqrs" },
           { text: "Scheduling", link: "/scheduling" },
+          { text: "Database (SQL)", link: "/database-sql" },
           { text: "OpenAPI (Swagger)", link: "/openapi" },
         ],
       },

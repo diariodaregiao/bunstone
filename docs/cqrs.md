@@ -2,6 +2,19 @@
 
 Bunstone provides a full implementation of the Command Query Responsibility Segregation (CQRS) pattern.
 
+## Registration
+
+To use CQRS features, you must import the `CqrsModule` in your root `AppModule`. Since it is a **Global Module**, the buses will be available for injection in all other modules.
+
+```typescript
+import { Module, CqrsModule } from "@diariodaregiao/bunstone";
+
+@Module({
+  imports: [CqrsModule],
+})
+export class AppModule {}
+```
+
 ## Command Bus
 
 Commands are used to perform actions that change the state of the application.
