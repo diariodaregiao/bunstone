@@ -7,42 +7,50 @@ Bunstone is a decorator-based framework for Bun, inspired by NestJS. It provides
 You can scaffold a new project using our CLI:
 
 ```bash
-npx @diariodaregiao/bunstone my-app
+bunstone new my-app
 ```
 
-Or install it in an existing project:
+Or if you are using it via `bun x`:
 
 ```bash
-bun add @diariodaregiao/bunstone
+bun x @diariodaregiao/bunstone new my-app
 ```
 
 ## Basic Setup
 
-Create an `index.ts` file:
+Bunstone projects follow a modular structure. Here's a basic setup:
+
+### `src/main.ts`
 
 ```typescript
-import { AppStartup, Module, Controller, Get } from "@diariodaregiao/bunstone";
+import "reflect-metadata";
+import { AppStartup } from "@diariodaregiao/bunstone";
+import { AppModule } from "./app.module";
 
-@Controller()
-class AppController {
-  @Get()
-  hello() {
-    return { message: "Hello from Bunstone!" };
-  }
+async function bootstrap() {
+  const app = AppStartup.create(AppModule);
+  app.listen(3000);
 }
+
+bootstrap();
+```
+
+### `src/app.module.ts`
+
+```typescript
+import { Module } from "@diariodaregiao/bunstone";
+import { AppController } from "./controllers/app.controller";
 
 @Module({
   controllers: [AppController],
 })
-class AppModule {}
-
-AppStartup.create(AppModule).listen(3000);
+export class AppModule {}
 ```
 
 ## Running the App
 
 ```bash
-bun run index.ts
+bun dev
 ```
 
 Your app will be running at `http://localhost:3000`.

@@ -3,10 +3,16 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 
-const projectName = process.argv[2] || "my-bunstone-app";
+const command = process.argv[2];
+const projectName = process.argv[3] || "my-bunstone-app";
 const projectPath = join(process.cwd(), projectName);
 
 async function scaffold() {
+  if (command !== "new") {
+    console.log("Usage: bunstone new <project-name>");
+    process.exit(1);
+  }
+
   console.log(`🚀 Scaffolding new Bunstone project in ${projectPath}...`);
 
   try {
@@ -19,10 +25,10 @@ async function scaffold() {
     const pkg = {
       name: projectName,
       version: "1.0.0",
-      main: "src/index.ts",
+      main: "src/main.ts",
       scripts: {
-        start: "bun run src/index.ts",
-        dev: "bun --watch src/index.ts",
+        start: "bun run src/main.ts",
+        dev: "bun --watch src/main.ts",
         test: "bun test",
       },
       dependencies: {
@@ -61,6 +67,10 @@ async function scaffold() {
         types: ["bun-types"],
         experimentalDecorators: true,
         emitDecoratorMetadata: true,
+        baseUrl: ".",
+        paths: {
+          "@/*": ["./src/*"],
+        },
       },
     };
 
@@ -69,27 +79,38 @@ async function scaffold() {
       JSON.stringify(tsconfig, null, 2)
     );
 
-    // src/index.ts
-    const indexTs = `import "reflect-metadata";
-import { AppStartup, Module } from "@diariodaregiao/bunstone";
-import { AppController } from "./controllers/app.controller";
-import { AppService } from "./services/app.service";
+    // src/main.ts
+    const mainTs = `import { AppStartup } from "@diariodaregiao/bunstone";
+import { AppModule } from "@/app.module";
+
+async function bootstrap() {
+  const app = AppStartup.create(AppModule);
+
+  const port = process.env.PORT || 3000;
+  app.listen(port);
+}
+bootstrap();
+`;
+
+    await writeFile(join(projectPath, "src/main.ts"), mainTs);
+
+    // src/app.module.ts
+    const appModuleTs = `import { Module } from "@diariodaregiao/bunstone";
+import { AppController } from "@/controllers/app.controller";
+import { AppService } from "@/services/app.service";
 
 @Module({
   controllers: [AppController],
   providers: [AppService],
 })
-class AppModule {}
-
-const app = AppStartup.create(AppModule);
-app.listen(3000);
+export class AppModule {}
 `;
 
-    await writeFile(join(projectPath, "src/index.ts"), indexTs);
+    await writeFile(join(projectPath, "src/app.module.ts"), appModuleTs);
 
     // src/controllers/app.controller.ts
     const controllerTs = `import { Controller, Get } from "@diariodaregiao/bunstone";
-import { AppService } from "../services/app.service";
+import { AppService } from "@/services/app.service";
 
 @Controller()
 export class AppController {
@@ -113,7 +134,10 @@ export class AppController {
 @Injectable()
 export class AppService {
   getHello() {
-    return { message: "Hello from Bunstone!" };
+    return { 
+      message: "Hello from Bunstone!",
+      timestamp: new Date().toISOString()
+    };
   }
 }
 `;
@@ -126,14 +150,18 @@ export class AppService {
     // .gitignore
     await writeFile(
       join(projectPath, ".gitignore"),
-      "node_modules\n.DS_Store\ndist\n"
+      "node_modules\n.DS_Store\ndist\n.env\n"
     );
 
     console.log("📦 Installing dependencies...");
-    execSync("bun install", { cwd: projectPath, stdio: "inherit" });
+    try {
+      execSync("bun install", { cwd: projectPath, stdio: "inherit" });
+    } catch (e) {
+      console.warn("⚠️ Could not run 'bun install'. Please run it manually.");
+    }
 
     console.log("\n✅ Project created successfully!");
-    console.log(`\nNext steps:\n  cd ${projectName}\n  bun dev\n`);
+    console.log("\nNext steps:\n  cd " + projectName + "\n  bun dev\n");
   } catch (error) {
     console.error("❌ Error scaffolding project:", error);
   }
