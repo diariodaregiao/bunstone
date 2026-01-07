@@ -8,12 +8,16 @@ You can scaffold a new project using our CLI:
 
 ```bash
 bunstone new my-app
+# or shorthand
+bunstone my-app
 ```
 
 Or if you are using it via `bun x`:
 
 ```bash
 bun x @diariodaregiao/bunstone new my-app
+# or shorthand
+bun x @diariodaregiao/bunstone my-app
 ```
 
 ## Basic Setup

@@ -3,13 +3,27 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 
-const command = process.argv[2];
-const projectName = process.argv[3] || "my-bunstone-app";
-const projectPath = join(process.cwd(), projectName);
+const args = process.argv.slice(2);
+let command = args[0];
+let projectName = args[1];
+
+// Default to "new" command if only project name is provided
+if (command && command !== "new" && !projectName) {
+  projectName = command;
+  command = "new";
+}
+
+// Default project name if none provided
+if (!projectName && command === "new") {
+  projectName = "my-bunstone-app";
+}
+
+const projectPath = join(process.cwd(), projectName || "");
 
 async function scaffold() {
-  if (command !== "new") {
+  if (command !== "new" || !projectName) {
     console.log("Usage: bunstone new <project-name>");
+    console.log("   or: bunstone <project-name>");
     process.exit(1);
   }
 
@@ -34,7 +48,7 @@ async function scaffold() {
       dependencies: {
         "@diariodaregiao/bunstone": "latest",
         "reflect-metadata": "^0.2.2",
-        zod: "^3.23.8",
+        zod: "^4.3.2",
       },
       devDependencies: {
         "@types/bun": "latest",
@@ -80,7 +94,8 @@ async function scaffold() {
     );
 
     // src/main.ts
-    const mainTs = `import { AppStartup } from "@diariodaregiao/bunstone";
+    const mainTs = `import "reflect-metadata";
+import { AppStartup } from "@diariodaregiao/bunstone";
 import { AppModule } from "@/app.module";
 
 async function bootstrap() {
