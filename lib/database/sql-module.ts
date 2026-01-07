@@ -29,7 +29,7 @@ export class SqlService {
 
   async bulkInsert<T = any>(table: string, values: T[]): Promise<void> {
     const sql = this.getSqlInstance();
-    await sql`INSERT INTO ${table} ${sql(values)}`;
+    await sql`INSERT INTO ${sql(table)} ${sql(values)}`;
   }
 
   private getSqlInstance(): SQL {
