@@ -1,0 +1,20 @@
+{
+  "name": "bunstone-examples",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start:basic": "bun 01-basic-app/index.ts",
+    "start:routing": "bun 02-routing-params/index.ts",
+    "start:guards": "bun 03-guards-auth/index.ts",
+    "start:cqrs": "bun 04-cqrs/index.ts",
+    "start:db": "bun 05-database-sql/index.ts",
+    "start:schedule": "bun 06-scheduling/index.ts",
+    "start:adapters": "bun 07-adapters/index.ts",
+    "start:openapi": "bun 08-openapi/index.ts"
+  },
+  "dependencies": {
+    "bunstone": "link:..",
+    "zod": "^4.3.2",
+    "reflect-metadata": "^0.2.1"
+  }
+}

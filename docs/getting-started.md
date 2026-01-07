@@ -50,3 +50,11 @@ bun dev
 ```
 
 Your app will be running at `http://localhost:3000`.
+
+## Full Example
+
+Check out a complete standalone example of a basic application:
+
+<<< @/../examples/01-basic-app/index.ts
+
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/01-basic-app/index.ts)

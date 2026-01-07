@@ -73,3 +73,11 @@ export class UserService {
 ## Global Availability
 
 Because `SqlModule` is configured with `global: true`, any provider within it (like `SqlService`) is available application-wide. You only need to register it once in your root module.
+
+## Practical Example
+
+See how to register and use the SQL module in a controller:
+
+<<< @/../examples/05-database-sql/index.ts
+
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/05-database-sql/index.ts)

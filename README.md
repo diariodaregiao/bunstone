@@ -54,7 +54,22 @@ export class AppController {
 - **Scheduling**: Decorator-based Cron jobs and Timeouts.
 - **Adapters**: Built-in support for Form-Data, File Uploads, and Caching.
 
-## 📚 Documentation
+## 📚 Examples
+
+We have a set of examples demonstrating various features of the framework:
+
+| Example                                                   | Description                          |
+| --------------------------------------------------------- | ------------------------------------ |
+| [Basic App](./examples/01-basic-app/index.ts)             | Modules, Controllers, and simple DI  |
+| [Routing & Params](./examples/02-routing-params/index.ts) | Extracting data and Zod validation   |
+| [Guards & Auth](./examples/03-guards-auth/index.ts)       | JWT and custom Guard implementations |
+| [CQRS](./examples/04-cqrs/index.ts)                       | Command Bus and Handlers             |
+| [SQL Database](./examples/05-database-sql/index.ts)       | Database registration and usage      |
+| [Scheduling](./examples/06-scheduling/index.ts)           | Periodic tasks and delayed execution |
+| [Adapters](./examples/07-adapters/index.ts)               | Cache and Form-Data handling         |
+| [OpenAPI](./examples/08-openapi/index.ts)                 | Swagger documentation setup          |
+
+## 📖 Documentation
 
 Visit our [Documentation Website](https://diariodaregiao.github.io/bunstone) (if hosted) or run it locally:
 

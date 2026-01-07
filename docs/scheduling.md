@@ -33,3 +33,11 @@ export class CleanupService {
 ```
 
 > **Note**: Scheduling decorators work on any `@Injectable` class that is registered as a `provider` in a `@Module`.
+
+## Practical Example
+
+Explore more scheduling options and configurations:
+
+<<< @/../examples/06-scheduling/index.ts
+
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/06-scheduling/index.ts)
