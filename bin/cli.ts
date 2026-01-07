@@ -94,15 +94,12 @@ async function scaffold() {
     );
 
     // src/main.ts
-    const mainTs = `import "reflect-metadata";
-import { AppStartup } from "@diariodaregiao/bunstone";
+    const mainTs = `import { AppStartup } from "@diariodaregiao/bunstone";
 import { AppModule } from "@/app.module";
 
 async function bootstrap() {
   const app = AppStartup.create(AppModule);
-
-  const port = process.env.PORT || 3000;
-  app.listen(port);
+  app.listen(3000);
 }
 bootstrap();
 `;
