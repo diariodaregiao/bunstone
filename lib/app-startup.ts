@@ -21,7 +21,10 @@ import {
 } from "./openapi";
 import { PARAM_METADATA_KEY } from "./constants";
 import type { Options } from "./types/options";
-import { resolveDependencies } from "./utils/dependency-injection";
+import {
+  resolveDependencies,
+  GlobalRegistry,
+} from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
 import { ParamType } from "./http-params";
 
@@ -102,6 +105,19 @@ export class AppStartup {
   }
 
   private static registerModules(module: any) {
+    const isGlobal = Reflect.getMetadata("dip:module:global", module);
+    if (isGlobal) {
+      const injectables: Map<any, any> = Reflect.getMetadata(
+        "dip:injectables",
+        module
+      );
+      if (injectables) {
+        for (const [key, value] of injectables.entries()) {
+          GlobalRegistry.register(key, value);
+        }
+      }
+    }
+
     AppStartup.startWithJWT(module);
     AppStartup.registerRoutes(module);
     AppStartup.registerTimeouts(module);

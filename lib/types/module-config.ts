@@ -10,4 +10,5 @@ export type ModuleConfig = {
   imports?: (new (...args: any[]) => any)[];
   controllers?: (new (...args: any[]) => any)[];
   exports?: (new (...args: any[]) => any)[];
+  global?: boolean;
 };

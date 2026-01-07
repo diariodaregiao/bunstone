@@ -53,3 +53,19 @@ export class SharedModule {}
 })
 export class AppModule {}
 ```
+
+## Global Modules
+
+Sometimes you may want a provider to be available everywhere without importing its module into every other module. You can achieve this by setting the `global` property to `true` in the `@Module` decorator.
+
+```typescript
+@Module({
+  providers: [GlobalService],
+  global: true,
+})
+export class GlobalModule {}
+```
+
+Once a global module is registered in the root `AppModule`, its providers can be injected into any class in the application without further imports.
+
+> [!TIP] > `SqlModule` and `CqrsModule` are examples of global modules provided by Bunstone.

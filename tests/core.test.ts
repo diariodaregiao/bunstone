@@ -491,6 +491,34 @@ describe("Bunstone Framework Core", () => {
       eventBus.publish(new TestEvent("data"));
       expect(eventHandled).toBe(true);
     });
+
+    test("CqrsModule should also be available globally", async () => {
+      @Injectable()
+      class CqrsTestService {
+        constructor(public readonly commandBus: CommandBus) {}
+      }
+
+      @Module({
+        providers: [CqrsTestService],
+      })
+      class OtherFeatureModule {}
+
+      @Module({
+        imports: [CqrsModule, OtherFeatureModule],
+      })
+      class CqrsRootModule {}
+
+      AppStartup.create(CqrsRootModule);
+
+      const injectables: Map<any, any> = Reflect.getMetadata(
+        "dip:injectables",
+        OtherFeatureModule
+      );
+      const cqrsService = injectables.get(CqrsTestService);
+
+      expect(cqrsService).toBeDefined();
+      expect(cqrsService.commandBus).toBeInstanceOf(CommandBus);
+    });
   });
 
   describe("Sagas", () => {
