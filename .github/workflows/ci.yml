@@ -28,5 +28,8 @@ jobs:
       - name: Install Dependencies
         run: bun install
 
+      - name: Check Code Formatting
+        run: bun run format:check
+
       - name: Run Tests
         run: bun test
