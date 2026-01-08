@@ -2,6 +2,19 @@
 
 Bunstone is a high-performance, decorator-based web framework for [Bun](https://bun.sh), inspired by NestJS and built on top of [ElysiaJS](https://elysiajs.com). It brings powerful Dependency Injection, CQRS, Sagas, and modular architecture to the Bun ecosystem.
 
+## Code organization and formatting
+
+This project uses `Prettier` to keep the code organized and follow a single standard, thereby improving code evolution and maintenance.
+
+Remember that before uploading your code, run the following commands:
+
+```cmd
+  bun run format
+  bun run format:check
+```
+
+Because your PR will only be approved if it passes the CI, don't forget.
+
 ## 🚀 Quick Start
 
 Scaffold a new project in seconds:
