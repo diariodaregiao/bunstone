@@ -68,7 +68,7 @@ export class AppStartup {
         swagger({
           path: options.swagger.path || "/swagger",
           documentation: options.swagger.documentation,
-        })
+        }),
       );
     }
 
@@ -98,7 +98,7 @@ export class AppStartup {
   private static async executeControllerMethod(
     req: any,
     controller: any,
-    method: any
+    method: any,
   ) {
     const args = await processParameters(req, controller, method);
     return controller[method](...args);
@@ -109,7 +109,7 @@ export class AppStartup {
     if (isGlobal) {
       const injectables: Map<any, any> = Reflect.getMetadata(
         "dip:injectables",
-        module
+        module,
       );
       if (injectables) {
         for (const [key, value] of injectables.entries()) {
@@ -148,7 +148,7 @@ export class AppStartup {
 
     const injectables: Map<any, any> = Reflect.getMetadata(
       "dip:injectables",
-      module
+      module,
     );
     for (const item of controllers.entries()) {
       const [controllerInstance, methods] = item;
@@ -158,12 +158,12 @@ export class AppStartup {
       let controller = new controllerInstance(...dependencies);
       controller = Object.assign(
         controller,
-        AppStartup.getControllerHandler(module, controllerInstance)
+        AppStartup.getControllerHandler(module, controllerInstance),
       );
 
       for (const method of methods) {
         AppStartup.logger.log(
-          `Registering ${method.httpMethod} route: ${method.pathname}`
+          `Registering ${method.httpMethod} route: ${method.pathname}`,
         );
         const httpMethod = method.httpMethod.toLowerCase();
         if (!(httpMethod in AppStartup.elysia)) {
@@ -177,18 +177,18 @@ export class AppStartup {
           Reflect.getMetadata(
             API_TAGS_METADATA,
             controllerInstance.prototype,
-            method.methodName
+            method.methodName,
           ) || [];
         const operation = Reflect.getMetadata(
           API_OPERATION_METADATA,
           controllerInstance.prototype,
-          method.methodName
+          method.methodName,
         );
         const responsesMetadata =
           Reflect.getMetadata(
             API_RESPONSE_METADATA,
             controllerInstance.prototype,
-            method.methodName
+            method.methodName,
           ) || [];
 
         const tags = [...new Set([...controllerTags, ...methodTags])];
@@ -213,7 +213,7 @@ export class AppStartup {
           Reflect.getMetadata(
             API_HEADERS_METADATA,
             controllerInstance.prototype,
-            method.methodName
+            method.methodName,
           ) || [];
         const allHeaders = [...controllerHeaders, ...methodHeaders];
         const parameters = allHeaders.map((h: any) => ({
@@ -229,17 +229,17 @@ export class AppStartup {
           Reflect.getMetadata(
             PARAM_METADATA_KEY,
             controllerInstance.prototype,
-            method.methodName
+            method.methodName,
           ) || [];
 
         const bodySchema = paramsMetadata.find(
-          (p: any) => p.type === ParamType.BODY
+          (p: any) => p.type === ParamType.BODY,
         )?.options?.zodSchema;
         const querySchema = paramsMetadata.find(
-          (p: any) => p.type === ParamType.QUERY
+          (p: any) => p.type === ParamType.QUERY,
         )?.options?.zodSchema;
         const paramsSchema = paramsMetadata.find(
-          (p: any) => p.type === ParamType.PARAM
+          (p: any) => p.type === ParamType.PARAM,
         )?.options?.zodSchema;
 
         AppStartup.elysia[httpMethod as keyof Elysia](
@@ -248,7 +248,7 @@ export class AppStartup {
             AppStartup.executeControllerMethod(
               req,
               controller,
-              method.methodName
+              method.methodName,
             ),
           {
             body: bodySchema,
@@ -277,7 +277,7 @@ export class AppStartup {
                 }
               }
             },
-          }
+          },
         );
       }
     }
@@ -297,7 +297,7 @@ export class AppStartup {
 
       for (const timeout of timeouts) {
         AppStartup.logger.log(
-          `Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`
+          `Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`,
         );
         setTimeout(() => {
           provider[timeout.methodName]();
@@ -332,7 +332,7 @@ export class AppStartup {
   private static registerCqrsHandlers(module: any) {
     const injectables: Map<any, any> = Reflect.getMetadata(
       "dip:injectables",
-      module
+      module,
     );
 
     if (!injectables) return;
@@ -380,7 +380,7 @@ export class AppStartup {
 
         const sagaMethods: string[] = Reflect.getMetadata(
           SAGA_METADATA,
-          sagaInstance.constructor
+          sagaInstance.constructor,
         );
         sagaMethods.forEach((methodName) => {
           const sagaFn = sagaInstance[methodName];
@@ -394,7 +394,7 @@ export class AppStartup {
                   commandBus.execute(command).catch((err: any) => {
                     AppStartup.logger.error(
                       `Error executing command from Saga ${sagaInstance.constructor.name}.${methodName}:`,
-                      err
+                      err,
                     );
                   });
                 }
@@ -420,7 +420,7 @@ export class AppStartup {
   private static getControllerHandler(module: any, controller: any) {
     const injectables: Map<any, any> = Reflect.getMetadata(
       "dip:injectables",
-      module
+      module,
     );
 
     if (!injectables) {

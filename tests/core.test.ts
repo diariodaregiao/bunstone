@@ -100,7 +100,7 @@ describe("Bunstone Framework Core", () => {
       const elysia = (app as any).getElysia();
 
       const response = await elysia.handle(
-        new Request("http://localhost/jwt/protected")
+        new Request("http://localhost/jwt/protected"),
       );
       expect(response.status).toBe(500); // Unauthorized error
     });
@@ -137,7 +137,7 @@ describe("Bunstone Framework Core", () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: "Bunstone", age: 1 }),
-        })
+        }),
       );
       expect(validResponse.status).toBe(200);
 
@@ -147,7 +147,7 @@ describe("Bunstone Framework Core", () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: "Bu", age: 1 }), // name too short
-        })
+        }),
       );
       expect(invalidResponse.status).toBe(400);
     });
@@ -168,7 +168,7 @@ describe("Bunstone Framework Core", () => {
     class DiController {
       constructor(
         public singleton: SingletonService,
-        public nested: NestedService
+        public nested: NestedService,
       ) {}
 
       @Get("check")
@@ -191,7 +191,7 @@ describe("Bunstone Framework Core", () => {
       const elysia = (app as any).getElysia();
 
       const response = await elysia.handle(
-        new Request("http://localhost/di/check")
+        new Request("http://localhost/di/check"),
       );
       const data = await response.json();
 
@@ -230,7 +230,7 @@ describe("Bunstone Framework Core", () => {
       const elysia = (app as any).getElysia();
 
       const response = await elysia.handle(
-        new Request("http://localhost/guarded/secret")
+        new Request("http://localhost/guarded/secret"),
       );
       expect(response.status).toBe(500); // Elysia throws error which results in 500 by default if not handled
     });
@@ -242,7 +242,7 @@ describe("Bunstone Framework Core", () => {
       const response = await elysia.handle(
         new Request("http://localhost/guarded/secret", {
           headers: { authorization: "secret" },
-        })
+        }),
       );
       expect(response.status).toBe(200);
       expect(await response.text()).toBe("top secret");
@@ -282,7 +282,7 @@ describe("Bunstone Framework Core", () => {
       const app = AppStartup.create(ParamsModule);
       const elysia = (app as any).getElysia();
       const response = await elysia.handle(
-        new Request("http://localhost/params/id/123")
+        new Request("http://localhost/params/id/123"),
       );
       expect(await response.json()).toEqual({ id: "123" });
     });
@@ -295,7 +295,7 @@ describe("Bunstone Framework Core", () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ foo: "bar" }),
-        })
+        }),
       );
       expect(await response.json()).toEqual({ foo: "bar" });
     });
@@ -304,7 +304,7 @@ describe("Bunstone Framework Core", () => {
       const app = AppStartup.create(ParamsModule);
       const elysia = (app as any).getElysia();
       const response = await elysia.handle(
-        new Request("http://localhost/params/query?name=bun")
+        new Request("http://localhost/params/query?name=bun"),
       );
       expect(await response.json()).toEqual({ name: "bun" });
     });
@@ -315,7 +315,7 @@ describe("Bunstone Framework Core", () => {
       const response = await elysia.handle(
         new Request("http://localhost/params/header", {
           headers: { "x-test": "passed" },
-        })
+        }),
       );
       expect(await response.json()).toEqual({ test: "passed" });
     });
@@ -351,37 +351,37 @@ describe("Bunstone Framework Core", () => {
       expect(
         await (
           await elysia.handle(
-            new Request("http://localhost/methods", { method: "GET" })
+            new Request("http://localhost/methods", { method: "GET" }),
           )
-        ).text()
+        ).text(),
       ).toBe("get");
       expect(
         await (
           await elysia.handle(
-            new Request("http://localhost/methods", { method: "POST" })
+            new Request("http://localhost/methods", { method: "POST" }),
           )
-        ).text()
+        ).text(),
       ).toBe("post");
       expect(
         await (
           await elysia.handle(
-            new Request("http://localhost/methods", { method: "PUT" })
+            new Request("http://localhost/methods", { method: "PUT" }),
           )
-        ).text()
+        ).text(),
       ).toBe("put");
       expect(
         await (
           await elysia.handle(
-            new Request("http://localhost/methods", { method: "DELETE" })
+            new Request("http://localhost/methods", { method: "DELETE" }),
           )
-        ).text()
+        ).text(),
       ).toBe("delete");
       expect(
         await (
           await elysia.handle(
-            new Request("http://localhost/methods", { method: "PATCH" })
+            new Request("http://localhost/methods", { method: "PATCH" }),
           )
-        ).text()
+        ).text(),
       ).toBe("patch");
     });
   });
@@ -465,7 +465,7 @@ describe("Bunstone Framework Core", () => {
       // We need to get the instance from the module's injectables
       const injectables = Reflect.getMetadata(
         "dip:injectables",
-        CqrsTestModule
+        CqrsTestModule,
       );
       const commandBus: CommandBus = injectables.get(CommandBus);
       const result = await commandBus.execute(new TestCommand("cmd"));
@@ -475,7 +475,7 @@ describe("Bunstone Framework Core", () => {
     test("QueryBus should execute handler", async () => {
       const injectables = Reflect.getMetadata(
         "dip:injectables",
-        CqrsTestModule
+        CqrsTestModule,
       );
       const queryBus: QueryBus = injectables.get(QueryBus);
       const result = await queryBus.execute(new TestQuery(1));
@@ -485,7 +485,7 @@ describe("Bunstone Framework Core", () => {
     test("EventBus should publish to handler", () => {
       const injectables = Reflect.getMetadata(
         "dip:injectables",
-        CqrsTestModule
+        CqrsTestModule,
       );
       const eventBus: EventBus = injectables.get(EventBus);
       eventBus.publish(new TestEvent("data"));
@@ -512,7 +512,7 @@ describe("Bunstone Framework Core", () => {
 
       const injectables: Map<any, any> = Reflect.getMetadata(
         "dip:injectables",
-        OtherFeatureModule
+        OtherFeatureModule,
       );
       const cqrsService = injectables.get(CqrsTestService);
 
@@ -539,7 +539,7 @@ describe("Bunstone Framework Core", () => {
       onTrigger = (events$: any) =>
         events$.pipe(
           ofType(TriggerEvent),
-          map(() => new ResultCommand())
+          map(() => new ResultCommand()),
         );
     }
 
@@ -555,7 +555,7 @@ describe("Bunstone Framework Core", () => {
 
       const injectables = Reflect.getMetadata(
         "dip:injectables",
-        SagaTestModule
+        SagaTestModule,
       );
       const eventBus: EventBus = injectables.get(EventBus);
 

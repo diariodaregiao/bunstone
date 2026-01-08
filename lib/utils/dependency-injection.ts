@@ -32,7 +32,7 @@ export class GlobalRegistry {
  */
 export function resolveDependencies(
   paramTypes: any[],
-  deps: Map<any, any>
+  deps: Map<any, any>,
 ): any[] {
   return paramTypes.map((paramType: any) => {
     return resolveType(paramType, deps);
@@ -48,13 +48,13 @@ export function resolveDependencies(
 export function resolveType(type: any, deps: Map<any, any>): any {
   if (!type) {
     throw new Error(
-      "Cannot resolve dependency: type is undefined. This often happens due to circular dependencies or using 'import type' for a class that needs to be injected."
+      "Cannot resolve dependency: type is undefined. This often happens due to circular dependencies or using 'import type' for a class that needs to be injected.",
     );
   }
 
   if (type === Object) {
     throw new Error(
-      "Cannot resolve dependency: type is 'Object'. This usually happens when 'emitDecoratorMetadata' is enabled but the class is imported as a type or there is a circular dependency."
+      "Cannot resolve dependency: type is 'Object'. This usually happens when 'emitDecoratorMetadata' is enabled but the class is imported as a type or there is a circular dependency.",
     );
   }
 

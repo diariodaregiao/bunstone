@@ -7,7 +7,7 @@ export function FormData(options: FormDataOptions = {}): ParameterDecorator {
   return function (
     target: any,
     propertyKey: string | symbol | undefined,
-    parameterIndex: number
+    parameterIndex: number,
   ) {
     const existingParams =
       (propertyKey === undefined
@@ -28,7 +28,7 @@ export function FormData(options: FormDataOptions = {}): ParameterDecorator {
         PARAM_METADATA_KEY,
         existingParams,
         target,
-        propertyKey
+        propertyKey,
       );
     }
   };

@@ -61,7 +61,7 @@ describe("HTTP Exceptions", () => {
     const app = AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
-      new Request("http://localhost/exceptions/not-found")
+      new Request("http://localhost/exceptions/not-found"),
     );
 
     expect(response.status).toBe(404);
@@ -72,7 +72,7 @@ describe("HTTP Exceptions", () => {
     const app = AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
-      new Request("http://localhost/exceptions/bad-request")
+      new Request("http://localhost/exceptions/bad-request"),
     );
 
     expect(response.status).toBe(400);
@@ -83,7 +83,7 @@ describe("HTTP Exceptions", () => {
     const app = AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
-      new Request("http://localhost/exceptions/unauthorized")
+      new Request("http://localhost/exceptions/unauthorized"),
     );
     expect(response.status).toBe(401);
   });
@@ -92,7 +92,7 @@ describe("HTTP Exceptions", () => {
     const app = AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
-      new Request("http://localhost/exceptions/forbidden")
+      new Request("http://localhost/exceptions/forbidden"),
     );
     expect(response.status).toBe(403);
   });
@@ -101,7 +101,7 @@ describe("HTTP Exceptions", () => {
     const app = AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
-      new Request("http://localhost/exceptions/internal")
+      new Request("http://localhost/exceptions/internal"),
     );
     expect(response.status).toBe(500);
   });
@@ -110,7 +110,7 @@ describe("HTTP Exceptions", () => {
     const app = AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
-      new Request("http://localhost/exceptions/created")
+      new Request("http://localhost/exceptions/created"),
     );
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ id: 1 });
@@ -120,7 +120,7 @@ describe("HTTP Exceptions", () => {
     const app = AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
-      new Request("http://localhost/exceptions/no-content")
+      new Request("http://localhost/exceptions/no-content"),
     );
     expect(response.status).toBe(204);
   });

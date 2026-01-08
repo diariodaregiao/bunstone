@@ -17,7 +17,7 @@ export class QueryBus {
     handlers.forEach((handler) => {
       const query = Reflect.getMetadata(
         QUERY_HANDLER_METADATA,
-        handler.constructor
+        handler.constructor,
       );
       if (query) {
         this.handlers.set(query, handler);

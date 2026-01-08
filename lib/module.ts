@@ -29,7 +29,7 @@ export function Module(moduleConfig: ModuleConfig = {}): any {
   const modules = moduleConfig.imports;
   const controllers = mapControllers(moduleConfig.controllers);
   const providersTimeouts = MapProvidersWithTimeout.execute(
-    moduleConfig.providers
+    moduleConfig.providers,
   );
   const providersCrons = MapProvidersWithCron.execute(moduleConfig.providers);
   const injectableProviders = mapInjectableProviders(moduleConfig);
@@ -67,7 +67,7 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
     for (const controllerSymbol of Object.getOwnPropertySymbols(controller)) {
       const controllerPathname = Reflect.getOwnMetadata(
         "dip:controller:pathname",
-        controller
+        controller,
       );
 
       const controllerGuard = Reflect.getMetadata("dip:guard", controller);
@@ -79,14 +79,12 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
       }[] = (controller as any)[controllerSymbol];
 
       controllerMethods.forEach((cm) => {
-        const pathname = `${
-          controllerPathname === "/" ? "" : controllerPathname
-        }${cm.pathname}`;
+        const pathname = `${controllerPathname === "/" ? "" : controllerPathname}${cm.pathname}`;
 
         const methodGuard = Reflect.getMetadata(
           "dip:guard",
           controller.prototype,
-          cm.methodName
+          cm.methodName,
         );
 
         controllersMap.get(controller)?.push({

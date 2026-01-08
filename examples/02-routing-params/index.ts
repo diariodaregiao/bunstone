@@ -1,14 +1,14 @@
+import { z } from "zod";
 import {
-  Module,
+  AppStartup,
+  Body,
   Controller,
   Get,
-  Post,
+  Module,
   Param,
+  Post,
   Query,
-  Body,
-  AppStartup,
 } from "../../index";
-import { z } from "zod";
 
 const CreateUserSchema = z.object({
   name: z.string().min(3),
@@ -39,7 +39,7 @@ class UserController {
         { id: "1", name: "John Doe" },
         { id: "2", name: "Jane Doe" },
       ].filter((u) =>
-        u.name.toLowerCase().includes((name || "").toLowerCase())
+        u.name.toLowerCase().includes((name || "").toLowerCase()),
       ),
     };
   }

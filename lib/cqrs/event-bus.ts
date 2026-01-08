@@ -47,7 +47,7 @@ export class EventBus {
     handlers.forEach((handler) => {
       const events = Reflect.getMetadata(
         EVENT_HANDLER_METADATA,
-        handler.constructor
+        handler.constructor,
       );
       if (Array.isArray(events)) {
         events.forEach((event) => {

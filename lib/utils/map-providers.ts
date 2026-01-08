@@ -10,7 +10,7 @@
  */
 export function mapProvidersWithType(
   providers: (new (...args: any[]) => any)[] = [],
-  type: string
+  type: string,
 ): Map<any, { expression?: string; delay?: number; methodName: string }[]> {
   const result = new Map<
     any,
@@ -19,7 +19,7 @@ export function mapProvidersWithType(
 
   for (const provider of providers) {
     for (const providerSymbol of Object.getOwnPropertySymbols(
-      provider.prototype
+      provider.prototype,
     )) {
       const methods = provider.prototype[providerSymbol];
 

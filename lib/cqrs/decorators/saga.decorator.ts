@@ -24,7 +24,7 @@ export const Saga = (): any => {
     Reflect.defineMetadata(
       SAGA_METADATA,
       [...properties, propertyKey],
-      target.constructor
+      target.constructor,
     );
   };
 };

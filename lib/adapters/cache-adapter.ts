@@ -23,7 +23,7 @@ export class CacheAdapter {
   async set(
     key: string,
     value: CacheValue,
-    options?: CacheSetOptions
+    options?: CacheSetOptions,
   ): Promise<void> {
     assertValidKey(key);
     const payload = JSON.stringify(value);

@@ -18,7 +18,7 @@ function setParamMetadata(
   parameterIndex: number,
   type: ParamType,
   key?: string,
-  options?: unknown
+  options?: unknown,
 ) {
   const existingParams =
     Reflect.getOwnMetadata(PARAM_METADATA_KEY, target, propertyKey) || [];
@@ -29,7 +29,7 @@ function setParamMetadata(
     PARAM_METADATA_KEY,
     existingParams,
     target,
-    propertyKey
+    propertyKey,
   );
 }
 
@@ -45,7 +45,9 @@ export function Body(): any {
           parameterIndex,
           ParamType.BODY,
           undefined,
-          { zodSchema: arg }
+          {
+            zodSchema: arg,
+          },
         );
       };
     }
@@ -56,7 +58,7 @@ export function Body(): any {
       target,
       propertyKey as string,
       parameterIndex,
-      ParamType.BODY
+      ParamType.BODY,
     );
   };
 }
@@ -76,7 +78,7 @@ export function Param(): any {
           undefined,
           {
             zodSchema: arguments[0] as ZodType,
-          }
+          },
         );
       };
     }
@@ -89,7 +91,7 @@ export function Param(): any {
       propertyKey as string,
       parameterIndex,
       ParamType.PARAM,
-      key
+      key,
     );
   };
 }
@@ -109,7 +111,7 @@ export function Query(): any {
           undefined,
           {
             zodSchema: arguments[0] as ZodType,
-          }
+          },
         );
       };
     }
@@ -122,7 +124,7 @@ export function Query(): any {
       propertyKey as string,
       parameterIndex,
       ParamType.QUERY,
-      key
+      key,
     );
   };
 }
@@ -134,7 +136,7 @@ export function Header(key: string): any {
       propertyKey,
       parameterIndex,
       ParamType.HEADER,
-      key
+      key,
     );
   };
 }
@@ -154,13 +156,13 @@ export function FormData(): any {
 export async function processParameters(
   request: any,
   target: any,
-  propertyKey: string
+  propertyKey: string,
 ): Promise<any[]> {
   const paramMetadata =
     Reflect.getOwnMetadata(
       PARAM_METADATA_KEY,
       Object.getPrototypeOf(target),
-      propertyKey
+      propertyKey,
     ) || [];
 
   const paramTypes =
@@ -209,7 +211,7 @@ export async function processParameters(
         cachedFormData = cachedFormData || (await readFormData(request));
         args[index] = extractFormDataPayload(
           cachedFormData,
-          metadata.options as FormDataOptions | undefined
+          metadata.options as FormDataOptions | undefined,
         );
         break;
     }
@@ -282,7 +284,7 @@ async function readFormData(request: any): Promise<FormData> {
         ? err.message
         : "Body already consumed or unreadable";
     throw new Error(
-      `Could not read multipart form data from the request. ${reason}`
+      `Could not read multipart form data from the request. ${reason}`,
     );
   }
 
@@ -296,7 +298,7 @@ async function readFormData(request: any): Promise<FormData> {
 
 function extractFormDataPayload(
   formData: FormData,
-  options: FormDataOptions = {}
+  options: FormDataOptions = {},
 ): FormDataPayload {
   const { fileField, allowedTypes, jsonField } = options;
   const files: File[] = [];
@@ -310,9 +312,7 @@ function extractFormDataPayload(
     if (value instanceof File) {
       if (allowed.length > 0 && !isAllowedFileType(value, allowed)) {
         badRequest(
-          `File type for "${
-            value.name
-          }" is not allowed. Allowed: ${allowed.join(", ")}`
+          `File type for "${value.name}" is not allowed. Allowed: ${allowed.join(", ")}`,
         );
       }
 

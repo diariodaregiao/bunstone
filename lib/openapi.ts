@@ -47,7 +47,7 @@ export function ApiOperation(options: {
   return (
     target: any,
     propertyKey: string | symbol,
-    descriptor?: PropertyDescriptor
+    descriptor?: PropertyDescriptor,
   ) => {
     // Stage 3 support
     if (
@@ -63,7 +63,7 @@ export function ApiOperation(options: {
       API_OPERATION_METADATA,
       options,
       target,
-      propertyKey
+      propertyKey,
     );
   };
 }
@@ -83,7 +83,7 @@ export function ApiResponse(options: {
   return (
     target: any,
     propertyKey: string | symbol,
-    descriptor?: PropertyDescriptor
+    descriptor?: PropertyDescriptor,
   ) => {
     // Stage 3 support
     if (
@@ -105,7 +105,7 @@ export function ApiResponse(options: {
       API_RESPONSE_METADATA,
       responses,
       target,
-      propertyKey
+      propertyKey,
     );
   };
 }
@@ -144,7 +144,7 @@ export function ApiHeader(options: {
         API_HEADERS_METADATA,
         headers,
         target,
-        propertyKey
+        propertyKey,
       );
     } else {
       Reflect.defineMetadata(API_HEADERS_METADATA, headers, target);
@@ -162,7 +162,7 @@ export function ApiHeaders(
     description?: string;
     required?: boolean;
     schema?: any;
-  }[]
+  }[],
 ) {
   return (target: any, propertyKey?: string | symbol) => {
     headers.forEach((header) => {

@@ -14,12 +14,12 @@ function HttpMethodDecorator(httpMethod: string, pathname: string = ""): any {
   return function (
     target: any,
     propertyKey: string | symbol,
-    descriptor: PropertyDescriptor
+    descriptor: PropertyDescriptor,
   ) {
     Reflect.defineMetadata(
       "dip:http-method",
       `${httpMethod} ${pathname}`,
-      descriptor.value as Function
+      descriptor.value as Function,
     );
     return descriptor;
   };

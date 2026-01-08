@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { AppStartup, CommandBus, Injectable, Module, SqlModule, SqlService } from "../index";
+import {
+  AppStartup,
+  CommandBus,
+  Injectable,
+  Module,
+  SqlModule,
+  SqlService,
+} from "../index";
 import { CqrsModule } from "../lib/cqrs/cqrs-module";
 
 describe("SqlModule & Global DI", () => {
@@ -22,7 +29,10 @@ describe("SqlModule & Global DI", () => {
     AppStartup.create(RootModule);
 
     // Get the injectables map from the module metadata
-    const injectables: Map<any, any> = Reflect.getMetadata("dip:injectables", FeatureModule);
+    const injectables: Map<any, any> = Reflect.getMetadata(
+      "dip:injectables",
+      FeatureModule,
+    );
     const testService = injectables.get(TestService);
 
     expect(testService).toBeDefined();
@@ -47,7 +57,10 @@ describe("SqlModule & Global DI", () => {
 
     AppStartup.create(CqrsRootModule);
 
-    const injectables: Map<any, any> = Reflect.getMetadata("dip:injectables", OtherFeatureModule);
+    const injectables: Map<any, any> = Reflect.getMetadata(
+      "dip:injectables",
+      OtherFeatureModule,
+    );
     const cqrsService = injectables.get(CqrsTestService);
 
     expect(cqrsService).toBeDefined();
@@ -64,7 +77,9 @@ describe("SqlModule & Global DI", () => {
     const sqlService = new SqlService();
 
     // Create table
-    await sqlService.query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)");
+    await sqlService.query(
+      "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)",
+    );
 
     // Insert data using .query()
     await sqlService.query("INSERT INTO users (name) VALUES (?)", ["Alice"]);
@@ -90,7 +105,9 @@ describe("SqlModule & Global DI", () => {
     AppStartup.create(SqlRootModule);
     const sqlService = new SqlService();
 
-    await sqlService.query("CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)");
+    await sqlService.query(
+      "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)",
+    );
 
     const products = [
       { name: "Laptop", price: 999.99 },
@@ -100,7 +117,9 @@ describe("SqlModule & Global DI", () => {
 
     await sqlService.bulkInsert("products", products);
 
-    const result = await sqlService.query("SELECT * FROM products ORDER BY id ASC");
+    const result = await sqlService.query(
+      "SELECT * FROM products ORDER BY id ASC",
+    );
     expect(result).toHaveLength(3);
     expect(result[0].name).toBe("Laptop");
     expect(result[1].name).toBe("Mouse");
@@ -117,20 +136,43 @@ describe("SqlModule & Global DI", () => {
     const sqlService = new SqlService();
 
     // Table Setup
-    await sqlService.query("CREATE TABLE departments (id INTEGER PRIMARY KEY, name TEXT)");
-    await sqlService.query("CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT, dept_id INTEGER)");
+    await sqlService.query(
+      "CREATE TABLE departments (id INTEGER PRIMARY KEY, name TEXT)",
+    );
+    await sqlService.query(
+      "CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT, dept_id INTEGER)",
+    );
 
     // Insert Data
-    await sqlService.query("INSERT INTO departments (name) VALUES (?)", ["Engineering"]);
-    await sqlService.query("INSERT INTO departments (name) VALUES (?)", ["Marketing"]);
+    await sqlService.query("INSERT INTO departments (name) VALUES (?)", [
+      "Engineering",
+    ]);
+    await sqlService.query("INSERT INTO departments (name) VALUES (?)", [
+      "Marketing",
+    ]);
 
-    await sqlService.query("INSERT INTO employees (name, dept_id) VALUES (?, ?)", ["John", 1]);
-    await sqlService.query("INSERT INTO employees (name, dept_id) VALUES (?, ?)", ["Jane", 1]);
-    await sqlService.query("INSERT INTO employees (name, dept_id) VALUES (?, ?)", ["Mike", 2]);
+    await sqlService.query(
+      "INSERT INTO employees (name, dept_id) VALUES (?, ?)",
+      ["John", 1],
+    );
+    await sqlService.query(
+      "INSERT INTO employees (name, dept_id) VALUES (?, ?)",
+      ["Jane", 1],
+    );
+    await sqlService.query(
+      "INSERT INTO employees (name, dept_id) VALUES (?, ?)",
+      ["Mike", 2],
+    );
 
     // Update
-    await sqlService.query("UPDATE employees SET name = ? WHERE name = ?", ["John Doe", "John"]);
-    const updated = await sqlService.query("SELECT name FROM employees WHERE name = ?", ["John Doe"]);
+    await sqlService.query("UPDATE employees SET name = ? WHERE name = ?", [
+      "John Doe",
+      "John",
+    ]);
+    const updated = await sqlService.query(
+      "SELECT name FROM employees WHERE name = ?",
+      ["John Doe"],
+    );
     expect(updated[0].name).toBe("John Doe");
 
     // Join
@@ -153,7 +195,9 @@ describe("SqlModule & Global DI", () => {
     expect(remaining).toHaveLength(2);
 
     // Aggregate
-    const counts = await sqlService.query("SELECT COUNT(*) as total FROM departments");
+    const counts = await sqlService.query(
+      "SELECT COUNT(*) as total FROM departments",
+    );
     expect(counts[0].total).toBe(2);
   });
 
@@ -166,24 +210,23 @@ describe("SqlModule & Global DI", () => {
     AppStartup.create(OperatorsSqlRootModule);
     const sqlService = new SqlService();
 
-    await sqlService.query("CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)");
+    await sqlService.query(
+      "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)",
+    );
 
-    await sqlService.query("INSERT INTO products (name, price) VALUES (?, ?), (?, ?), (?, ?), (?, ?)", [
-      "Apple",
-      1.5,
-      "Banana",
-      0.5,
-      "Cherry",
-      2.0,
-      "Date",
-      3.0,
-    ]);
+    await sqlService.query(
+      "INSERT INTO products (name, price) VALUES (?, ?), (?, ?), (?, ?), (?, ?)",
+      ["Apple", 1.5, "Banana", 0.5, "Cherry", 2.0, "Date", 3.0],
+    );
 
     // IN operator
     // Note: Standard SQLite parameter binding for IN (?) usually requires one ? per element
     // or using the array support if the driver allows. Bun SQL supports arrays in some contexts.
     // For raw .query strings, we might need to build the (?, ?) string if the driver doesn't auto-expand.
-    const inResults = await sqlService.query("SELECT * FROM products WHERE name IN (?, ?)", ["Apple", "Banana"]);
+    const inResults = await sqlService.query(
+      "SELECT * FROM products WHERE name IN (?, ?)",
+      ["Apple", "Banana"],
+    );
     expect(inResults).toHaveLength(2);
 
     // LIKE operator
@@ -212,10 +255,17 @@ describe("SqlModule & Global DI", () => {
     AppStartup.create(SubqueriesSqlRootModule);
     const sqlService = new SqlService();
 
-    await sqlService.query("CREATE TABLE orders (id INTEGER PRIMARY KEY, total REAL, customer_id INTEGER)");
-    await sqlService.query("CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT)");
+    await sqlService.query(
+      "CREATE TABLE orders (id INTEGER PRIMARY KEY, total REAL, customer_id INTEGER)",
+    );
+    await sqlService.query(
+      "CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT)",
+    );
 
-    await sqlService.query("INSERT INTO customers (name) VALUES (?), (?)", ["Alice", "Bob"]);
+    await sqlService.query("INSERT INTO customers (name) VALUES (?), (?)", [
+      "Alice",
+      "Bob",
+    ]);
     await sqlService.query(
       "INSERT INTO orders (total, customer_id) VALUES (?, ?), (?, ?), (?, ?)",
       [100.0, 1, 200.0, 1, 50.0, 2],
@@ -251,10 +301,18 @@ describe("SqlModule & Global DI", () => {
     AppStartup.create(TransactionSqlRootModule);
     const sqlService = new SqlService();
 
-    await sqlService.query("CREATE TABLE accounts (id INTEGER PRIMARY KEY, balance REAL)");
+    await sqlService.query(
+      "CREATE TABLE accounts (id INTEGER PRIMARY KEY, balance REAL)",
+    );
 
-    await sqlService.query("INSERT INTO accounts (id, balance) VALUES (?, ?)", [1, 1000]);
-    await sqlService.query("INSERT INTO accounts (id, balance) VALUES (?, ?)", [2, 1000]);
+    await sqlService.query(
+      "INSERT INTO accounts (id, balance) VALUES (?, ?)",
+      [1, 1000],
+    );
+    await sqlService.query(
+      "INSERT INTO accounts (id, balance) VALUES (?, ?)",
+      [2, 1000],
+    );
 
     await sqlService.transaction([
       {
@@ -267,7 +325,9 @@ describe("SqlModule & Global DI", () => {
       },
     ]);
 
-    const results = await sqlService.query("SELECT * FROM accounts ORDER BY id ASC");
+    const results = await sqlService.query(
+      "SELECT * FROM accounts ORDER BY id ASC",
+    );
     expect(results[0].balance).toBe(900);
     expect(results[1].balance).toBe(1100);
   });
@@ -281,7 +341,9 @@ describe("SqlModule & Global DI", () => {
     AppStartup.create(RollbackSqlRootModule);
     const sqlService = new SqlService();
 
-    await sqlService.query("CREATE TABLE products_tx (id INTEGER PRIMARY KEY, name TEXT)");
+    await sqlService.query(
+      "CREATE TABLE products_tx (id INTEGER PRIMARY KEY, name TEXT)",
+    );
 
     try {
       await sqlService.transaction([
@@ -311,13 +373,17 @@ describe("SqlModule & Global DI", () => {
     AppStartup.create(BulkInsertSqlRootModule);
     const sqlService = new SqlService();
 
-    await sqlService.query("CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)");
+    await sqlService.query(
+      "CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)",
+    );
 
     const items = [{ name: "Item 1" }, { name: "Item 2" }, { name: "Item 3" }];
 
     await sqlService.bulkInsert("items", items);
 
-    const results = await sqlService.query("SELECT * FROM items ORDER BY id ASC");
+    const results = await sqlService.query(
+      "SELECT * FROM items ORDER BY id ASC",
+    );
     expect(results).toHaveLength(3);
     expect(results[0].name).toBe("Item 1");
     expect(results[1].name).toBe("Item 2");
