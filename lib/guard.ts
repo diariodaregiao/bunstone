@@ -11,7 +11,7 @@ export function Guard(guard: ClassConstructor): any {
   return function (
     target: any,
     propertyKey?: string | symbol,
-    descriptor?: PropertyDescriptor
+    descriptor?: PropertyDescriptor,
   ) {
     if (!("validate" in guard.prototype)) {
       throw new Error(`Guard class must implement 'validate' method.`);

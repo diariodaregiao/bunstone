@@ -17,7 +17,7 @@ export class CommandBus {
     handlers.forEach((handler) => {
       const command = Reflect.getMetadata(
         COMMAND_HANDLER_METADATA,
-        handler.constructor
+        handler.constructor,
       );
       if (command) {
         this.handlers.set(command, handler);

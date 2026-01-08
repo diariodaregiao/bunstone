@@ -22,7 +22,7 @@ export function Controller(pathname: string = "/"): any {
     Injectable()(target);
 
     const controllerMethods = Object.getOwnPropertyNames(
-      target.prototype
+      target.prototype,
     ).filter((method) => method !== "constructor");
 
     const controllerHttpMethods = Symbol.for("dip:controller:http-methods");
@@ -37,7 +37,7 @@ export function Controller(pathname: string = "/"): any {
 
       const metadata = Reflect.getMetadata(
         "dip:http-method",
-        target.prototype[controllerMethod]
+        target.prototype[controllerMethod],
       );
 
       if (metadata) {

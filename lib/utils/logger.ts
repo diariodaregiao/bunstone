@@ -25,7 +25,10 @@ export class Logger {
   private showTimestamp: boolean;
   private pretty: boolean;
 
-  constructor(private name: string, options: LoggerOptions = {}) {
+  constructor(
+    private name: string,
+    options: LoggerOptions = {},
+  ) {
     this.level = options.level ?? LogLevel.INFO;
     this.showTimestamp = options.timestamp ?? true;
     this.pretty = options.pretty ?? true;
@@ -46,7 +49,7 @@ export class Logger {
           message: args
             .map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a)))
             .join(" "),
-        })
+        }),
       );
       return;
     }

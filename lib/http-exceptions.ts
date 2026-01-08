@@ -4,7 +4,7 @@
 export class HttpException extends Error {
   constructor(
     public readonly response: string | object,
-    public readonly status: number
+    public readonly status: number,
   ) {
     super(typeof response === "string" ? response : JSON.stringify(response));
     Object.setPrototypeOf(this, HttpException.prototype);

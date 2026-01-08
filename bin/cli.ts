@@ -57,7 +57,7 @@ async function scaffold() {
 
     await writeFile(
       join(projectPath, "package.json"),
-      JSON.stringify(pkg, null, 2)
+      JSON.stringify(pkg, null, 2),
     );
 
     // tsconfig.json
@@ -90,7 +90,7 @@ async function scaffold() {
 
     await writeFile(
       join(projectPath, "tsconfig.json"),
-      JSON.stringify(tsconfig, null, 2)
+      JSON.stringify(tsconfig, null, 2),
     );
 
     // src/main.ts
@@ -137,7 +137,7 @@ export class AppController {
 
     await writeFile(
       join(projectPath, "src/controllers/app.controller.ts"),
-      controllerTs
+      controllerTs,
     );
 
     // src/services/app.service.ts
@@ -156,13 +156,13 @@ export class AppService {
 
     await writeFile(
       join(projectPath, "src/services/app.service.ts"),
-      serviceTs
+      serviceTs,
     );
 
     // .gitignore
     await writeFile(
       join(projectPath, ".gitignore"),
-      "node_modules\n.DS_Store\ndist\n.env\n"
+      "node_modules\n.DS_Store\ndist\n.env\n",
     );
 
     console.log("📦 Installing dependencies...");

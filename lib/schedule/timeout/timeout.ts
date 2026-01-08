@@ -12,7 +12,7 @@ export function Timeout(delay: number): any {
   return function (
     target: any,
     propertyKey: string | symbol,
-    descriptor?: any
+    descriptor?: any,
   ) {
     // Stage 3 support
     if (
