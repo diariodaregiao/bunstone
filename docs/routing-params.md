@@ -49,3 +49,11 @@ create(@Body(CreateUserSchema) data: z.infer<typeof CreateUserSchema>) {
   return data; // data is already validated and typed
 }
 ```
+
+## Practical Example
+
+See more examples of routing, parameters, and validation:
+
+<<< @/../examples/02-routing-params/index.ts
+
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/02-routing-params/index.ts)

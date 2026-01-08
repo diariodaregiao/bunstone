@@ -48,4 +48,12 @@ const user = await cache.get<UserCache>("user:1");
 ```ts
 const exists = await cache.exists("user:1");
 await cache.remove("user:1");
+
+## Practical Example
+
+See how to use the Cache Adapter in a controller:
+
+<<< @/../../examples/07-adapters/index.ts
+
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/07-adapters/index.ts)
 ```
