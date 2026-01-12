@@ -24,4 +24,6 @@ features:
     details: Built on top of Bun and Elysia for maximum performance.
   - title: MVC & SSR
     details: Native React support for Server-Side Rendering with @Render decorator.
+  - title: Professional Emails
+    details: Send emails using React components and Tailwind CSS with automatic inline styling.
 ---
