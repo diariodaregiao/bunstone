@@ -199,23 +199,32 @@ import * as Mod from '${absolutePath}';
 
 const Component = Mod['${componentName}'] || Mod.default;
 
-const dataElement = document.getElementById("__BUNSTONE_DATA__");
-const data = dataElement ? JSON.parse(dataElement.textContent || "{}") : {};
+function hydrate() {
+  const dataElement = document.getElementById("__BUNSTONE_DATA__");
+  const data = dataElement ? JSON.parse(dataElement.textContent || "{}") : {};
 
-if (typeof document !== 'undefined' && Component) {
-  const root = document.getElementById("root");
-  if (root) {
-    try {
-      hydrateRoot(root, React.createElement(Component, data));
-      console.log('[Bunstone] Hydration successful for component: ${componentName}');
-    } catch (e) {
-      console.error('[Bunstone] Hydration failed for component: ${componentName}', e);
+  if (typeof document !== 'undefined' && Component) {
+    const root = document.getElementById("root");
+    if (root) {
+      try {
+        hydrateRoot(root, React.createElement(Component, data));
+        console.log('[Bunstone] Hydration successful for component: ${componentName}');
+      } catch (e) {
+        console.error('[Bunstone] Hydration failed for component: ${componentName}', e);
+      }
+    } else {
+      console.error('[Bunstone] Root element "root" not found for hydration.');
     }
   } else {
-    console.error('[Bunstone] Root element "root" not found for hydration.');
+    console.error('[Bunstone] Component ${componentName} not found in bundle.');
   }
+}
+
+// Ensure DOM is fully loaded before hydrating
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', hydrate);
 } else {
-  console.error('[Bunstone] Component ${componentName} not found in bundle.');
+  hydrate();
 }
         `;
 

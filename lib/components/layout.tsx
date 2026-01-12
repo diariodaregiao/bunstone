@@ -36,7 +36,6 @@ export const Layout: React.FC<LayoutProps> = ({
             }),
           }}
         ></script>
-        {bundle && <script type="module" src={`/public/${bundle}`}></script>}
       </head>
       <body className="bg-gray-100 text-gray-900 font-sans">
         <main id="root" className="container mx-auto p-4">
@@ -49,6 +48,7 @@ export const Layout: React.FC<LayoutProps> = ({
             dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
           />
         )}
+        {bundle && <script type="module" src={`/public/${bundle}`}></script>}
       </body>
     </html>
   );
