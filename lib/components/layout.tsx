@@ -20,6 +20,18 @@ export const Layout: React.FC<LayoutProps> = ({
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{title || "Bunstone App"}</title>
         <script src="https://cdn.tailwindcss.com"></script>
+        <script
+          type="importmap"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              imports: {
+                react: "https://esm.sh/react@19",
+                "react-dom": "https://esm.sh/react-dom@19",
+                "react-dom/client": "https://esm.sh/react-dom@19/client",
+              },
+            }),
+          }}
+        ></script>
         {bundle && <script type="module" src={`/public/${bundle}`}></script>}
       </head>
       <body className="bg-gray-100 text-gray-900 font-sans">

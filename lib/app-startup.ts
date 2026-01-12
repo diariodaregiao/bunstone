@@ -129,6 +129,7 @@ export class AppStartup {
         outdir: "./public",
         naming: outputName,
         minify: true,
+        external: ["react", "react-dom", "react-dom/client"],
       });
 
       if (!result.success) {
@@ -199,10 +200,15 @@ if (typeof document !== 'undefined' && Component) {
   if (root) {
     try {
       hydrateRoot(root, React.createElement(Component, data));
+      console.log('[Bunstone] Hydration successful for component: ${componentName}');
     } catch (e) {
-      console.error('Hydration failed for ${componentName}:', e);
+      console.error('[Bunstone] Hydration failed for component: ${componentName}', e);
     }
+  } else {
+    console.error('[Bunstone] Root element "root" not found for hydration.');
   }
+} else {
+  console.error('[Bunstone] Component ${componentName} not found in bundle.');
 }
         `;
 
