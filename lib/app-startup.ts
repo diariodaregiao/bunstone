@@ -17,7 +17,7 @@ import {
   unlinkSync,
   statSync,
 } from "node:fs";
-import { join, basename, extname } from "node:path";
+import { join, basename, extname, resolve } from "node:path";
 import { HttpException } from "./http-exceptions";
 import { CommandBus } from "./cqrs/command-bus";
 import { QueryBus } from "./cqrs/query-bus";
@@ -162,15 +162,16 @@ export class AppStartup {
         if (stat && stat.isDirectory()) {
           results = results.concat(getFilesRecursively(fullPath));
         } else {
-          results.push(fullPath);
+          results.push(resolve(fullPath));
         }
       }
       return results;
     };
 
-    const files = getFilesRecursively(viewsDir);
+    const viewsDirAbs = resolve(viewsDir);
+    const files = getFilesRecursively(viewsDirAbs);
     this.logger.log(
-      `Auto-bundling views from ${viewsDir} (${files.length} views found)`
+      `Auto-bundling views from ${viewsDirAbs} (${files.length} views found)`
     );
 
     for (const absolutePath of files) {
@@ -196,7 +197,11 @@ const data = dataElement ? JSON.parse(dataElement.textContent || "{}") : {};
 if (typeof document !== 'undefined' && Component) {
   const root = document.getElementById("root");
   if (root) {
-    hydrateRoot(root, React.createElement(Component, data));
+    try {
+      hydrateRoot(root, React.createElement(Component, data));
+    } catch (e) {
+      console.error('Hydration failed for ${componentName}:', e);
+    }
   }
 }
         `;
@@ -237,6 +242,12 @@ if (typeof document !== 'undefined' && Component) {
         result?.bundle ||
         this.viewBundles.get(componentName) ||
         this.viewBundles.get(componentName.toLowerCase());
+
+      this.logger.log(
+        `Rendering component: ${componentName}, bundle found: ${
+          bundle || "none"
+        }`
+      );
 
       if (!bundle) {
         this.logger.warn(
