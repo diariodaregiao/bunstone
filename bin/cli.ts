@@ -49,6 +49,7 @@ async function scaffold() {
       },
       dependencies: {
         "@diariodaregiao/bunstone": "latest",
+        "@elysiajs/html": "^1.4.0",
         "reflect-metadata": "^0.2.2",
         react: "^19.0.0",
         "react-dom": "^19.0.0",

@@ -1,4 +1,5 @@
 import { cors } from "@elysiajs/cors";
+import { html } from "@elysiajs/html";
 import { staticPlugin } from "@elysiajs/static";
 import jwt from "@elysiajs/jwt";
 import { swagger } from "@elysiajs/swagger";
@@ -64,6 +65,7 @@ export class AppStartup {
     // Ensure public directory exists before static plugin uses it
     if (!existsSync("./public")) mkdirSync("./public", { recursive: true });
 
+    this.elysia.use(html());
     this.elysia.use(
       staticPlugin({
         assets: "public",

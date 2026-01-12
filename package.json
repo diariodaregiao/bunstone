@@ -3,7 +3,7 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "version": "0.0.32-hml",
+  "version": "0.0.34-hml",
   "type": "module",
   "bin": {
     "bunstone": "./bin/cli.ts"
@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
+    "@elysiajs/html": "^1.4.0",
     "@elysiajs/jwt": "^1.4.0",
     "@elysiajs/static": "^1.4.7",
     "@elysiajs/swagger": "^1.3.1",
