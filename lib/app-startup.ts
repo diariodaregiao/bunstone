@@ -205,12 +205,11 @@ if (typeof document !== 'undefined' && Component) {
       const title = result?.title || "Bunstone App";
 
       return renderToString(
-        React.createElement(Layout, {
-          title,
-          data: result,
-          bundle,
-          children: React.createElement(component, result),
-        })
+        React.createElement(
+          Layout as any,
+          { title, data: result, bundle },
+          React.createElement(component, result)
+        )
       );
     }
 
