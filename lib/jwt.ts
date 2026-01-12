@@ -7,7 +7,8 @@ async function validateTokenFromRequest(req: HttpRequest) {
   if (!req.jwt) throw new Error("JWT middleware is not configured.");
   if (!req.headers) return false;
 
-  const [_, token] = req.headers.authorization?.split(" ") ?? [];
+  const authHeader = req.headers.authorization || req.headers["authorization"];
+  const [_, token] = authHeader?.split(" ") ?? [];
   if (!token) {
     return false;
   }
