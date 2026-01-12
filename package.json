@@ -3,7 +3,7 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "version": "0.0.26",
+  "version": "0.0.31-hml",
   "type": "module",
   "bin": {
     "bunstone": "./bin/cli.ts"
@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "test": "bun test",
-    "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun --external react --external react-dom --external elysia --external @elysiajs/* && tsc --emitDeclarationOnly --declaration --outDir dist",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
@@ -24,9 +24,13 @@
     "@types/bun": "latest",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "vitepress": "^1.6.4"
   },
   "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19",
     "typescript": "^5"
   },
   "dependencies": {
@@ -37,8 +41,6 @@
     "@elysiajs/swagger": "^1.3.1",
     "elysia": "^1.4.21",
     "node-cron": "^4.2.1",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
     "reflect-metadata": "^0.2.2",
     "zod": "^4.3.2"
   },
