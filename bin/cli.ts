@@ -99,19 +99,6 @@ async function scaffold() {
       JSON.stringify(tsconfig, null, 2)
     );
 
-    // src/main.ts
-    const mainTs = `import { AppStartup } from "@diariodaregiao/bunstone";
-import { AppModule } from "@/app.module";
-
-async function bootstrap() {
-  const app = AppStartup.create(AppModule);
-  app.listen(3000);
-}
-bootstrap();
-`;
-
-    await writeFile(join(projectPath, "src/main.ts"), mainTs);
-
     // src/app.module.ts
     const appModuleTs = `import { Module } from "@diariodaregiao/bunstone";
 import { AppController } from "@/controllers/app.controller";
@@ -168,16 +155,9 @@ export class AppService {
     );
 
     // src/main.ts
-    const mainTs = `import "reflect-metadata";
-import { AppStartup, Module } from "@diariodaregiao/bunstone";
-import { AppController } from "./controllers/app.controller";
-import { AppService } from "./services/app.service";
-
-@Module({
-  controllers: [AppController],
-  injectables: [AppService],
-})
-class AppModule {}
+    const mainTsContent = `import "reflect-metadata";
+import { AppStartup } from "@diariodaregiao/bunstone";
+import { AppModule } from "@/app.module";
 
 const app = AppStartup.create(AppModule, {
   viewsDir: "src/views"
@@ -186,7 +166,7 @@ const app = AppStartup.create(AppModule, {
 app.listen(3000);
 `;
 
-    await writeFile(join(projectPath, "src/main.ts"), mainTs);
+    await writeFile(join(projectPath, "src/main.ts"), mainTsContent);
 
     // src/views/Welcome.tsx
     const welcomeTsx = `import React, { useState } from "react";
@@ -225,7 +205,7 @@ export const Welcome = ({ message, timestamp }: { message: string, timestamp: st
     // .gitignore
     await writeFile(
       join(projectPath, ".gitignore"),
-      "node_modules\n.DS_Store\ndist\n.env\n"
+      "node_modules\n.DS_Store\ndist\n.env\n.bunstone\n"
     );
 
     console.log("📦 Installing dependencies...");
