@@ -41,6 +41,7 @@ async function scaffold() {
       name: projectName,
       version: "1.0.0",
       main: "src/main.ts",
+      type: "module",
       scripts: {
         start: "bun run src/main.ts",
         dev: "bun --watch src/main.ts",

@@ -1,11 +1,10 @@
 import { cors } from "@elysiajs/cors";
-import { html } from "@elysiajs/html";
 import { staticPlugin } from "@elysiajs/static";
 import jwt from "@elysiajs/jwt";
 import { swagger } from "@elysiajs/swagger";
 import Elysia from "elysia";
 import React from "react";
-import { renderToString } from "react-dom/server";
+import { renderToReadableStream } from "react-dom/server";
 import { Layout } from "./components/layout";
 import scheduler from "node-cron";
 import "reflect-metadata";
@@ -62,7 +61,9 @@ export class AppStartup {
   static create(module: any, options?: Options) {
     this.elysia = new Elysia(); // Reset for each creation
 
-    this.elysia.use(html());
+    // Ensure public directory exists before static plugin uses it
+    if (!existsSync("./public")) mkdirSync("./public", { recursive: true });
+
     this.elysia.use(
       staticPlugin({
         assets: "public",
@@ -138,8 +139,8 @@ export class AppStartup {
   private static async autoBundle(viewsDir: string) {
     if (!existsSync(viewsDir)) return;
 
-    if (!existsSync("./public")) mkdirSync("./public");
-    if (!existsSync("./.bunstone")) mkdirSync("./.bunstone");
+    if (!existsSync("./.bunstone"))
+      mkdirSync("./.bunstone", { recursive: true });
 
     const files = readdirSync(viewsDir);
     for (const file of files) {
@@ -204,13 +205,25 @@ if (typeof document !== 'undefined' && Component) {
       const bundle = result?.bundle || this.viewBundles.get(componentName);
       const title = result?.title || "Bunstone App";
 
-      return renderToString(
+      const stream = await renderToReadableStream(
         React.createElement(
           Layout as any,
           { title, data: result, bundle },
           React.createElement(component, result)
         )
       );
+
+      return new Response(stream, {
+        headers: { "Content-Type": "text/html; charset=utf8" },
+      });
+    }
+
+    // Handle direct JSX return
+    if (React.isValidElement(result)) {
+      const stream = await renderToReadableStream(result as React.ReactElement);
+      return new Response(stream, {
+        headers: { "Content-Type": "text/html; charset=utf8" },
+      });
     }
 
     return result;
