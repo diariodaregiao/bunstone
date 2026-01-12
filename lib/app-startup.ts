@@ -1,12 +1,22 @@
 import { cors } from "@elysiajs/cors";
 import { html } from "@elysiajs/html";
+import { staticPlugin } from "@elysiajs/static";
 import jwt from "@elysiajs/jwt";
 import { swagger } from "@elysiajs/swagger";
 import Elysia from "elysia";
 import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToString } from "react-dom/server";
+import { Layout } from "./components/layout";
 import scheduler from "node-cron";
 import "reflect-metadata";
+import {
+  readdirSync,
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  unlinkSync,
+} from "node:fs";
+import { join, basename, extname } from "node:path";
 import { HttpException } from "./http-exceptions";
 import { CommandBus } from "./cqrs/command-bus";
 import { QueryBus } from "./cqrs/query-bus";
@@ -40,6 +50,7 @@ export class AppStartup {
   private static elysia: Elysia = new Elysia();
   private static readonly logger = new Logger(AppStartup.name);
   private static readonly registeredSagas = new WeakSet<any>();
+  private static readonly viewBundles = new Map<string, string>();
 
   /**
    * Initializes the application from a root module.
@@ -52,6 +63,18 @@ export class AppStartup {
     this.elysia = new Elysia(); // Reset for each creation
 
     this.elysia.use(html());
+    this.elysia.use(
+      staticPlugin({
+        assets: "public",
+        prefix: "/public",
+      })
+    );
+
+    if (options?.viewsDir) {
+      this.autoBundle(options.viewsDir).catch((err) => {
+        this.logger.error(`Failed to auto-bundle views: ${err.message}`);
+      });
+    }
 
     this.elysia.error({
       HttpException,
@@ -93,6 +116,70 @@ export class AppStartup {
   }
 
   /**
+   * Bundles a client-side component for hydration (internal).
+   */
+  private static async bundle(entryPath: string, outputName: string) {
+    const result = await Bun.build({
+      entrypoints: [entryPath],
+      outdir: "./public",
+      naming: outputName,
+      minify: true,
+    });
+
+    if (!result.success) {
+      this.logger.error(
+        `Bundle failed: ${result.logs.map((l) => l.message).join("\n")}`
+      );
+    } else {
+      this.logger.log(`Bundle created: public/${outputName}`);
+    }
+  }
+
+  private static async autoBundle(viewsDir: string) {
+    if (!existsSync(viewsDir)) return;
+
+    if (!existsSync("./public")) mkdirSync("./public");
+    if (!existsSync("./.bunstone")) mkdirSync("./.bunstone");
+
+    const files = readdirSync(viewsDir);
+    for (const file of files) {
+      if (file.endsWith(".tsx") || file.endsWith(".jsx")) {
+        const componentName = basename(file, extname(file));
+        const absolutePath = join(process.cwd(), viewsDir, file);
+        const entryPath = join(
+          process.cwd(),
+          ".bunstone",
+          `${componentName}.client.tsx`
+        );
+
+        const entryContent = `
+import React from 'react';
+import { hydrateRoot } from 'react-dom/client';
+import * as Mod from '${absolutePath}';
+
+const Component = Mod.${componentName} || Mod.default;
+
+const dataElement = document.getElementById("__BUNSTONE_DATA__");
+const data = dataElement ? JSON.parse(dataElement.textContent || "{}") : {};
+
+if (typeof document !== 'undefined' && Component) {
+  const root = document.getElementById("root");
+  if (root) {
+    hydrateRoot(root, React.createElement(Component, data));
+  }
+}
+        `;
+
+        writeFileSync(entryPath, entryContent);
+
+        const bundleName = `${componentName.toLowerCase()}.bundle.js`;
+        await this.bundle(entryPath, bundleName);
+        this.viewBundles.set(componentName, bundleName);
+      }
+    }
+  }
+
+  /**
    * Starts the server on the specified port.
    * @param port The port number to listen on.
    */
@@ -112,7 +199,18 @@ export class AppStartup {
     const component = Reflect.getMetadata(RENDER_METADATA, controller, method);
     if (component) {
       context.set.headers["Content-Type"] = "text/html; charset=utf8";
-      return renderToStaticMarkup(React.createElement(component, result));
+
+      const componentName = component.name || component.displayName;
+      const bundle = result?.bundle || this.viewBundles.get(componentName);
+      const title = result?.title || "Bunstone App";
+
+      return renderToString(
+        React.createElement(
+          Layout,
+          { title, data: result, bundle },
+          React.createElement(component, result)
+        )
+      );
     }
 
     return result;

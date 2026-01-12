@@ -1,118 +1,87 @@
-# MVC & SSR (React)
+# MVC & SSR (Zero-Config SSR)
 
-Bunstone provides native support for **Server-Side Rendering (SSR)** using React. Since Bun has built-in support for `.tsx` and `.jsx` files, you can build traditional MVC-style applications with almost zero configuration.
-
-## Features
-
-- **Native JSX/TSX Support**: No build step needed for development.
-- **`@Render` Decorator**: Map controller responses to React components (Views).
-- **Direct TSX Return**: Return components directly from your methods.
-- **Fast Performance**: Powered by Bun's high-performance runtime and Elysia.
+Bunstone provides a native, zero-config way to build **React** applications with full interactiviy (useState, useEffect, etc.) using a traditional MVC pattern.
 
 ## Getting Started
 
-First, ensure you have the necessary dependencies:
+### 1. Configure the Views Directory
 
-```bash
-bun add react react-dom
-```
-
-### 1. Direct JSX Return
-
-The simplest way to use SSR is to return a JSX element directly from a controller method. Bunstone automatically detects the return type and sets the `Content-Type` to `text/html`.
+In your `AppStartup.create`, specify the directory where your React components are stored.
 
 ```tsx
-import { Controller, Get } from "@diariodaregiao/bunstone";
-
-@Controller("hello")
-export class HelloController {
-  @Get()
-  index() {
-    return (
-      <main>
-        <h1>Hello from SSR!</h1>
-        <p>This is rendered on the server.</p>
-      </main>
-    );
-  }
-}
+const app = AppStartup.create(AppModule, {
+  viewsDir: "src/views" // Bunstone will scan and bundle everything here
+});
 ```
 
-### 2. Using the `@Render` Decorator (MVC Pattern)
+### 2. Create your Component
 
-For a cleaner MVC separation, you can use the `@Render` decorator. This allows you to return a plain object (the **Model**) which will be passed as `props` to your React component (the **View**).
-
-#### Create your View (Component)
+Create a `.tsx` or `.jsx` file in your views directory. All exports should be named exactly like the file, or use `default export`.
 
 ```tsx
-// views/Welcome.tsx
-import React from "react";
+// src/views/Counter.tsx
+import React, { useState } from "react";
 
-export interface WelcomeProps {
-  name: string;
-}
-
-export const Welcome: React.FC<WelcomeProps> = ({ name }) => (
-  <div>
-    <h1>Welcome, {name}!</h1>
-  </div>
-);
+export const Counter = ({ initialCount = 0 }) => {
+  const [count, setCount] = useState(initialCount);
+  
+  return (
+    <div className="p-4 border rounded shadow">
+      <p>Count: {count}</p>
+      <button onClick={() => setCount(count + 1)}>Increment</button>
+    </div>
+  );
+};
 ```
 
-#### Map it in the Controller
+### 3. Render it from the Controller
+
+Use the `@Render(Component)` decorator. Bunstone will handle the Server-Side Rendering (SSR) and the Client-Side Hydration automatically.
 
 ```tsx
 import { Controller, Get, Render } from "@diariodaregiao/bunstone";
-import { Welcome } from "./views/Welcome";
+import { Counter } from "../views/Counter";
 
-@Controller("welcome")
-export class WelcomeController {
-  @Get()
-  @Render(Welcome)
+@Controller("/")
+export class AppController {
+  @Get("/")
+  @Render(Counter)
   index() {
-    // This object is passed as props to the Welcome component
-    return { name: "John Doe" };
+    // These props are automatically sent to the component
+    // on both Server and Client (Hydration)
+    return { initialCount: 10 };
   }
 }
 ```
 
-## Using Layouts
+## How it works (The Magic)
 
-Bunstone provides a base `Layout` component to help you structure your HTML documents consistently. It includes a basic HTML5 skeleton and supports TailwindCSS via CDN by default.
+Bunstone automates the entire SSR pipeline so you can focus only on your components:
+
+1.  **Automatic Bundling**: On startup, it scans your `viewsDir` and uses `Bun.build` to generate lightweight hydration scripts for every component.
+2.  **Server Rendering**: When a route is called, it renders the component to a string on the server for instant page load.
+3.  **State Synchronization**: All data returned from your controller is injected into the HTML and automatically picked up by React on the client.
+4.  **Instant Interactivity**: The browser downloads the small bundle and React "hydrates" the static HTML, enabling hooks like `useState`.
+
+## Customization
+
+You can return special props from your controller to customize the page:
+
+- `title`: Sets the page `<title>`.
+- `description`: Sets the meta description.
+- `bundle`: (Optional) If you want to override the automatic bundle for a specific route.
 
 ```tsx
-import { Controller, Get, Render, Layout } from "@diariodaregiao/bunstone";
-
-const HomePage = ({ title }: { title: string }) => (
-  <Layout title={title}>
-    <div className="p-4 bg-white rounded shadow">
-      <h1 className="text-2xl font-bold">My Awesome App</h1>
-      <p>Content goes here...</p>
-    </div>
-  </Layout>
-);
-
-@Controller()
-export class HomeController {
-  @Get()
-  @Render(HomePage)
-  index() {
-    return { title: "Home Page" };
-  }
+@Get("/")
+@Render(MyPage)
+home() {
+  return {
+    title: "My Awesome Page",
+    myData: "..."
+  };
 }
 ```
 
-## Configuration
+## Styling
 
-To use `.tsx` in your controllers and enable MVC features, ensure your `tsconfig.json` includes these settings:
-
-```json
-{
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "react",
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
-  }
-}
-```
+By default, the layout includes **Tailwind CSS** via CDN for quick prototyping. For custom styles, you can add them to the `public/` folder and they will be served automatically.

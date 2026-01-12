@@ -167,26 +167,57 @@ export class AppService {
       serviceTs
     );
 
-    // src/views/Welcome.tsx
-    const welcomeTsx = `import React from "react";
-import { Layout } from "@diariodaregiao/bunstone";
+    // src/main.ts
+    const mainTs = `import "reflect-metadata";
+import { AppStartup, Module } from "@diariodaregiao/bunstone";
+import { AppController } from "./controllers/app.controller";
+import { AppService } from "./services/app.service";
 
-export const Welcome = ({ message, timestamp }: { message: string, timestamp: string }) => (
-  <Layout title="Welcome to Bunstone">
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-xl shadow-md border border-gray-200">
-      <h1 className="text-2xl font-bold text-indigo-600 mb-4">{message}</h1>
-      <p className="text-gray-500 text-sm">Generated at: {timestamp}</p>
-      <div className="mt-6">
-        <a 
-          href="https://github.com/diariodaregiao/bunstone" 
-          className="text-indigo-500 hover:text-indigo-700 font-medium"
-        >
-          Read the docs &rarr;
-        </a>
+@Module({
+  controllers: [AppController],
+  injectables: [AppService],
+})
+class AppModule {}
+
+const app = AppStartup.create(AppModule, {
+  viewsDir: "src/views"
+});
+
+app.listen(3000);
+`;
+
+    await writeFile(join(projectPath, "src/main.ts"), mainTs);
+
+    // src/views/Welcome.tsx
+    const welcomeTsx = `import React, { useState } from "react";
+
+export const Welcome = ({ message, timestamp }: { message: string, timestamp: string }) => {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-xl shadow-md border border-gray-200 text-center">
+      <h1 className="text-3xl font-bold text-indigo-600 mb-2">Bunstone MVC</h1>
+      <p className="text-gray-600 mb-6">{message}</p>
+      
+      <div className="bg-indigo-50 p-4 rounded-lg mb-6">
+        <p className="text-sm text-indigo-400 mb-2 font-mono">Interactive Hooks Example</p>
+        <div className="flex items-center justify-center gap-4">
+            <button 
+                onClick={() => setCount(count - 1)}
+                className="bg-white border border-indigo-200 px-3 py-1 rounded shadow-sm hover:bg-indigo-100"
+            >-</button>
+            <span className="text-2xl font-mono font-bold text-indigo-700 min-w-[2ch]">{count}</span>
+            <button 
+                onClick={() => setCount(count + 1)}
+                className="bg-white border border-indigo-200 px-3 py-1 rounded shadow-sm hover:bg-indigo-100"
+            >+</button>
+        </div>
       </div>
+
+      <p className="text-gray-400 text-xs italic">Server time: {timestamp}</p>
     </div>
-  </Layout>
-);
+  );
+};
 `;
 
     await writeFile(join(projectPath, "src/views/Welcome.tsx"), welcomeTsx);
