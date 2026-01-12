@@ -34,6 +34,7 @@ async function scaffold() {
     await mkdir(join(projectPath, "src"), { recursive: true });
     await mkdir(join(projectPath, "src/controllers"), { recursive: true });
     await mkdir(join(projectPath, "src/services"), { recursive: true });
+    await mkdir(join(projectPath, "src/views"), { recursive: true });
 
     // package.json
     const pkg = {
@@ -48,10 +49,14 @@ async function scaffold() {
       dependencies: {
         "@diariodaregiao/bunstone": "latest",
         "reflect-metadata": "^0.2.2",
+        react: "^19.0.0",
+        "react-dom": "^19.0.0",
         zod: "^4.3.2",
       },
       devDependencies: {
         "@types/bun": "latest",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
       },
     };
 
@@ -75,6 +80,7 @@ async function scaffold() {
         downlevelIteration: true,
         skipLibCheck: true,
         jsx: "react-jsx",
+        jsxImportSource: "react",
         allowSyntheticDefaultImports: true,
         forceConsistentCasingInFileNames: true,
         allowJs: true,
@@ -121,14 +127,16 @@ export class AppModule {}
     await writeFile(join(projectPath, "src/app.module.ts"), appModuleTs);
 
     // src/controllers/app.controller.ts
-    const controllerTs = `import { Controller, Get } from "@diariodaregiao/bunstone";
+    const controllerTs = `import { Controller, Get, Render } from "@diariodaregiao/bunstone";
 import { AppService } from "@/services/app.service";
+import { Welcome } from "@/views/Welcome";
 
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
+  @Render(Welcome)
   getHello() {
     return this.appService.getHello();
   }
@@ -158,6 +166,30 @@ export class AppService {
       join(projectPath, "src/services/app.service.ts"),
       serviceTs
     );
+
+    // src/views/Welcome.tsx
+    const welcomeTsx = `import React from "react";
+import { Layout } from "@diariodaregiao/bunstone";
+
+export const Welcome = ({ message, timestamp }: { message: string, timestamp: string }) => (
+  <Layout title="Welcome to Bunstone">
+    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-xl shadow-md border border-gray-200">
+      <h1 className="text-2xl font-bold text-indigo-600 mb-4">{message}</h1>
+      <p className="text-gray-500 text-sm">Generated at: {timestamp}</p>
+      <div className="mt-6">
+        <a 
+          href="https://github.com/diariodaregiao/bunstone" 
+          className="text-indigo-500 hover:text-indigo-700 font-medium"
+        >
+          Read the docs &rarr;
+        </a>
+      </div>
+    </div>
+  </Layout>
+);
+`;
+
+    await writeFile(join(projectPath, "src/views/Welcome.tsx"), welcomeTsx);
 
     // .gitignore
     await writeFile(

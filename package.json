@@ -22,6 +22,8 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
     "vitepress": "^1.6.4"
   },
   "peerDependencies": {
@@ -29,10 +31,13 @@
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
+    "@elysiajs/html": "^1.4.0",
     "@elysiajs/jwt": "^1.4.0",
     "@elysiajs/swagger": "^1.3.1",
-    "elysia": "^1.4.19",
+    "elysia": "^1.4.21",
     "node-cron": "^4.2.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "reflect-metadata": "^0.2.2",
     "zod": "^4.3.2"
   },

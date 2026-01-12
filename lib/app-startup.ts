@@ -1,7 +1,10 @@
 import { cors } from "@elysiajs/cors";
+import { html } from "@elysiajs/html";
 import jwt from "@elysiajs/jwt";
 import { swagger } from "@elysiajs/swagger";
 import Elysia from "elysia";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import scheduler from "node-cron";
 import "reflect-metadata";
 import { HttpException } from "./http-exceptions";
@@ -13,6 +16,7 @@ import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorato
 import { EVENT_HANDLER_METADATA } from "./cqrs/decorators/event-handler.decorator";
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
 import { processParameters } from "./http-params";
+import { RENDER_METADATA } from "./render";
 import {
   API_OPERATION_METADATA,
   API_RESPONSE_METADATA,
@@ -46,6 +50,8 @@ export class AppStartup {
    */
   static create(module: any, options?: Options) {
     this.elysia = new Elysia(); // Reset for each creation
+
+    this.elysia.use(html());
 
     this.elysia.error({
       HttpException,
@@ -96,12 +102,20 @@ export class AppStartup {
   }
 
   private static async executeControllerMethod(
-    req: any,
+    context: any,
     controller: any,
     method: any
   ) {
-    const args = await processParameters(req, controller, method);
-    return controller[method](...args);
+    const args = await processParameters(context, controller, method);
+    const result = await controller[method](...args);
+
+    const component = Reflect.getMetadata(RENDER_METADATA, controller, method);
+    if (component) {
+      context.set.headers["Content-Type"] = "text/html; charset=utf8";
+      return renderToStaticMarkup(React.createElement(component, result));
+    }
+
+    return result;
   }
 
   private static registerModules(module: any) {
