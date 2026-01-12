@@ -113,3 +113,9 @@ Envia um e-mail utilizando as opções especificadas:
 1. **Estilos Inline**: O serviço utiliza o `@react-email/tailwind` para converter as classes em estilos `style=""` nos elementos HTML.
 2. **Imagens**: Para imagens, utilize URLs absolutas hospedadas em um CDN, pois imagens locais não são exibidas na maioria dos clientes.
 3. **Compatibilidade**: Evite layouts complexos com Flexbox ou Grid avançado, prefira estruturas simples ou tabelas (o `EmailLayout` já ajuda nessa abstração).
+
+## Exemplo Prático
+
+Explore a configuração completa e envio de e-mails em um exemplo funcional:
+
+<<< @/../examples/11-email-adapter/index.ts
