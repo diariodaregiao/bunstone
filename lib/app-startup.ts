@@ -1,4 +1,5 @@
 import { cors } from "@elysiajs/cors";
+console.log("APP STARTUP LOADED FROM:", import.meta.url);
 import { html } from "@elysiajs/html";
 import { staticPlugin } from "@elysiajs/static";
 import jwt from "@elysiajs/jwt";
@@ -129,7 +130,13 @@ export class AppStartup {
         outdir: "./public",
         naming: outputName,
         minify: true,
-        external: ["react", "react-dom", "react-dom/client"],
+        external: [
+          "react",
+          "react-dom",
+          "react-dom/client",
+          "react/jsx-runtime",
+          "react/jsx-dev-runtime",
+        ],
       });
 
       if (!result.success) {

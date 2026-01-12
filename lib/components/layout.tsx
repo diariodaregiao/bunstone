@@ -19,6 +19,7 @@ export const Layout: React.FC<LayoutProps> = ({
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{title || "Bunstone App"}</title>
+        <meta name="bunstone-version" content="fix-hydration-v1" />
         <script src="https://cdn.tailwindcss.com"></script>
         <script
           type="importmap"
@@ -28,6 +29,9 @@ export const Layout: React.FC<LayoutProps> = ({
                 react: "https://esm.sh/react@19",
                 "react-dom": "https://esm.sh/react-dom@19",
                 "react-dom/client": "https://esm.sh/react-dom@19/client",
+                "react/jsx-runtime": "https://esm.sh/react@19/jsx-runtime",
+                "react/jsx-dev-runtime":
+                  "https://esm.sh/react@19/jsx-dev-runtime",
               },
             }),
           }}
