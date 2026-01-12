@@ -205,11 +205,12 @@ if (typeof document !== 'undefined' && Component) {
       const title = result?.title || "Bunstone App";
 
       return renderToString(
-        React.createElement(
-          Layout,
-          { title, data: result, bundle },
-          React.createElement(component, result)
-        )
+        React.createElement(Layout, {
+          title,
+          data: result,
+          bundle,
+          children: React.createElement(component, result),
+        })
       );
     }
 
@@ -354,7 +355,7 @@ if (typeof document !== 'undefined' && Component) {
           (p: any) => p.type === ParamType.PARAM
         )?.options?.zodSchema;
 
-        AppStartup.elysia[httpMethod as keyof Elysia](
+        (AppStartup.elysia as any)[httpMethod](
           method.pathname,
           (req: any) =>
             AppStartup.executeControllerMethod(

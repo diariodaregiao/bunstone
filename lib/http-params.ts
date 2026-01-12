@@ -145,12 +145,6 @@ export function Request(): any {
   };
 }
 
-export function FormData(): any {
-  return function (target: any, propertyKey: any, parameterIndex: any) {
-    setParamMetadata(target, propertyKey, parameterIndex, ParamType.FORM_DATA);
-  };
-}
-
 export async function processParameters(
   request: any,
   target: any,
@@ -366,7 +360,7 @@ function tryResolveFromBody(body: unknown): FormData | null {
   if (isFormDataLike(body)) return body;
   if (typeof body !== "object") return null;
 
-  const formData = new FormData();
+  const formData = new (globalThis as any).FormData();
   for (const [key, value] of Object.entries(body)) {
     if (value === undefined || value === null) continue;
     if (Array.isArray(value)) {
