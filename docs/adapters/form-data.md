@@ -46,6 +46,6 @@ type FormDataPayload = {
 
 Explore form-data handling with multiple fields:
 
-<<< @/../../examples/07-adapters/index.ts
+<<< @/../examples/07-adapters/index.ts
 
 [See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/07-adapters/index.ts)

@@ -1,5 +1,7 @@
 import "reflect-metadata";
 export * from "./lib/adapters/cache-adapter";
+export * from "./lib/email/email-module";
+export * from "./lib/email/email-layout";
 export * from "./lib/adapters/form-data";
 export * from "./lib/adapters/upload-adapter";
 export * from "./lib/app-startup";
@@ -28,6 +30,8 @@ export * from "./lib/jwt/jwt-module";
 export * from "./lib/module";
 export * from "./lib/openapi";
 export * from "./lib/render";
+export * from "./lib/types/options";
+export * from "./lib/types/module-config";
 export * from "./lib/schedule/cron/cron";
 export * from "./lib/schedule/timeout/timeout";
 export type { HttpRequest } from "./lib/types/http-request";

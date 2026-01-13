@@ -31,6 +31,8 @@ export default defineConfig({
       {
         text: "Adapters",
         items: [
+          { text: "Cache (Redis)", link: "/adapters/cache-adapter" },
+          { text: "Email Service", link: "/adapters/email-adapter" },
           { text: "Form Data", link: "/adapters/form-data" },
           { text: "Upload Adapter", link: "/adapters/upload-adapter" },
         ],
