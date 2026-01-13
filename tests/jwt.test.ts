@@ -40,7 +40,7 @@ class AuthModule {}
 
 describe("JWT Authentication", () => {
   test("should handle full JWT flow", async () => {
-    const app = AppStartup.create(AuthModule);
+    const app = await AppStartup.create(AuthModule);
     const elysia = (app as any).getElysia();
 
     // 1. Get a token

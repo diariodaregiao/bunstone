@@ -11,7 +11,7 @@ OpenAPI support is built-in, but you need to enable it in your `AppStartup`.
 Enable Swagger in your `AppStartup.create` options:
 
 ```typescript
-AppStartup.create(AppModule, {
+await AppStartup.create(AppModule, {
   swagger: {
     path: "/docs", // default is /swagger
     documentation: {

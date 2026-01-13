@@ -55,7 +55,7 @@ class GuardTestModule {}
 
 describe("Guards Integration", () => {
   test("should handle Async Guard", async () => {
-    const app = AppStartup.create(GuardTestModule);
+    const app = await AppStartup.create(GuardTestModule);
     const elysia = (app as any).getElysia();
 
     // Unauthorized
@@ -75,7 +75,7 @@ describe("Guards Integration", () => {
   });
 
   test("should handle Injected Guard", async () => {
-    const app = AppStartup.create(GuardTestModule);
+    const app = await AppStartup.create(GuardTestModule);
     const elysia = (app as any).getElysia();
 
     const res = await elysia.handle(

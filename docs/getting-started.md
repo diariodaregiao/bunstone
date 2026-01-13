@@ -24,7 +24,7 @@ import { AppStartup } from "@grupodiariodaregiao/bunstone";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = AppStartup.create(AppModule);
+  const app = await AppStartup.create(AppModule);
   app.listen(3000);
 }
 

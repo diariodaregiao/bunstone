@@ -9,7 +9,7 @@ Bunstone provides a native, zero-config way to build **React** applications with
 In your `AppStartup.create`, specify the directory where your React components are stored.
 
 ```tsx
-const app = AppStartup.create(AppModule, {
+const app = await AppStartup.create(AppModule, {
   viewsDir: "src/views", // Bunstone will scan and bundle everything here
 });
 ```

@@ -96,7 +96,7 @@ describe("Bunstone Framework Core", () => {
     class JwtTestModule {}
 
     test("should block request without token", async () => {
-      const app = AppStartup.create(JwtTestModule);
+      const app = await AppStartup.create(JwtTestModule);
       const elysia = (app as any).getElysia();
 
       const response = await elysia.handle(
@@ -106,7 +106,7 @@ describe("Bunstone Framework Core", () => {
     });
 
     test("should allow request with valid token", async () => {
-      const app = AppStartup.create(JwtTestModule);
+      const app = await AppStartup.create(JwtTestModule);
       const elysia = (app as any).getElysia();
 
       // We need a token. Since we are testing the integration, we can try to sign one if we have access to the jwt service,
@@ -128,7 +128,7 @@ describe("Bunstone Framework Core", () => {
     class ValidationModule {}
 
     test("should validate body with Zod", async () => {
-      const app = AppStartup.create(ValidationModule);
+      const app = await AppStartup.create(ValidationModule);
       const elysia = (app as any).getElysia();
 
       // Valid request
@@ -187,7 +187,7 @@ describe("Bunstone Framework Core", () => {
     class DiModule {}
 
     test("should inject singletons correctly", async () => {
-      const app = AppStartup.create(DiModule);
+      const app = await AppStartup.create(DiModule);
       const elysia = (app as any).getElysia();
 
       const response = await elysia.handle(
@@ -226,7 +226,7 @@ describe("Bunstone Framework Core", () => {
     class GuardModule {}
 
     test("should block unauthorized requests", async () => {
-      const app = AppStartup.create(GuardModule);
+      const app = await AppStartup.create(GuardModule);
       const elysia = (app as any).getElysia();
 
       const response = await elysia.handle(
@@ -236,7 +236,7 @@ describe("Bunstone Framework Core", () => {
     });
 
     test("should allow authorized requests", async () => {
-      const app = AppStartup.create(GuardModule);
+      const app = await AppStartup.create(GuardModule);
       const elysia = (app as any).getElysia();
 
       const response = await elysia.handle(
@@ -279,7 +279,7 @@ describe("Bunstone Framework Core", () => {
     class ParamsModule {}
 
     test("should extract @Param", async () => {
-      const app = AppStartup.create(ParamsModule);
+      const app = await AppStartup.create(ParamsModule);
       const elysia = (app as any).getElysia();
       const response = await elysia.handle(
         new Request("http://localhost/params/id/123")
@@ -288,7 +288,7 @@ describe("Bunstone Framework Core", () => {
     });
 
     test("should extract @Body", async () => {
-      const app = AppStartup.create(ParamsModule);
+      const app = await AppStartup.create(ParamsModule);
       const elysia = (app as any).getElysia();
       const response = await elysia.handle(
         new Request("http://localhost/params/body", {
@@ -301,7 +301,7 @@ describe("Bunstone Framework Core", () => {
     });
 
     test("should extract @Query", async () => {
-      const app = AppStartup.create(ParamsModule);
+      const app = await AppStartup.create(ParamsModule);
       const elysia = (app as any).getElysia();
       const response = await elysia.handle(
         new Request("http://localhost/params/query?name=bun")
@@ -310,7 +310,7 @@ describe("Bunstone Framework Core", () => {
     });
 
     test("should extract @Header", async () => {
-      const app = AppStartup.create(ParamsModule);
+      const app = await AppStartup.create(ParamsModule);
       const elysia = (app as any).getElysia();
       const response = await elysia.handle(
         new Request("http://localhost/params/header", {
@@ -345,7 +345,7 @@ describe("Bunstone Framework Core", () => {
     class MethodsModule {}
 
     test("should support all HTTP methods", async () => {
-      const app = AppStartup.create(MethodsModule);
+      const app = await AppStartup.create(MethodsModule);
       const elysia = (app as any).getElysia();
 
       expect(
@@ -404,7 +404,7 @@ describe("Bunstone Framework Core", () => {
     class ScheduleModule {}
 
     test("should execute @Timeout", async () => {
-      AppStartup.create(ScheduleModule);
+      await AppStartup.create(ScheduleModule);
 
       // Wait for timeout
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -413,7 +413,7 @@ describe("Bunstone Framework Core", () => {
   });
 
   test("Dependency Injection and Routing", async () => {
-    const app = AppStartup.create(TestModule);
+    const app = await AppStartup.create(TestModule);
     // We use a mock request or just check if it's registered
     // Since AppStartup.create returns an object with listen,
     // and we want to test without actually binding to a port if possible
@@ -461,7 +461,7 @@ describe("Bunstone Framework Core", () => {
     class CqrsTestModule {}
 
     test("CommandBus should execute handler", async () => {
-      AppStartup.create(CqrsTestModule);
+      await AppStartup.create(CqrsTestModule);
       // We need to get the instance from the module's injectables
       const injectables = Reflect.getMetadata(
         "dip:injectables",
@@ -508,7 +508,7 @@ describe("Bunstone Framework Core", () => {
       })
       class CqrsRootModule {}
 
-      AppStartup.create(CqrsRootModule);
+      await AppStartup.create(CqrsRootModule);
 
       const injectables: Map<any, any> = Reflect.getMetadata(
         "dip:injectables",
@@ -551,7 +551,7 @@ describe("Bunstone Framework Core", () => {
 
     test("Saga should react to event and trigger command", async () => {
       // Initialize the module logic (normally done by AppStartup)
-      AppStartup.create(SagaTestModule);
+      await AppStartup.create(SagaTestModule);
 
       const injectables = Reflect.getMetadata(
         "dip:injectables",

@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
+import { $ } from "bun";
 
-const args = process.argv.slice(2);
+const args = Bun.argv.slice(2);
 let command = args[0];
 let projectName = args[1];
 
@@ -18,7 +18,7 @@ if (!projectName && command === "new") {
   projectName = "my-bunstone-app";
 }
 
-const projectPath = join(process.cwd(), projectName || "");
+const projectPath = join($.cwd().toString(), projectName || "");
 
 async function scaffold() {
   if (command !== "new" || !projectName) {
@@ -62,7 +62,7 @@ async function scaffold() {
       },
     };
 
-    await writeFile(
+    await Bun.write(
       join(projectPath, "package.json"),
       JSON.stringify(pkg, null, 2)
     );
@@ -96,7 +96,7 @@ async function scaffold() {
       },
     };
 
-    await writeFile(
+    await Bun.write(
       join(projectPath, "tsconfig.json"),
       JSON.stringify(tsconfig, null, 2)
     );
@@ -106,13 +106,13 @@ async function scaffold() {
 import { AppModule } from "@/app.module";
 
 async function bootstrap() {
-  const app = AppStartup.create(AppModule);
+  const app = await AppStartup.create(AppModule);
   app.listen(3000);
 }
 bootstrap();
 `;
 
-    await writeFile(join(projectPath, "src/main.ts"), mainTs);
+    await Bun.write(join(projectPath, "src/main.ts"), mainTs);
 
     // src/app.module.ts
     const appModuleTs = `import { Module } from "@grupodiariodaregiao/bunstone";
@@ -126,7 +126,7 @@ import { AppService } from "@/services/app.service";
 export class AppModule {}
 `;
 
-    await writeFile(join(projectPath, "src/app.module.ts"), appModuleTs);
+    await Bun.write(join(projectPath, "src/app.module.ts"), appModuleTs);
 
     // src/controllers/app.controller.ts
     const controllerTs = `import { Controller, Get, Render } from "@grupodiariodaregiao/bunstone";
@@ -145,7 +145,7 @@ export class AppController {
 }
 `;
 
-    await writeFile(
+    await Bun.write(
       join(projectPath, "src/controllers/app.controller.ts"),
       controllerTs
     );
@@ -164,7 +164,7 @@ export class AppService {
 }
 `;
 
-    await writeFile(
+    await Bun.write(
       join(projectPath, "src/services/app.service.ts"),
       serviceTs
     );
@@ -174,14 +174,14 @@ export class AppService {
 import { AppStartup } from "@grupodiariodaregiao/bunstone";
 import { AppModule } from "@/app.module";
 
-const app = AppStartup.create(AppModule, {
-  viewsDir: "src/views"
-});
-
-app.listen(3000);
+async function bootstrap() {
+  const app = await await AppStartup.create(AppModule);
+  app.listen(3000);
+}
+bootstrap();
 `;
 
-    await writeFile(join(projectPath, "src/main.ts"), mainTsContent);
+    await Bun.write(join(projectPath, "src/main.ts"), mainTsContent);
 
     // src/views/Welcome.tsx
     const welcomeTsx = `import React, { useState } from "react";
@@ -215,17 +215,22 @@ export const Welcome = ({ message, timestamp }: { message: string, timestamp: st
 };
 `;
 
-    await writeFile(join(projectPath, "src/views/Welcome.tsx"), welcomeTsx);
+    await Bun.write(join(projectPath, "src/views/Welcome.tsx"), welcomeTsx);
 
     // .gitignore
-    await writeFile(
+    await Bun.write(
       join(projectPath, ".gitignore"),
       "node_modules\n.DS_Store\ndist\n.env\n.bunstone\n"
     );
 
     console.log("📦 Installing dependencies...");
     try {
-      execSync("bun install", { cwd: projectPath, stdio: "inherit" });
+      Bun.spawn({
+        cmd: ["bun", "install"],
+        cwd: projectPath,
+        stdout: "inherit",
+        stderr: "inherit",
+      });
     } catch (e) {
       console.warn("⚠️ Could not run 'bun install'. Please run it manually.");
     }

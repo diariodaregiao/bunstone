@@ -43,7 +43,7 @@ describe("Adapters", () => {
     class UploadModule {}
 
     test("should parse multipart form data", async () => {
-      const app = AppStartup.create(UploadModule);
+      const app = await AppStartup.create(UploadModule);
       const elysia = (app as any).getElysia();
 
       const formData = new (globalThis as any).FormData();

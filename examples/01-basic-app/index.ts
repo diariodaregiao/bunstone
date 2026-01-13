@@ -23,7 +23,7 @@ class AppController {
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule);
+const app = await AppStartup.create(AppModule);
 app.listen(3000, () => {
   console.log("Basic app is running on http://localhost:3000");
 });

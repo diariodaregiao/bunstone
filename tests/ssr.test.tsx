@@ -36,7 +36,7 @@ class SsrTestModule {}
 
 describe("SSR and MVC", () => {
   test("should render component with @Render", async () => {
-    const app = AppStartup.create(SsrTestModule);
+    const app = await AppStartup.create(SsrTestModule);
     const elysia = (app as any).getElysia();
 
     const response = await elysia.handle(
@@ -55,7 +55,7 @@ describe("SSR and MVC", () => {
   });
 
   test("should render direct JSX response", async () => {
-    const app = AppStartup.create(SsrTestModule);
+    const app = await AppStartup.create(SsrTestModule);
     const elysia = (app as any).getElysia();
 
     const response = await elysia.handle(

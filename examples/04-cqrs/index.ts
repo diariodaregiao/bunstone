@@ -41,7 +41,7 @@ class UserController {
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule);
+const app = await AppStartup.create(AppModule);
 app.listen(3000, () => {
   console.log("CQRS example is running on http://localhost:3000");
 });

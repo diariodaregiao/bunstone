@@ -58,7 +58,7 @@ describe("HTTP Exceptions", () => {
   class ExceptionsModule {}
 
   test("should handle NotFoundException", async () => {
-    const app = AppStartup.create(ExceptionsModule);
+    const app = await AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
       new Request("http://localhost/exceptions/not-found")
@@ -69,7 +69,7 @@ describe("HTTP Exceptions", () => {
   });
 
   test("should handle BadRequestException with object", async () => {
-    const app = AppStartup.create(ExceptionsModule);
+    const app = await AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
       new Request("http://localhost/exceptions/bad-request")
@@ -80,7 +80,7 @@ describe("HTTP Exceptions", () => {
   });
 
   test("should handle UnauthorizedException", async () => {
-    const app = AppStartup.create(ExceptionsModule);
+    const app = await AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
       new Request("http://localhost/exceptions/unauthorized")
@@ -89,7 +89,7 @@ describe("HTTP Exceptions", () => {
   });
 
   test("should handle ForbiddenException", async () => {
-    const app = AppStartup.create(ExceptionsModule);
+    const app = await AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
       new Request("http://localhost/exceptions/forbidden")
@@ -98,7 +98,7 @@ describe("HTTP Exceptions", () => {
   });
 
   test("should handle InternalServerErrorException", async () => {
-    const app = AppStartup.create(ExceptionsModule);
+    const app = await AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
       new Request("http://localhost/exceptions/internal")
@@ -107,7 +107,7 @@ describe("HTTP Exceptions", () => {
   });
 
   test("should handle CreatedResponse", async () => {
-    const app = AppStartup.create(ExceptionsModule);
+    const app = await AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
       new Request("http://localhost/exceptions/created")
@@ -117,7 +117,7 @@ describe("HTTP Exceptions", () => {
   });
 
   test("should handle NoContentResponse", async () => {
-    const app = AppStartup.create(ExceptionsModule);
+    const app = await AppStartup.create(ExceptionsModule);
     const elysia = (app as any).getElysia();
     const response = await elysia.handle(
       new Request("http://localhost/exceptions/no-content")

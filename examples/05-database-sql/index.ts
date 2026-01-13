@@ -43,6 +43,6 @@ class UserController {
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule);
+const app = await AppStartup.create(AppModule);
 // app.listen(3000); // Commented out to prevent actual startup without DB
 console.log("SQL Database example configured.");

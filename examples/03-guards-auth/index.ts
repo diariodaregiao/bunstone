@@ -45,7 +45,7 @@ class AdminController {
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule);
+const app = await AppStartup.create(AppModule);
 app.listen(3000, () => {
   console.log("Guards example is running on http://localhost:3000");
 });
