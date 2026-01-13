@@ -40,4 +40,4 @@ Explore more scheduling options and configurations:
 
 <<< @/../examples/06-scheduling/index.ts
 
-[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/06-scheduling/index.ts)
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/06-scheduling/index.ts)

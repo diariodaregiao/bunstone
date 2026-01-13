@@ -102,4 +102,4 @@ Explore a complete OpenAPI configuration and usage:
 
 <<< @/../examples/08-openapi/index.ts
 
-[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/08-openapi/index.ts)
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/08-openapi/index.ts)

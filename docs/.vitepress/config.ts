@@ -41,7 +41,7 @@ export default defineConfig({
     socialLinks: [
       {
         icon: "github",
-        link: "https://github.com/grupodiariodaregiao/bunstone",
+        link: "https://github.com/diariodaregiao/bunstone",
       },
     ],
     footer: {

@@ -80,4 +80,4 @@ See how to register and use the SQL module in a controller:
 
 <<< @/../examples/05-database-sql/index.ts
 
-[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/05-database-sql/index.ts)
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/05-database-sql/index.ts)

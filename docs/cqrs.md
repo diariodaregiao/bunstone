@@ -86,4 +86,4 @@ For a complete working example of CQRS with commands and handlers, see:
 
 <<< @/../examples/04-cqrs/index.ts
 
-[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/04-cqrs/index.ts)
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/04-cqrs/index.ts)

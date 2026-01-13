@@ -57,4 +57,4 @@ Check out a complete standalone example of a basic application:
 
 <<< @/../examples/01-basic-app/index.ts
 
-[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/01-basic-app/index.ts)
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/01-basic-app/index.ts)

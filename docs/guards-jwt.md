@@ -60,4 +60,4 @@ Check out a full example using both JWT and custom role-based guards:
 
 <<< @/../examples/03-guards-auth/index.ts
 
-[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/03-guards-auth/index.ts)
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/03-guards-auth/index.ts)
