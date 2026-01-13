@@ -7,6 +7,7 @@ import type { CORSConfig } from "@elysiajs/cors";
  */
 export type Options = {
   cors?: CORSConfig;
+  viewsDir?: string;
   swagger?: {
     path?: string;
     documentation?: {

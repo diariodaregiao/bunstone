@@ -8,6 +8,7 @@
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "bunstone": ["../index.ts"]

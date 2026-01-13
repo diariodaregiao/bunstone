@@ -1,9 +1,24 @@
 import { cors } from "@elysiajs/cors";
+console.log("APP STARTUP LOADED FROM:", import.meta.url);
+import { html } from "@elysiajs/html";
+import { staticPlugin } from "@elysiajs/static";
 import jwt from "@elysiajs/jwt";
 import { swagger } from "@elysiajs/swagger";
 import Elysia from "elysia";
+import React from "react";
+import { renderToReadableStream } from "react-dom/server";
+import { Layout } from "./components/layout";
 import scheduler from "node-cron";
 import "reflect-metadata";
+import {
+  readdirSync,
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  unlinkSync,
+  statSync,
+} from "node:fs";
+import { join, basename, extname, resolve } from "node:path";
 import { HttpException } from "./http-exceptions";
 import { CommandBus } from "./cqrs/command-bus";
 import { QueryBus } from "./cqrs/query-bus";
@@ -13,6 +28,7 @@ import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorato
 import { EVENT_HANDLER_METADATA } from "./cqrs/decorators/event-handler.decorator";
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
 import { processParameters } from "./http-params";
+import { RENDER_METADATA } from "./render";
 import {
   API_OPERATION_METADATA,
   API_RESPONSE_METADATA,
@@ -36,6 +52,7 @@ export class AppStartup {
   private static elysia: Elysia = new Elysia();
   private static readonly logger = new Logger(AppStartup.name);
   private static readonly registeredSagas = new WeakSet<any>();
+  private static readonly viewBundles = new Map<string, string>();
 
   /**
    * Initializes the application from a root module.
@@ -46,6 +63,23 @@ export class AppStartup {
    */
   static create(module: any, options?: Options) {
     this.elysia = new Elysia(); // Reset for each creation
+
+    // Ensure public directory exists before static plugin uses it
+    if (!existsSync("./public")) mkdirSync("./public", { recursive: true });
+
+    this.elysia.use(html());
+    this.elysia.use(
+      staticPlugin({
+        assets: "public",
+        prefix: "/public",
+      })
+    );
+
+    if (options?.viewsDir) {
+      this.autoBundle(options.viewsDir).catch((err) => {
+        this.logger.error(`Failed to auto-bundle views: ${err.message}`);
+      });
+    }
 
     this.elysia.error({
       HttpException,
@@ -87,6 +121,124 @@ export class AppStartup {
   }
 
   /**
+   * Bundles a client-side component for hydration (internal).
+   */
+  private static async bundle(entryPath: string, outputName: string) {
+    try {
+      const result = await Bun.build({
+        entrypoints: [entryPath],
+        outdir: "./public",
+        naming: outputName,
+        minify: true,
+        external: [
+          "react",
+          "react-dom",
+          "react-dom/client",
+          "react/jsx-runtime",
+          "react/jsx-dev-runtime",
+        ],
+      });
+
+      if (!result.success) {
+        this.logger.error(
+          `Bundle failed for ${outputName}: ${result.logs
+            .map((l) => l.message)
+            .join("\n")}`
+        );
+      } else {
+        this.logger.log(`Bundle created successfully: public/${outputName}`);
+      }
+    } catch (error: any) {
+      this.logger.error(
+        `Error during bundling ${outputName}: ${error.message}`
+      );
+    }
+  }
+
+  private static async autoBundle(viewsDir: string) {
+    if (!existsSync(viewsDir)) return;
+
+    if (!existsSync("./.bunstone"))
+      mkdirSync("./.bunstone", { recursive: true });
+
+    const getFilesRecursively = (dir: string): string[] => {
+      let results: string[] = [];
+      const list = readdirSync(dir);
+      for (const file of list) {
+        const fullPath = join(dir, file);
+        const stat = statSync(fullPath);
+        if (stat && stat.isDirectory()) {
+          results = results.concat(getFilesRecursively(fullPath));
+        } else {
+          results.push(resolve(fullPath));
+        }
+      }
+      return results;
+    };
+
+    const viewsDirAbs = resolve(viewsDir);
+    const files = getFilesRecursively(viewsDirAbs);
+    this.logger.log(
+      `Auto-bundling views from ${viewsDirAbs} (${files.length} views found)`
+    );
+
+    for (const absolutePath of files) {
+      const file = basename(absolutePath);
+      if (file.endsWith(".tsx") || file.endsWith(".jsx")) {
+        const componentName = basename(file, extname(file));
+        const entryPath = join(
+          process.cwd(),
+          ".bunstone",
+          `${componentName}.client.tsx`
+        );
+
+        const entryContent = `
+import React from 'react';
+import { hydrateRoot } from 'react-dom/client';
+import * as Mod from '${absolutePath}';
+
+const Component = Mod['${componentName}'] || Mod.default;
+
+function hydrate() {
+  const dataElement = document.getElementById("__BUNSTONE_DATA__");
+  const data = dataElement ? JSON.parse(dataElement.textContent || "{}") : {};
+
+  if (typeof document !== 'undefined' && Component) {
+    const root = document.getElementById("root");
+    if (root) {
+      try {
+        hydrateRoot(root, React.createElement(Component, data));
+        console.log('[Bunstone] Hydration successful for component: ${componentName}');
+      } catch (e) {
+        console.error('[Bunstone] Hydration failed for component: ${componentName}', e);
+      }
+    } else {
+      console.error('[Bunstone] Root element "root" not found for hydration.');
+    }
+  } else {
+    console.error('[Bunstone] Component ${componentName} not found in bundle.');
+  }
+}
+
+// Ensure DOM is fully loaded before hydrating
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', hydrate);
+} else {
+  hydrate();
+}
+        `;
+
+        writeFileSync(entryPath, entryContent);
+
+        const bundleName = `${componentName.toLowerCase()}.bundle.js`;
+        await this.bundle(entryPath, bundleName);
+        this.viewBundles.set(componentName, bundleName);
+        this.viewBundles.set(componentName.toLowerCase(), bundleName);
+      }
+    }
+  }
+
+  /**
    * Starts the server on the specified port.
    * @param port The port number to listen on.
    */
@@ -96,12 +248,59 @@ export class AppStartup {
   }
 
   private static async executeControllerMethod(
-    req: any,
+    context: any,
     controller: any,
     method: any
   ) {
-    const args = await processParameters(req, controller, method);
-    return controller[method](...args);
+    const args = await processParameters(context, controller, method);
+    const result = await controller[method](...args);
+
+    const component = Reflect.getMetadata(RENDER_METADATA, controller, method);
+    if (component) {
+      context.set.headers["Content-Type"] = "text/html; charset=utf8";
+
+      const componentName = component.name || component.displayName;
+      const bundle =
+        result?.bundle ||
+        this.viewBundles.get(componentName) ||
+        this.viewBundles.get(componentName.toLowerCase());
+
+      this.logger.log(
+        `Rendering component: ${componentName}, bundle found: ${
+          bundle || "none"
+        }`
+      );
+
+      if (!bundle) {
+        this.logger.warn(
+          `No client bundle found for component: ${componentName}. useEffect and other hooks will not work on the client.`
+        );
+      }
+
+      const title = result?.title || "Bunstone App";
+
+      const stream = await renderToReadableStream(
+        React.createElement(
+          Layout as any,
+          { title, data: result, bundle },
+          React.createElement(component, result)
+        )
+      );
+
+      return new Response(stream, {
+        headers: { "Content-Type": "text/html; charset=utf8" },
+      });
+    }
+
+    // Handle direct JSX return
+    if (React.isValidElement(result)) {
+      const stream = await renderToReadableStream(result as React.ReactElement);
+      return new Response(stream, {
+        headers: { "Content-Type": "text/html; charset=utf8" },
+      });
+    }
+
+    return result;
   }
 
   private static registerModules(module: any) {
@@ -242,7 +441,7 @@ export class AppStartup {
           (p: any) => p.type === ParamType.PARAM
         )?.options?.zodSchema;
 
-        AppStartup.elysia[httpMethod as keyof Elysia](
+        (AppStartup.elysia as any)[httpMethod](
           method.pathname,
           (req: any) =>
             AppStartup.executeControllerMethod(

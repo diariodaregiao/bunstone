@@ -34,24 +34,31 @@ async function scaffold() {
     await mkdir(join(projectPath, "src"), { recursive: true });
     await mkdir(join(projectPath, "src/controllers"), { recursive: true });
     await mkdir(join(projectPath, "src/services"), { recursive: true });
+    await mkdir(join(projectPath, "src/views"), { recursive: true });
 
     // package.json
     const pkg = {
       name: projectName,
       version: "1.0.0",
       main: "src/main.ts",
+      type: "module",
       scripts: {
         start: "bun run src/main.ts",
         dev: "bun --watch src/main.ts",
         test: "bun test",
       },
       dependencies: {
+        "@elysiajs/html": "^1.4.0",
         "@grupodiariodaregiao/bunstone": "latest",
         "reflect-metadata": "^0.2.2",
+        react: "^19.0.0",
+        "react-dom": "^19.0.0",
         zod: "^4.3.2",
       },
       devDependencies: {
         "@types/bun": "latest",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
       },
     };
 
@@ -75,6 +82,7 @@ async function scaffold() {
         downlevelIteration: true,
         skipLibCheck: true,
         jsx: "react-jsx",
+        jsxImportSource: "react",
         allowSyntheticDefaultImports: true,
         forceConsistentCasingInFileNames: true,
         allowJs: true,
@@ -123,12 +131,14 @@ export class AppModule {}
     // src/controllers/app.controller.ts
     const controllerTs = `import { Controller, Get } from "@grupodiariodaregiao/bunstone";
 import { AppService } from "@/services/app.service";
+import { Welcome } from "@/views/Welcome";
 
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
+  @Render(Welcome)
   getHello() {
     return this.appService.getHello();
   }
@@ -159,10 +169,58 @@ export class AppService {
       serviceTs
     );
 
+    // src/main.ts
+    const mainTsContent = `import "reflect-metadata";
+import { AppStartup } from "@diariodaregiao/bunstone";
+import { AppModule } from "@/app.module";
+
+const app = AppStartup.create(AppModule, {
+  viewsDir: "src/views"
+});
+
+app.listen(3000);
+`;
+
+    await writeFile(join(projectPath, "src/main.ts"), mainTsContent);
+
+    // src/views/Welcome.tsx
+    const welcomeTsx = `import React, { useState } from "react";
+
+export const Welcome = ({ message, timestamp }: { message: string, timestamp: string }) => {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-xl shadow-md border border-gray-200 text-center">
+      <h1 className="text-3xl font-bold text-indigo-600 mb-2">Bunstone MVC</h1>
+      <p className="text-gray-600 mb-6">{message}</p>
+      
+      <div className="bg-indigo-50 p-4 rounded-lg mb-6">
+        <p className="text-sm text-indigo-400 mb-2 font-mono">Interactive Hooks Example</p>
+        <div className="flex items-center justify-center gap-4">
+            <button 
+                onClick={() => setCount(count - 1)}
+                className="bg-white border border-indigo-200 px-3 py-1 rounded shadow-sm hover:bg-indigo-100"
+            >-</button>
+            <span className="text-2xl font-mono font-bold text-indigo-700 min-w-[2ch]">{count}</span>
+            <button 
+                onClick={() => setCount(count + 1)}
+                className="bg-white border border-indigo-200 px-3 py-1 rounded shadow-sm hover:bg-indigo-100"
+            >+</button>
+        </div>
+      </div>
+
+      <p className="text-gray-400 text-xs italic">Server time: {timestamp}</p>
+    </div>
+  );
+};
+`;
+
+    await writeFile(join(projectPath, "src/views/Welcome.tsx"), welcomeTsx);
+
     // .gitignore
     await writeFile(
       join(projectPath, ".gitignore"),
-      "node_modules\n.DS_Store\ndist\n.env\n"
+      "node_modules\n.DS_Store\ndist\n.env\n.bunstone\n"
     );
 
     console.log("📦 Installing dependencies...");
