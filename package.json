@@ -4,6 +4,7 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "version": "0.2.0",
+  "homepage": "https://bunstone.diario.one/",
   "type": "module",
   "bin": {
     "bunstone": "./bin/cli.ts"
