@@ -1,19 +1,24 @@
 {
-  "linter": {
-    "rules": {
-      "suspicious": {
-        "noExplicitAny": "off"
-      },
-      "complexity": {
-        "noBannedTypes": "off",
-        "noArguments": "off"
-      },
-      "correctness": {
-        "noUnusedImports": "error"
-      }
-    }
-  },
-  "files": {
-    "includes": ["lib/**/*.ts", "tests/**/*.ts", "tests/**/*.tsx"]
-  }
+	"linter": {
+		"rules": {
+			"suspicious": {
+				"noExplicitAny": "off"
+			},
+			"complexity": {
+				"noBannedTypes": "off",
+				"noArguments": "off"
+			},
+			"correctness": {
+				"noUnusedImports": "error"
+			}
+		}
+	},
+	"files": {
+		"includes": [
+			"lib/**/*.ts",
+			"bin/**/*.ts",
+			"tests/**/*.ts",
+			"tests/**/*.tsx"
+		]
+	}
 }
