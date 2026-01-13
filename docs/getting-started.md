@@ -12,6 +12,17 @@ bunx @grupodiariodaregiao/bunstone new my-app
 bunx @grupodiariodaregiao/bunstone my-app
 ```
 
+### Alternatively: Use the Starter Template
+
+You can also start by cloning the repository and using the `starter` directory:
+
+```bash
+git clone https://github.com/diariodaregiao/bunstone.git
+cp -r bunstone/starter my-app
+cd my-app
+bun install
+```
+
 ## Basic Setup
 
 Bunstone projects follow a modular structure. Here's a basic setup:

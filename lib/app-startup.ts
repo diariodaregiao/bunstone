@@ -36,7 +36,6 @@ import {
 import { Logger } from "./utils/logger";
 import { ParamType } from "./http-params";
 import { readdir, mkdir } from "node:fs/promises";
-import { $ } from "bun";
 import { cwd } from "./utils/cwd";
 
 /**
