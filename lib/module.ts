@@ -34,7 +34,7 @@ export function Module(moduleConfig: ModuleConfig = {}): any {
   const providersCrons = MapProvidersWithCron.execute(moduleConfig.providers);
   const injectableProviders = mapInjectableProviders(moduleConfig);
 
-  return function (target: any, context?: any) {
+  return (target: any, _context?: any) => {
     Reflect.defineMetadata("dip:module", "is_module", target);
     Reflect.defineMetadata("dip:module:global", !!moduleConfig.global, target);
     Reflect.defineMetadata("dip:module:routes", controllers, target);

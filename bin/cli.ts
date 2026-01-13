@@ -1,7 +1,12 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
-import { readdir, copyFile, mkdir as fsMkdir, readFile, writeFile } from "node:fs/promises";
-import { mkdir } from "../lib/utils/mkdir";
+import {
+  readdir,
+  copyFile,
+  mkdir as fsMkdir,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { cwd } from "../lib/utils/cwd";
 
 const args = Bun.argv.slice(2);

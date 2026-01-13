@@ -11,7 +11,7 @@ import "reflect-metadata";
  * ```
  */
 export function Injectable(): any {
-  return function (target: any, context?: any) {
+  return (target: any, _context?: any) => {
     Reflect.defineMetadata("injectable", true, target);
   };
 }

@@ -4,25 +4,25 @@ import "reflect-metadata";
  * Utility functions for dependency injection.
  */
 
-export class GlobalRegistry {
-  private static globalDeps: Map<any, any> = new Map();
+const globalDeps = new Map<any, any>();
 
-  static register(type: any, instance: any) {
-    this.globalDeps.set(type, instance);
-  }
+export const GlobalRegistry = {
+  register(type: any, instance: any) {
+    globalDeps.set(type, instance);
+  },
 
-  static get(type: any) {
-    return this.globalDeps.get(type);
-  }
+  get(type: any) {
+    return globalDeps.get(type);
+  },
 
-  static has(type: any) {
-    return this.globalDeps.has(type);
-  }
+  has(type: any) {
+    return globalDeps.has(type);
+  },
 
-  static getAll() {
-    return this.globalDeps;
-  }
-}
+  getAll() {
+    return globalDeps;
+  },
+};
 
 /**
  * Resolves dependencies for a constructor based on parameter types.

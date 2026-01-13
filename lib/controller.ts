@@ -14,44 +14,44 @@ import { Injectable } from "./injectable";
  * ```
  */
 export function Controller(pathname: string = "/"): any {
-  if (!pathname.startsWith("/")) {
-    pathname = `/${pathname}`;
-  }
+	if (!pathname.startsWith("/")) {
+		pathname = `/${pathname}`;
+	}
 
-  return function (target: any) {
-    Injectable()(target);
+	return (target: any) => {
+		Injectable()(target);
 
-    const controllerMethods = Object.getOwnPropertyNames(
-      target.prototype
-    ).filter((method) => method !== "constructor");
+		const controllerMethods = Object.getOwnPropertyNames(
+			target.prototype,
+		).filter((method) => method !== "constructor");
 
-    const controllerHttpMethods = Symbol.for("dip:controller:http-methods");
+		const controllerHttpMethods = Symbol.for("dip:controller:http-methods");
 
-    for (const controllerMethod of controllerMethods) {
-      if (
-        !target[controllerHttpMethods] ||
-        target[controllerHttpMethods].length === 0
-      ) {
-        target[controllerHttpMethods] = [];
-      }
+		for (const controllerMethod of controllerMethods) {
+			if (
+				!target[controllerHttpMethods] ||
+				target[controllerHttpMethods].length === 0
+			) {
+				target[controllerHttpMethods] = [];
+			}
 
-      const metadata = Reflect.getMetadata(
-        "dip:http-method",
-        target.prototype[controllerMethod]
-      );
+			const metadata = Reflect.getMetadata(
+				"dip:http-method",
+				target.prototype[controllerMethod],
+			);
 
-      if (metadata) {
-        const [httpMethod, pathname] = metadata.split(" ");
+			if (metadata) {
+				const [httpMethod, pathname] = metadata.split(" ");
 
-        target[controllerHttpMethods].push({
-          httpMethod,
-          pathname,
-          methodName: controllerMethod,
-        });
-      }
-    }
+				target[controllerHttpMethods].push({
+					httpMethod,
+					pathname,
+					methodName: controllerMethod,
+				});
+			}
+		}
 
-    Reflect.defineMetadata("dip:controller", "is_controller", target);
-    Reflect.defineMetadata("dip:controller:pathname", pathname, target);
-  };
+		Reflect.defineMetadata("dip:controller", "is_controller", target);
+		Reflect.defineMetadata("dip:controller:pathname", pathname, target);
+	};
 }

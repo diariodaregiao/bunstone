@@ -10,7 +10,7 @@ export const API_HEADERS_METADATA = "dip:openapi:headers";
  * @param tags List of tags.
  */
 export function ApiTags(...tags: string[]): any {
-  return (target: any, propertyKey?: string | symbol, descriptor?: any) => {
+  return (target: any, propertyKey?: string | symbol, _descriptor?: any) => {
     // Stage 3 support
     if (
       propertyKey &&
@@ -47,7 +47,7 @@ export function ApiOperation(options: {
   return (
     target: any,
     propertyKey: string | symbol,
-    descriptor?: PropertyDescriptor
+    _descriptor?: PropertyDescriptor
   ) => {
     // Stage 3 support
     if (
@@ -83,7 +83,7 @@ export function ApiResponse(options: {
   return (
     target: any,
     propertyKey: string | symbol,
-    descriptor?: PropertyDescriptor
+    _descriptor?: PropertyDescriptor
   ) => {
     // Stage 3 support
     if (
@@ -120,14 +120,13 @@ export function ApiHeader(options: {
   required?: boolean;
   schema?: any;
 }): any {
-  return (target: any, propertyKey?: string | symbol, descriptor?: any) => {
+  return (target: any, propertyKey?: string | symbol, _descriptor?: any) => {
     // Stage 3 support
     if (
       propertyKey &&
       typeof propertyKey === "object" &&
       "kind" in propertyKey
     ) {
-      const context = propertyKey as any;
       const headers = Reflect.getMetadata(API_HEADERS_METADATA, target) || [];
       headers.push(options);
       Reflect.defineMetadata(API_HEADERS_METADATA, headers, target);

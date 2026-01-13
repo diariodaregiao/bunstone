@@ -1,6 +1,5 @@
 import { expect, test, describe, spyOn } from "bun:test";
 import { EmailModule, EmailService } from "../index";
-import React from "react";
 import nodemailer from "nodemailer";
 
 const WelcomeEmail = ({ name }: { name: string }) => (

@@ -1,6 +1,5 @@
 import { expect, test, describe } from "bun:test";
 import { AppStartup, Controller, Get, Module, Render } from "../index";
-import React from "react";
 
 const MyView = ({ title, name }: { title: string; name: string }) => {
   return (

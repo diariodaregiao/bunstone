@@ -4,5 +4,5 @@ import type { HttpRequest } from "../types/http-request";
  * @property validate(req: HttpRequest): boolean | Promise<boolean> - Method to validate an HTTP request, returning a boolean or a Promise that resolves to a boolean.
  */
 export interface GuardContract {
-  validate(req: HttpRequest): boolean | Promise<boolean>;
+	validate(req: HttpRequest): boolean | Promise<boolean>;
 }
