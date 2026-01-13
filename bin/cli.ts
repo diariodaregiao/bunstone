@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { $ } from "bun";
+import { mkdir } from "../lib/utils/mkdir";
+import { cwd } from "../lib/utils/cwd";
 
 const args = Bun.argv.slice(2);
 let command = args[0];
@@ -18,7 +18,7 @@ if (!projectName && command === "new") {
   projectName = "my-bunstone-app";
 }
 
-const projectPath = join($.cwd().toString(), projectName || "");
+const projectPath = join(cwd(), projectName || "");
 
 async function scaffold() {
   if (command !== "new" || !projectName) {
@@ -30,11 +30,11 @@ async function scaffold() {
   console.log(`🚀 Scaffolding new Bunstone project in ${projectPath}...`);
 
   try {
-    await mkdir(projectPath, { recursive: true });
-    await mkdir(join(projectPath, "src"), { recursive: true });
-    await mkdir(join(projectPath, "src/controllers"), { recursive: true });
-    await mkdir(join(projectPath, "src/services"), { recursive: true });
-    await mkdir(join(projectPath, "src/views"), { recursive: true });
+    mkdir(projectPath);
+    mkdir(join(projectPath, "src"));
+    mkdir(join(projectPath, "src/controllers"));
+    mkdir(join(projectPath, "src/services"));
+    mkdir(join(projectPath, "src/views"));
 
     // package.json
     const pkg = {
@@ -102,17 +102,20 @@ async function scaffold() {
     );
 
     // src/main.ts
-    const mainTs = `import { AppStartup } from "@grupodiariodaregiao/bunstone";
+    const mainTsContent = `import "reflect-metadata";
+import { AppStartup } from "@grupodiariodaregiao/bunstone";
 import { AppModule } from "@/app.module";
 
 async function bootstrap() {
-  const app = await AppStartup.create(AppModule);
+  const app = await AppStartup.create(AppModule, {
+    viewsDir: "src/views"
+  });
   app.listen(3000);
 }
 bootstrap();
 `;
 
-    await Bun.write(join(projectPath, "src/main.ts"), mainTs);
+    await Bun.write(join(projectPath, "src/main.ts"), mainTsContent);
 
     // src/app.module.ts
     const appModuleTs = `import { Module } from "@grupodiariodaregiao/bunstone";
@@ -168,20 +171,6 @@ export class AppService {
       join(projectPath, "src/services/app.service.ts"),
       serviceTs
     );
-
-    // src/main.ts
-    const mainTsContent = `import "reflect-metadata";
-import { AppStartup } from "@grupodiariodaregiao/bunstone";
-import { AppModule } from "@/app.module";
-
-async function bootstrap() {
-  const app = await await AppStartup.create(AppModule);
-  app.listen(3000);
-}
-bootstrap();
-`;
-
-    await Bun.write(join(projectPath, "src/main.ts"), mainTsContent);
 
     // src/views/Welcome.tsx
     const welcomeTsx = `import React, { useState } from "react";

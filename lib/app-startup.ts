@@ -37,6 +37,7 @@ import { Logger } from "./utils/logger";
 import { ParamType } from "./http-params";
 import { readdir, mkdir } from "node:fs/promises";
 import { $ } from "bun";
+import { cwd } from "./utils/cwd";
 
 /**
  * Main entry point for the Bunstone application.
@@ -185,7 +186,7 @@ export class AppStartup {
       if (file.endsWith(".tsx") || file.endsWith(".jsx")) {
         const componentName = basename(file, extname(file));
         const entryPath = join(
-          $.cwd().toString(),
+          cwd(),
           ".bunstone",
           `${componentName}.client.tsx`
         );
