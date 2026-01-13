@@ -11,7 +11,7 @@ hero:
       link: /getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/diariodaregiao/bunstone
+      link: https://github.com/grupodiariodaregiao/bunstone
 
 features:
   - title: Dependency Injection

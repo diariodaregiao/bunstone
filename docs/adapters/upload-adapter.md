@@ -1,6 +1,6 @@
 # Upload adapter (MinIO/S3)
 
-The `UploadAdatper` is a small abstraction on top of Bun's native S3 client, focused on:
+The `UploadAdapter` is a small abstraction on top of Bun's native S3 client, focused on:
 
 - Upload a file to a bucket
 - Check if an object exists
@@ -9,13 +9,13 @@ The `UploadAdatper` is a small abstraction on top of Bun's native S3 client, foc
 ## Import
 
 ```ts
-import { UploadAdatper } from "@diariodaregiao/bunstone";
+import { UploadAdapter } from "@grupodiariodaregiao/bunstone";
 ```
 
 ## Setup (MinIO)
 
 ```ts
-const upload = new UploadAdatper({
+const upload = new UploadAdapter({
   endpoint: "http://localhost:9000",
   accessKey: "minioadmin",
   secretKey: "minioadmin",

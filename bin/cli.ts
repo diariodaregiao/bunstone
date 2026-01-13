@@ -46,7 +46,7 @@ async function scaffold() {
         test: "bun test",
       },
       dependencies: {
-        "@diariodaregiao/bunstone": "latest",
+        "@grupodiariodaregiao/bunstone": "latest",
         "reflect-metadata": "^0.2.2",
         zod: "^4.3.2",
       },
@@ -94,7 +94,7 @@ async function scaffold() {
     );
 
     // src/main.ts
-    const mainTs = `import { AppStartup } from "@diariodaregiao/bunstone";
+    const mainTs = `import { AppStartup } from "@grupodiariodaregiao/bunstone";
 import { AppModule } from "@/app.module";
 
 async function bootstrap() {
@@ -107,7 +107,7 @@ bootstrap();
     await writeFile(join(projectPath, "src/main.ts"), mainTs);
 
     // src/app.module.ts
-    const appModuleTs = `import { Module } from "@diariodaregiao/bunstone";
+    const appModuleTs = `import { Module } from "@grupodiariodaregiao/bunstone";
 import { AppController } from "@/controllers/app.controller";
 import { AppService } from "@/services/app.service";
 
@@ -121,7 +121,7 @@ export class AppModule {}
     await writeFile(join(projectPath, "src/app.module.ts"), appModuleTs);
 
     // src/controllers/app.controller.ts
-    const controllerTs = `import { Controller, Get } from "@diariodaregiao/bunstone";
+    const controllerTs = `import { Controller, Get } from "@grupodiariodaregiao/bunstone";
 import { AppService } from "@/services/app.service";
 
 @Controller()
@@ -141,7 +141,7 @@ export class AppController {
     );
 
     // src/services/app.service.ts
-    const serviceTs = `import { Injectable } from "@diariodaregiao/bunstone";
+    const serviceTs = `import { Injectable } from "@grupodiariodaregiao/bunstone";
 
 @Injectable()
 export class AppService {

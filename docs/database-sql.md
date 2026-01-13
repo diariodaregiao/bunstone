@@ -4,7 +4,7 @@ Bunstone provides a built-in SQL module that wraps [Bun's native SQL client](htt
 
 ## Installation
 
-The SQL module is part of the core `@diariodaregiao/bunstone` package.
+The SQL module is part of the core `@grupodiariodaregiao/bunstone` package.
 
 ## Registration
 
@@ -13,7 +13,7 @@ To use the SQL module, you must register it in your root `AppModule` using the `
 ### Example Registration
 
 ```typescript
-import { Module, SqlModule } from "@diariodaregiao/bunstone";
+import { Module, SqlModule } from "@grupodiariodaregiao/bunstone";
 import { AppController } from "./app.controller";
 
 @Module({
@@ -50,7 +50,7 @@ Once registered, the `SqlService` is globally available. You can inject it into 
 ### Injecting SqlService
 
 ```typescript
-import { Injectable, SqlService } from "@diariodaregiao/bunstone";
+import { Injectable, SqlService } from "@grupodiariodaregiao/bunstone";
 
 @Injectable()
 export class UserService {
@@ -80,4 +80,4 @@ See how to register and use the SQL module in a controller:
 
 <<< @/../examples/05-database-sql/index.ts
 
-[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/05-database-sql/index.ts)
+[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/05-database-sql/index.ts)
