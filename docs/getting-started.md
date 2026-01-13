@@ -20,6 +20,8 @@ You can also start by cloning the repository and using the `starter` directory:
 git clone https://github.com/diariodaregiao/bunstone.git
 cp -r bunstone/starter my-app
 cd my-app
+rm -rf .git
+rm -rf bunstone
 bun install
 ```
 
