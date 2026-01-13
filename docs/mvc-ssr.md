@@ -10,7 +10,7 @@ In your `AppStartup.create`, specify the directory where your React components a
 
 ```tsx
 const app = AppStartup.create(AppModule, {
-  viewsDir: "src/views" // Bunstone will scan and bundle everything here
+  viewsDir: "src/views", // Bunstone will scan and bundle everything here
 });
 ```
 
@@ -24,7 +24,7 @@ import React, { useState } from "react";
 
 export const Counter = ({ initialCount = 0 }) => {
   const [count, setCount] = useState(initialCount);
-  
+
   return (
     <div className="p-4 border rounded shadow">
       <p>Count: {count}</p>
@@ -39,7 +39,7 @@ export const Counter = ({ initialCount = 0 }) => {
 Use the `@Render(Component)` decorator. Bunstone will handle the Server-Side Rendering (SSR) and the Client-Side Hydration automatically.
 
 ```tsx
-import { Controller, Get, Render } from "@diariodaregiao/bunstone";
+import { Controller, Get, Render } from "@grupodiariodaregiao/bunstone";
 import { Counter } from "../views/Counter";
 
 @Controller("/")

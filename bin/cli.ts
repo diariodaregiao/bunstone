@@ -171,7 +171,7 @@ export class AppService {
 
     // src/main.ts
     const mainTsContent = `import "reflect-metadata";
-import { AppStartup } from "@diariodaregiao/bunstone";
+import { AppStartup } from "@grupodiariodaregiao/bunstone";
 import { AppModule } from "@/app.module";
 
 const app = AppStartup.create(AppModule, {
