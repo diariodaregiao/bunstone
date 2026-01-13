@@ -14,7 +14,7 @@ The `EmailService` allows sending professional emails using **React** for the me
 To enable email sending, register the `EmailModule` before initializing the app:
 
 ```ts
-import { AppStartup, EmailModule } from "@diariodaregiao/bunstone";
+import { AppStartup, EmailModule } from "@grupodiariodaregiao/bunstone";
 
 // Import in your root module
 @Module({
@@ -43,7 +43,7 @@ Use the `EmailLayout` component to provide the necessary base structure and Tail
 ```tsx
 // templates/WelcomeEmail.tsx
 import React from "react";
-import { EmailLayout } from "@diariodaregiao/bunstone";
+import { EmailLayout } from "@grupodiariodaregiao/bunstone";
 import { Heading, Text, Section, Button } from "@react-email/components";
 
 export const WelcomeEmail = ({ name }: { name: string }) => (
@@ -71,7 +71,7 @@ export const WelcomeEmail = ({ name }: { name: string }) => (
 Inject the `EmailService` in your Controller or Service to perform the sending:
 
 ```ts
-import { Controller, Post, EmailService } from "@diariodaregiao/bunstone";
+import { Controller, Post, EmailService } from "@grupodiariodaregiao/bunstone";
 import { WelcomeEmail } from "./templates/WelcomeEmail";
 
 @Controller("users")

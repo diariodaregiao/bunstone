@@ -12,7 +12,8 @@
     "start:adapters": "bun 07-adapters/index.ts",
     "start:openapi": "bun 08-openapi/index.ts",
     "start:ssr": "bun 09-ssr/index.tsx",
-    "start:mvc": "bun 10-ssr-mvc/index.ts"
+    "start:mvc": "bun 10-ssr-mvc/index.ts",
+    "start:email": "bun 11-email-adapter/index.ts"
   },
   "dependencies": {
     "bunstone": "link:..",

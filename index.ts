@@ -1,7 +1,7 @@
 import "reflect-metadata";
 export * from "./lib/adapters/cache-adapter";
-export * from "./lib/email/email-module";
-export * from "./lib/email/email-layout";
+export { EmailModule, EmailService } from "./lib/email/email-module";
+export { EmailLayout } from "./lib/email/email-layout";
 export * from "./lib/adapters/form-data";
 export * from "./lib/adapters/upload-adapter";
 export * from "./lib/app-startup";

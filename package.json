@@ -3,7 +3,17 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "version": "0.2.1",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./*": {
+      "import": "./dist/*.js",
+      "types": "./dist/*.d.ts"
+    }
+  },
+  "version": "0.2.2",
   "homepage": "https://bunstone.diario.one/",
   "type": "module",
   "bin": {
@@ -20,7 +30,8 @@
     "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun --external react --external react-dom --external elysia --external @elysiajs/* && tsc --emitDeclarationOnly --declaration --outDir dist",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/bun": "latest",
