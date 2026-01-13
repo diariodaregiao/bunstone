@@ -1,5 +1,5 @@
-export interface ICommand {}
+export type ICommand = {};
 
 export interface ICommandHandler<T extends ICommand = any, R = any> {
-  execute(command: T): Promise<R>;
+	execute(command: T): Promise<R>;
 }

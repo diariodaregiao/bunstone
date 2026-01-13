@@ -38,7 +38,7 @@ export function Body(): any {
   if (arguments.length === 1) {
     const arg = arguments[0] as ZodType;
     if (isZodSchema(arg)) {
-      return function (target: any, propertyKey: any, parameterIndex: any) {
+      return (target: any, propertyKey: any, parameterIndex: any) => {
         setParamMetadata(
           target,
           propertyKey as string,
@@ -51,7 +51,7 @@ export function Body(): any {
     }
   }
 
-  return function (target: any, propertyKey: any, parameterIndex: any) {
+  return (target: any, propertyKey: any, parameterIndex: any) => {
     setParamMetadata(
       target,
       propertyKey as string,
@@ -83,7 +83,7 @@ export function Param(): any {
     key = arguments[0] as string;
   }
 
-  return function (target: any, propertyKey: any, parameterIndex: any) {
+  return (target: any, propertyKey: any, parameterIndex: any) => {
     setParamMetadata(
       target,
       propertyKey as string,
@@ -116,7 +116,7 @@ export function Query(): any {
     key = arguments[0] as string;
   }
 
-  return function (target: any, propertyKey: any, parameterIndex: any) {
+  return (target: any, propertyKey: any, parameterIndex: any) => {
     setParamMetadata(
       target,
       propertyKey as string,
@@ -128,7 +128,7 @@ export function Query(): any {
 }
 
 export function Header(key: string): any {
-  return function (target: any, propertyKey: any, parameterIndex: any) {
+  return (target: any, propertyKey: any, parameterIndex: any) => {
     setParamMetadata(
       target,
       propertyKey,
@@ -140,7 +140,7 @@ export function Header(key: string): any {
 }
 
 export function Request(): any {
-  return function (target: any, propertyKey: any, parameterIndex: any) {
+  return (target: any, propertyKey: any, parameterIndex: any) => {
     setParamMetadata(target, propertyKey, parameterIndex, ParamType.REQUEST);
   };
 }
@@ -170,7 +170,7 @@ export async function processParameters(
       case ParamType.BODY:
         try {
           args[index] = request.body;
-        } catch (e) {
+        } catch (_e) {
           args[index] = null;
         }
         break;
@@ -192,7 +192,9 @@ export async function processParameters(
         break;
 
       case ParamType.HEADER:
-        args[index] = request.headers?.[key!];
+        if (key) {
+          args[index] = request.headers?.[key];
+        }
         break;
 
       case ParamType.REQUEST:
@@ -364,7 +366,9 @@ function tryResolveFromBody(body: unknown): FormData | null {
   for (const [key, value] of Object.entries(body)) {
     if (value === undefined || value === null) continue;
     if (Array.isArray(value)) {
-      value.forEach((item) => appendValue(formData, key, item));
+      value.forEach((item) => {
+        appendValue(formData, key, item);
+      });
       continue;
     }
     appendValue(formData, key, value);

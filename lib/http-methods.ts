@@ -11,11 +11,11 @@ function HttpMethodDecorator(httpMethod: string, pathname: string = ""): any {
     pathname = `/${pathname}`;
   }
 
-  return function (
-    target: any,
-    propertyKey: string | symbol,
+  return (
+    _target: any,
+    _propertyKey: string | symbol,
     descriptor: PropertyDescriptor
-  ) {
+  ) => {
     Reflect.defineMetadata(
       "dip:http-method",
       `${httpMethod} ${pathname}`,

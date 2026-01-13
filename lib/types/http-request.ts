@@ -7,9 +7,9 @@ import type { HTTPHeaders, RouteSchema } from "elysia";
  */
 
 export type HttpRequest = RouteSchema & {
-  headers: HTTPHeaders;
-  jwt?: {
-    sign(payload: Record<string, any>): Promise<string>;
-    verify(token?: string): Promise<false | Record<string, any>>;
-  };
+	headers: HTTPHeaders;
+	jwt?: {
+		sign(payload: Record<string, any>): Promise<string>;
+		verify(token?: string): Promise<false | Record<string, any>>;
+	};
 };

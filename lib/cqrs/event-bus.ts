@@ -54,8 +54,8 @@ export class EventBus {
           if (!this.handlers.has(event)) {
             this.handlers.set(event, []);
           }
-          const handlersForEvent = this.handlers.get(event)!;
-          if (!handlersForEvent.includes(handler)) {
+          const handlersForEvent = this.handlers.get(event);
+          if (handlersForEvent && !handlersForEvent?.includes(handler)) {
             handlersForEvent.push(handler);
           }
         });
@@ -70,10 +70,14 @@ export class EventBus {
   publish<T extends IEvent>(event: T): void {
     const eventType = event.constructor;
     const handlers = this.handlers.get(eventType) || [];
-    handlers.forEach((handler) => handler.handle(event));
+    handlers.forEach((handler) => {
+      handler.handle(event);
+    });
 
     // Notify generic listeners (Sagas)
-    this.listeners.forEach((listener) => listener(event));
+    this.listeners.forEach((listener) => {
+      listener(event);
+    });
   }
 
   /**

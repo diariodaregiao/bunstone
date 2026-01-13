@@ -1,42 +1,41 @@
 import "reflect-metadata";
+import { statSync } from "node:fs";
+import { mkdir, readdir } from "node:fs/promises";
+import { basename, extname, join, resolve } from "node:path";
 import { cors } from "@elysiajs/cors";
 import { html } from "@elysiajs/html";
-import { staticPlugin } from "@elysiajs/static";
 import jwt from "@elysiajs/jwt";
+import { staticPlugin } from "@elysiajs/static";
 import { swagger } from "@elysiajs/swagger";
 import Elysia from "elysia";
+import scheduler from "node-cron";
 import React from "react";
 import { renderToReadableStream } from "react-dom/server";
 import { Layout } from "./components/layout";
-import scheduler from "node-cron";
-import { statSync } from "node:fs";
-import { join, basename, extname, resolve } from "node:path";
-import { HttpException } from "./http-exceptions";
+import { PARAM_METADATA_KEY } from "./constants";
 import { CommandBus } from "./cqrs/command-bus";
-import { QueryBus } from "./cqrs/query-bus";
-import { EventBus } from "./cqrs/event-bus";
 import { COMMAND_HANDLER_METADATA } from "./cqrs/decorators/command-handler.decorator";
-import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorator";
 import { EVENT_HANDLER_METADATA } from "./cqrs/decorators/event-handler.decorator";
+import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorator";
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
-import { processParameters } from "./http-params";
-import { RENDER_METADATA } from "./render";
+import { EventBus } from "./cqrs/event-bus";
+import { QueryBus } from "./cqrs/query-bus";
+import { HttpException } from "./http-exceptions";
+import { ParamType, processParameters } from "./http-params";
 import {
+  API_HEADERS_METADATA,
   API_OPERATION_METADATA,
   API_RESPONSE_METADATA,
   API_TAGS_METADATA,
-  API_HEADERS_METADATA,
 } from "./openapi";
-import { PARAM_METADATA_KEY } from "./constants";
+import { RENDER_METADATA } from "./render";
 import type { Options } from "./types/options";
+import { cwd } from "./utils/cwd";
 import {
-  resolveDependencies,
   GlobalRegistry,
+  resolveDependencies,
 } from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
-import { ParamType } from "./http-params";
-import { readdir, mkdir } from "node:fs/promises";
-import { cwd } from "./utils/cwd";
 
 /**
  * Main entry point for the Bunstone application.
@@ -56,14 +55,14 @@ export class AppStartup {
    * @returns An object with a `listen` method to start the server.
    */
   static async create(module: any, options?: Options) {
-    this.elysia = new Elysia(); // Reset for each creation
+    AppStartup.elysia = new Elysia(); // Reset for each creation
 
     const publicExists = await Bun.file("public").exists();
     // Ensure public directory exists before static plugin uses it
     if (!publicExists) await mkdir("./public", { recursive: true });
 
-    this.elysia.use(html());
-    this.elysia.use(
+    AppStartup.elysia.use(html());
+    AppStartup.elysia.use(
       staticPlugin({
         assets: "public",
         prefix: "/public",
@@ -71,16 +70,16 @@ export class AppStartup {
     );
 
     if (options?.viewsDir) {
-      this.autoBundle(options.viewsDir).catch((err) => {
-        this.logger.error(`Failed to auto-bundle views: ${err.message}`);
+      AppStartup.autoBundle(options.viewsDir).catch((err) => {
+        AppStartup.logger.error(`Failed to auto-bundle views: ${err.message}`);
       });
     }
 
-    this.elysia.error({
+    AppStartup.elysia.error({
       HttpException,
     });
 
-    this.elysia.onError(({ code, error, set }) => {
+    AppStartup.elysia.onError(({ error, set }) => {
       if (error instanceof HttpException) {
         set.status = error.getStatus();
         return error.getResponse();
@@ -107,11 +106,11 @@ export class AppStartup {
        * Starts the server on the specified port.
        * @param port The port number to listen on.
        */
-      listen: this.listen,
+      listen: AppStartup.listen,
       /**
        * Returns the underlying Elysia instance.
        */
-      getElysia: () => this.elysia,
+      getElysia: () => AppStartup.elysia,
     };
   }
 
@@ -135,16 +134,18 @@ export class AppStartup {
       });
 
       if (!result.success) {
-        this.logger.error(
+        AppStartup.logger.error(
           `Bundle failed for ${outputName}: ${result.logs
             .map((l) => l.message)
             .join("\n")}`
         );
       } else {
-        this.logger.log(`Bundle created successfully: public/${outputName}`);
+        AppStartup.logger.log(
+          `Bundle created successfully: public/${outputName}`
+        );
       }
     } catch (error: any) {
-      this.logger.error(
+      AppStartup.logger.error(
         `Error during bundling ${outputName}: ${error.message}`
       );
     }
@@ -165,7 +166,7 @@ export class AppStartup {
       for (const file of list) {
         const fullPath = join(dir, file);
         const stat = statSync(fullPath);
-        if (stat && stat.isDirectory()) {
+        if (stat?.isDirectory()) {
           results = results.concat(await getFilesRecursively(fullPath));
         } else {
           results.push(resolve(fullPath));
@@ -176,7 +177,7 @@ export class AppStartup {
 
     const viewsDirAbs = resolve(viewsDir);
     const files = await getFilesRecursively(viewsDirAbs);
-    this.logger.log(
+    AppStartup.logger.log(
       `Auto-bundling views from ${viewsDirAbs} (${files.length} views found)`
     );
 
@@ -229,9 +230,9 @@ if (document.readyState === 'loading') {
         await Bun.write(entryPath, entryContent);
 
         const bundleName = `${componentName.toLowerCase()}.bundle.js`;
-        await this.bundle(entryPath, bundleName);
-        this.viewBundles.set(componentName, bundleName);
-        this.viewBundles.set(componentName.toLowerCase(), bundleName);
+        await AppStartup.bundle(entryPath, bundleName);
+        AppStartup.viewBundles.set(componentName, bundleName);
+        AppStartup.viewBundles.set(componentName.toLowerCase(), bundleName);
       }
     }
   }
@@ -260,17 +261,17 @@ if (document.readyState === 'loading') {
       const componentName = component.name || component.displayName;
       const bundle =
         result?.bundle ||
-        this.viewBundles.get(componentName) ||
-        this.viewBundles.get(componentName.toLowerCase());
+        AppStartup.viewBundles.get(componentName) ||
+        AppStartup.viewBundles.get(componentName.toLowerCase());
 
-      this.logger.log(
+      AppStartup.logger.log(
         `Rendering component: ${componentName}, bundle found: ${
           bundle || "none"
         }`
       );
 
       if (!bundle) {
-        this.logger.warn(
+        AppStartup.logger.warn(
           `No client bundle found for component: ${componentName}. useEffect and other hooks will not work on the client.`
         );
       }

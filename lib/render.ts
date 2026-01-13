@@ -7,12 +7,12 @@ export const RENDER_METADATA = "dip:render:component";
  * @param component The React component to use as a View.
  */
 export function Render(component: any): any {
-  return (
-    target: any,
-    propertyKey: string | symbol,
-    descriptor: PropertyDescriptor
-  ) => {
-    Reflect.defineMetadata(RENDER_METADATA, component, target, propertyKey);
-    return descriptor;
-  };
+	return (
+		target: any,
+		propertyKey: string | symbol,
+		descriptor: PropertyDescriptor,
+	) => {
+		Reflect.defineMetadata(RENDER_METADATA, component, target, propertyKey);
+		return descriptor;
+	};
 }

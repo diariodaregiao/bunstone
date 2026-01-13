@@ -1,13 +1,13 @@
 import { Guard } from "./guard";
 import type { GuardContract } from "./interfaces/guard-contract";
-import { type HttpRequest } from "./types/http-request";
+import type { HttpRequest } from "./types/http-request";
 import { isClass } from "./utils/is-class";
 
 async function validateTokenFromRequest(req: HttpRequest) {
   if (!req.jwt) throw new Error("JWT middleware is not configured.");
   if (!req.headers) return false;
 
-  const authHeader = req.headers.authorization || req.headers["authorization"];
+  const authHeader = req.headers.authorization || req.headers.authorization;
   const [_, token] = authHeader?.split(" ") ?? [];
   if (!token) {
     return false;
@@ -29,7 +29,7 @@ class JwtGuard implements GuardContract {
  * Requires the JwtModule to be configured in the root module.
  */
 export function Jwt(): any {
-  return function (target: any, propertyKey?: any, descriptor?: any) {
+  return (target: any, propertyKey?: any, descriptor?: any) => {
     // Stage 3 decorator support
     if (
       propertyKey &&
@@ -50,6 +50,8 @@ export function Jwt(): any {
       return;
     }
 
-    Guard(JwtGuard)(target, propertyKey!, descriptor!);
+    if (propertyKey && descriptor) {
+      Guard(JwtGuard)(target, propertyKey, descriptor);
+    }
   };
 }

@@ -7,7 +7,7 @@ export const EVENT_HANDLER_METADATA = "dip:cqrs:event-handler";
  * @param events The event classes that this handler handles.
  */
 export const EventsHandler = (...events: any[]): any => {
-  return (target: object, context?: any) => {
+  return (target: object, _context?: any) => {
     Reflect.defineMetadata(EVENT_HANDLER_METADATA, events, target);
   };
 };

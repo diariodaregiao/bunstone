@@ -7,7 +7,7 @@ export const SAGA_METADATA = "dip:cqrs:saga";
  * Sagas are reactive event streams that can dispatch commands or other events.
  */
 export const Saga = (): any => {
-  return (target: object, propertyKey: string | symbol, context?: any) => {
+  return (target: object, propertyKey: string | symbol, _context?: any) => {
     // Stage 3 support
     if (
       typeof propertyKey === "object" &&
