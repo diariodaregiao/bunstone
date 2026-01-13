@@ -129,7 +129,7 @@ export class AppModule {}
     await writeFile(join(projectPath, "src/app.module.ts"), appModuleTs);
 
     // src/controllers/app.controller.ts
-    const controllerTs = `import { Controller, Get } from "@grupodiariodaregiao/bunstone";
+    const controllerTs = `import { Controller, Get, Render } from "@grupodiariodaregiao/bunstone";
 import { AppService } from "@/services/app.service";
 import { Welcome } from "@/views/Welcome";
 
