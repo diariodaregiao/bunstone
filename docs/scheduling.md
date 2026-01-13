@@ -21,7 +21,7 @@ export class TaskService {
 Executes a method repeatedly based on a cron expression.
 
 ```typescript
-import { Cron } from "@diariodaregiao/bunstone";
+import { Cron } from "@grupodiariodaregiao/bunstone";
 
 @Injectable()
 export class CleanupService {
@@ -40,4 +40,4 @@ Explore more scheduling options and configurations:
 
 <<< @/../examples/06-scheduling/index.ts
 
-[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/06-scheduling/index.ts)
+[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/06-scheduling/index.ts)

@@ -7,7 +7,7 @@ Bunstone uses a powerful Dependency Injection (DI) system that manages the lifec
 To make a class injectable, use the `@Injectable()` decorator.
 
 ```typescript
-import { Injectable } from "@diariodaregiao/bunstone";
+import { Injectable } from "@grupodiariodaregiao/bunstone";
 
 @Injectable()
 export class DatabaseService {

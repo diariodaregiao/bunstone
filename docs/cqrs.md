@@ -7,7 +7,7 @@ Bunstone provides a full implementation of the Command Query Responsibility Segr
 To use CQRS features, you must import the `CqrsModule` in your root `AppModule`. Since it is a **Global Module**, the buses will be available for injection in all other modules.
 
 ```typescript
-import { Module, CqrsModule } from "@diariodaregiao/bunstone";
+import { Module, CqrsModule } from "@grupodiariodaregiao/bunstone";
 
 @Module({
   imports: [CqrsModule],
@@ -86,4 +86,4 @@ For a complete working example of CQRS with commands and handlers, see:
 
 <<< @/../examples/04-cqrs/index.ts
 
-[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/04-cqrs/index.ts)
+[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/04-cqrs/index.ts)

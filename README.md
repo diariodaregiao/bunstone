@@ -7,7 +7,7 @@ Bunstone is a high-performance, decorator-based web framework for [Bun](https://
 Scaffold a new project in seconds:
 
 ```bash
-npx @diariodaregiao/bunstone my-app
+bunx @grupodiariodaregiao/bunstone my-app
 cd my-app
 bun dev
 ```
@@ -71,7 +71,7 @@ We have a set of examples demonstrating various features of the framework:
 
 ## 📖 Documentation
 
-Visit our [Documentation Website](https://diariodaregiao.github.io/bunstone) (if hosted) or run it locally:
+Visit our [Documentation Website](https://grupodiariodaregiao.github.io/bunstone) (if hosted) or run it locally:
 
 ```bash
 bun run docs:dev

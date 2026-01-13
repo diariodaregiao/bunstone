@@ -7,9 +7,9 @@ Bunstone is a decorator-based framework for Bun, inspired by NestJS. It provides
 You can scaffold a new project using our CLI:
 
 ```bash
-npx @diariodaregiao/bunstone new my-app
+bunx @grupodiariodaregiao/bunstone new my-app
 # or shorthand
-npx @diariodaregiao/bunstone my-app
+bunx @grupodiariodaregiao/bunstone my-app
 ```
 
 ## Basic Setup
@@ -20,7 +20,7 @@ Bunstone projects follow a modular structure. Here's a basic setup:
 
 ```typescript
 import "reflect-metadata";
-import { AppStartup } from "@diariodaregiao/bunstone";
+import { AppStartup } from "@grupodiariodaregiao/bunstone";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
@@ -34,7 +34,7 @@ bootstrap();
 ### `src/app.module.ts`
 
 ```typescript
-import { Module } from "@diariodaregiao/bunstone";
+import { Module } from "@grupodiariodaregiao/bunstone";
 import { AppController } from "./controllers/app.controller";
 
 @Module({
@@ -57,4 +57,4 @@ Check out a complete standalone example of a basic application:
 
 <<< @/../examples/01-basic-app/index.ts
 
-[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/01-basic-app/index.ts)
+[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/01-basic-app/index.ts)

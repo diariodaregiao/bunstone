@@ -1,9 +1,9 @@
 {
-  "name": "@diariodaregiao/bunstone",
+  "name": "@grupodiariodaregiao/bunstone",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "version": "0.0.38-hml",
+  "version": "0.0.28",
   "type": "module",
   "bin": {
     "bunstone": "./bin/cli.ts"
@@ -44,12 +44,8 @@
     "reflect-metadata": "^0.2.2",
     "zod": "^4.3.2"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/diariodaregiao/bunstone.git"
-  },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org/"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "packageManager": "bun@1.1.0"
 }

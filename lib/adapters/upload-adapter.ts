@@ -19,7 +19,7 @@ export type S3UploadParams = {
 };
 
 @Injectable()
-export class UploadAdatper {
+export class UploadAdapter {
   private readonly client: S3Client;
 
   constructor(config?: MinioConfig) {

@@ -37,11 +37,14 @@ export default defineConfig({
       },
     ],
     socialLinks: [
-      { icon: "github", link: "https://github.com/diariodaregiao/bunstone" },
+      {
+        icon: "github",
+        link: "https://github.com/grupodiariodaregiao/bunstone",
+      },
     ],
     footer: {
       message: "Released under the MIT License.",
-      copyright: "Copyright © 2024-present Diário da Região",
+      copyright: "Copyright © 2024-present Grupo Diário da Região",
     },
   },
 });

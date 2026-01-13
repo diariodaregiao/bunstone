@@ -1,6 +1,6 @@
 # Cache adapter (Redis)
 
-The `CacheAdatper` is a small abstraction on top of Bun's native Redis client, focused on:
+The `CacheAdapter` is a small abstraction on top of Bun's native Redis client, focused on:
 
 - `set` (permanent or with TTL)
 - `get` (typed, always returns an object)
@@ -10,7 +10,7 @@ The `CacheAdatper` is a small abstraction on top of Bun's native Redis client, f
 ## Import
 
 ```ts
-import { CacheAdatper } from "@diariodaregiao/bunstone";
+import { CacheAdapter } from "@grupodiariodaregiao/bunstone";
 ```
 
 ## Setup
@@ -18,13 +18,13 @@ import { CacheAdatper } from "@diariodaregiao/bunstone";
 By default it uses Bun's global `redis` client (reads `REDIS_URL` / `VALKEY_URL`).
 
 ```ts
-const cache = new CacheAdatper();
+const cache = new CacheAdapter();
 ```
 
 Or pass a custom connection URL:
 
 ```ts
-const cache = new CacheAdatper({ url: "redis://localhost:6379" });
+const cache = new CacheAdapter({ url: "redis://localhost:6379" });
 ```
 
 ## Set
@@ -55,5 +55,5 @@ See how to use the Cache Adapter in a controller:
 
 <<< @/../../examples/07-adapters/index.ts
 
-[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/07-adapters/index.ts)
+[See it on GitHub](https://github.com/grupodiariodaregiao/bunstone/blob/main/examples/07-adapters/index.ts)
 ```
