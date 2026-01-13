@@ -1,5 +1,5 @@
+import "reflect-metadata";
 import { cors } from "@elysiajs/cors";
-console.log("APP STARTUP LOADED FROM:", import.meta.url);
 import { html } from "@elysiajs/html";
 import { staticPlugin } from "@elysiajs/static";
 import jwt from "@elysiajs/jwt";
@@ -9,15 +9,7 @@ import React from "react";
 import { renderToReadableStream } from "react-dom/server";
 import { Layout } from "./components/layout";
 import scheduler from "node-cron";
-import "reflect-metadata";
-import {
-  readdirSync,
-  existsSync,
-  mkdirSync,
-  writeFileSync,
-  unlinkSync,
-  statSync,
-} from "node:fs";
+import { statSync } from "node:fs";
 import { join, basename, extname, resolve } from "node:path";
 import { HttpException } from "./http-exceptions";
 import { CommandBus } from "./cqrs/command-bus";
@@ -43,6 +35,8 @@ import {
 } from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
 import { ParamType } from "./http-params";
+import { readdir, mkdir } from "node:fs/promises";
+import { $ } from "bun";
 
 /**
  * Main entry point for the Bunstone application.
@@ -61,11 +55,12 @@ export class AppStartup {
    * @param options Optional configuration (e.g., CORS).
    * @returns An object with a `listen` method to start the server.
    */
-  static create(module: any, options?: Options) {
+  static async create(module: any, options?: Options) {
     this.elysia = new Elysia(); // Reset for each creation
 
+    const publicExists = await Bun.file("public").exists();
     // Ensure public directory exists before static plugin uses it
-    if (!existsSync("./public")) mkdirSync("./public", { recursive: true });
+    if (!publicExists) await mkdir("./public", { recursive: true });
 
     this.elysia.use(html());
     this.elysia.use(
@@ -156,19 +151,22 @@ export class AppStartup {
   }
 
   private static async autoBundle(viewsDir: string) {
-    if (!existsSync(viewsDir)) return;
+    const viewDirExists = await Bun.file(viewsDir).exists();
+    if (!viewDirExists) return;
 
-    if (!existsSync("./.bunstone"))
-      mkdirSync("./.bunstone", { recursive: true });
+    const bunstoneDirExists = await Bun.file("./.bunstone").exists();
+    if (!bunstoneDirExists) {
+      await mkdir("./.bunstone", { recursive: true });
+    }
 
-    const getFilesRecursively = (dir: string): string[] => {
+    const getFilesRecursively = async (dir: string): Promise<string[]> => {
       let results: string[] = [];
-      const list = readdirSync(dir);
+      const list = await readdir(dir);
       for (const file of list) {
         const fullPath = join(dir, file);
         const stat = statSync(fullPath);
         if (stat && stat.isDirectory()) {
-          results = results.concat(getFilesRecursively(fullPath));
+          results = results.concat(await getFilesRecursively(fullPath));
         } else {
           results.push(resolve(fullPath));
         }
@@ -177,7 +175,7 @@ export class AppStartup {
     };
 
     const viewsDirAbs = resolve(viewsDir);
-    const files = getFilesRecursively(viewsDirAbs);
+    const files = await getFilesRecursively(viewsDirAbs);
     this.logger.log(
       `Auto-bundling views from ${viewsDirAbs} (${files.length} views found)`
     );
@@ -187,7 +185,7 @@ export class AppStartup {
       if (file.endsWith(".tsx") || file.endsWith(".jsx")) {
         const componentName = basename(file, extname(file));
         const entryPath = join(
-          process.cwd(),
+          $.cwd().toString(),
           ".bunstone",
           `${componentName}.client.tsx`
         );
@@ -228,7 +226,7 @@ if (document.readyState === 'loading') {
 }
         `;
 
-        writeFileSync(entryPath, entryContent);
+        await Bun.write(entryPath, entryContent);
 
         const bundleName = `${componentName.toLowerCase()}.bundle.js`;
         await this.bundle(entryPath, bundleName);

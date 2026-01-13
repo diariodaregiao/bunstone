@@ -80,7 +80,7 @@ class SsrController {
 })
 class SsrModule {}
 
-const app = AppStartup.create(SsrModule);
+const app = await AppStartup.create(SsrModule);
 // We use a different port from the basic example
 const port = 3009;
 app.listen(port);

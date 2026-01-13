@@ -44,5 +44,5 @@ class UploadController {
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule);
+const app = await AppStartup.create(AppModule);
 console.log("Adapters example configured.");

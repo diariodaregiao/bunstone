@@ -43,7 +43,7 @@ EmailModule.register({
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule);
+const app = await AppStartup.create(AppModule);
 
 console.log(
   "Email adapter example configured. Note: Replace SMTP credentials to actually send."

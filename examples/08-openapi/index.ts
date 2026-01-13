@@ -39,7 +39,7 @@ class UserController {
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule, {
+const app = await AppStartup.create(AppModule, {
   swagger: {
     path: "/docs",
     title: "Bunstone API",

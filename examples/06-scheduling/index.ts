@@ -18,7 +18,7 @@ class NotificationTask {
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule);
+const app = await AppStartup.create(AppModule);
 app.listen(3000, () => {
   console.log("Scheduling example is running on http://localhost:3000");
 });

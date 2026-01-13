@@ -28,7 +28,7 @@ class WelcomeController {
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule, {
+const app = await AppStartup.create(AppModule, {
   viewsDir: "examples/10-ssr-mvc/src/views",
 });
 

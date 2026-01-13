@@ -33,7 +33,7 @@ import { AppStartup, EmailModule } from "@grupodiariodaregiao/bunstone";
 })
 class AppModule {}
 
-const app = AppStartup.create(AppModule);
+const app = await AppStartup.create(AppModule);
 ```
 
 ## Creating a Template

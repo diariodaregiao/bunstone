@@ -24,7 +24,7 @@ class TaskModule {}
 
 describe("Scheduling", () => {
   test("should trigger timeout and cron jobs", async () => {
-    const app = AppStartup.create(TaskModule);
+    const app = await AppStartup.create(TaskModule);
     // AppStartup.create registers everything.
 
     // Wait for timeout

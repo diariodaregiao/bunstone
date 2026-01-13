@@ -35,7 +35,7 @@ class OpenApiTestModule {}
 
 describe("OpenAPI Documentation", () => {
   test("should generate correct swagger json metadata", async () => {
-    const app = AppStartup.create(OpenApiTestModule, {
+    const app = await AppStartup.create(OpenApiTestModule, {
       swagger: {
         path: "/swagger",
       },
