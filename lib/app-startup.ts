@@ -441,6 +441,18 @@ if (document.readyState === 'loading') {
           (p: any) => p.type === ParamType.PARAM
         )?.options?.zodSchema;
 
+        // Resolve Guard dependencies
+        let guardInstance: any;
+        if (method.guard) {
+          const guardParamsTypes =
+            Reflect.getMetadata("design:paramtypes", method.guard) || [];
+          const guardDependencies = resolveDependencies(
+            guardParamsTypes,
+            injectables
+          );
+          guardInstance = new method.guard(...guardDependencies);
+        }
+
         (AppStartup.elysia as any)[httpMethod](
           method.pathname,
           (req: any) =>
@@ -461,8 +473,7 @@ if (document.readyState === 'loading') {
               parameters,
             },
             beforeHandle(req: any) {
-              if (!method.guard) return;
-              const guardInstance = new method.guard();
+              if (!guardInstance) return;
               const isValid = guardInstance.validate(req);
               if (isValid instanceof Promise) {
                 return isValid.then((valid) => {
