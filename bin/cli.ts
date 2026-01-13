@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
-import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { $ } from "bun";
+import { readdir, copyFile, mkdir as fsMkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir } from "../lib/utils/mkdir";
+import { cwd } from "../lib/utils/cwd";
 
 const args = Bun.argv.slice(2);
 let command = args[0];
@@ -18,7 +19,24 @@ if (!projectName && command === "new") {
   projectName = "my-bunstone-app";
 }
 
-const projectPath = join($.cwd().toString(), projectName || "");
+const projectPath = join(cwd(), projectName || "");
+const starterPath = join(import.meta.dir, "..", "starter");
+
+async function copyDir(src: string, dest: string) {
+  await fsMkdir(dest, { recursive: true });
+  const entries = await readdir(src, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyDir(srcPath, destPath);
+    } else {
+      await copyFile(srcPath, destPath);
+    }
+  }
+}
 
 async function scaffold() {
   if (command !== "new" || !projectName) {
@@ -30,198 +48,15 @@ async function scaffold() {
   console.log(`🚀 Scaffolding new Bunstone project in ${projectPath}...`);
 
   try {
-    await mkdir(projectPath, { recursive: true });
-    await mkdir(join(projectPath, "src"), { recursive: true });
-    await mkdir(join(projectPath, "src/controllers"), { recursive: true });
-    await mkdir(join(projectPath, "src/services"), { recursive: true });
-    await mkdir(join(projectPath, "src/views"), { recursive: true });
+    // Copy the entire starter directory
+    await copyDir(starterPath, projectPath);
 
-    // package.json
-    const pkg = {
-      name: projectName,
-      version: "1.0.0",
-      main: "src/main.ts",
-      type: "module",
-      scripts: {
-        start: "bun run src/main.ts",
-        dev: "bun --watch src/main.ts",
-        test: "bun test",
-      },
-      dependencies: {
-        "@elysiajs/html": "^1.4.0",
-        "@grupodiariodaregiao/bunstone": "latest",
-        "reflect-metadata": "^0.2.2",
-        react: "^19.0.0",
-        "react-dom": "^19.0.0",
-        zod: "^4.3.2",
-      },
-      devDependencies: {
-        "@types/bun": "latest",
-        "@types/react": "^19.0.0",
-        "@types/react-dom": "^19.0.0",
-      },
-    };
-
-    await Bun.write(
-      join(projectPath, "package.json"),
-      JSON.stringify(pkg, null, 2)
-    );
-
-    // tsconfig.json
-    const tsconfig = {
-      compilerOptions: {
-        lib: ["ESNext"],
-        module: "esnext",
-        target: "esnext",
-        moduleResolution: "bundler",
-        moduleDetection: "force",
-        allowImportingTsExtensions: true,
-        noEmit: true,
-        composite: true,
-        strict: true,
-        downlevelIteration: true,
-        skipLibCheck: true,
-        jsx: "react-jsx",
-        jsxImportSource: "react",
-        allowSyntheticDefaultImports: true,
-        forceConsistentCasingInFileNames: true,
-        allowJs: true,
-        types: ["bun-types"],
-        experimentalDecorators: true,
-        emitDecoratorMetadata: true,
-        baseUrl: ".",
-        paths: {
-          "@/*": ["./src/*"],
-        },
-      },
-    };
-
-    await Bun.write(
-      join(projectPath, "tsconfig.json"),
-      JSON.stringify(tsconfig, null, 2)
-    );
-
-    // src/main.ts
-    const mainTs = `import { AppStartup } from "@grupodiariodaregiao/bunstone";
-import { AppModule } from "@/app.module";
-
-async function bootstrap() {
-  const app = await AppStartup.create(AppModule);
-  app.listen(3000);
-}
-bootstrap();
-`;
-
-    await Bun.write(join(projectPath, "src/main.ts"), mainTs);
-
-    // src/app.module.ts
-    const appModuleTs = `import { Module } from "@grupodiariodaregiao/bunstone";
-import { AppController } from "@/controllers/app.controller";
-import { AppService } from "@/services/app.service";
-
-@Module({
-  controllers: [AppController],
-  providers: [AppService],
-})
-export class AppModule {}
-`;
-
-    await Bun.write(join(projectPath, "src/app.module.ts"), appModuleTs);
-
-    // src/controllers/app.controller.ts
-    const controllerTs = `import { Controller, Get, Render } from "@grupodiariodaregiao/bunstone";
-import { AppService } from "@/services/app.service";
-import { Welcome } from "@/views/Welcome";
-
-@Controller()
-export class AppController {
-  constructor(private readonly appService: AppService) {}
-
-  @Get()
-  @Render(Welcome)
-  getHello() {
-    return this.appService.getHello();
-  }
-}
-`;
-
-    await Bun.write(
-      join(projectPath, "src/controllers/app.controller.ts"),
-      controllerTs
-    );
-
-    // src/services/app.service.ts
-    const serviceTs = `import { Injectable } from "@grupodiariodaregiao/bunstone";
-
-@Injectable()
-export class AppService {
-  getHello() {
-    return { 
-      message: "Hello from Bunstone!",
-      timestamp: new Date().toISOString()
-    };
-  }
-}
-`;
-
-    await Bun.write(
-      join(projectPath, "src/services/app.service.ts"),
-      serviceTs
-    );
-
-    // src/main.ts
-    const mainTsContent = `import "reflect-metadata";
-import { AppStartup } from "@grupodiariodaregiao/bunstone";
-import { AppModule } from "@/app.module";
-
-async function bootstrap() {
-  const app = await await AppStartup.create(AppModule);
-  app.listen(3000);
-}
-bootstrap();
-`;
-
-    await Bun.write(join(projectPath, "src/main.ts"), mainTsContent);
-
-    // src/views/Welcome.tsx
-    const welcomeTsx = `import React, { useState } from "react";
-
-export const Welcome = ({ message, timestamp }: { message: string, timestamp: string }) => {
-  const [count, setCount] = useState(0);
-
-  return (
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-xl shadow-md border border-gray-200 text-center">
-      <h1 className="text-3xl font-bold text-indigo-600 mb-2">Bunstone MVC</h1>
-      <p className="text-gray-600 mb-6">{message}</p>
-      
-      <div className="bg-indigo-50 p-4 rounded-lg mb-6">
-        <p className="text-sm text-indigo-400 mb-2 font-mono">Interactive Hooks Example</p>
-        <div className="flex items-center justify-center gap-4">
-            <button 
-                onClick={() => setCount(count - 1)}
-                className="bg-white border border-indigo-200 px-3 py-1 rounded shadow-sm hover:bg-indigo-100"
-            >-</button>
-            <span className="text-2xl font-mono font-bold text-indigo-700 min-w-[2ch]">{count}</span>
-            <button 
-                onClick={() => setCount(count + 1)}
-                className="bg-white border border-indigo-200 px-3 py-1 rounded shadow-sm hover:bg-indigo-100"
-            >+</button>
-        </div>
-      </div>
-
-      <p className="text-gray-400 text-xs italic">Server time: {timestamp}</p>
-    </div>
-  );
-};
-`;
-
-    await Bun.write(join(projectPath, "src/views/Welcome.tsx"), welcomeTsx);
-
-    // .gitignore
-    await Bun.write(
-      join(projectPath, ".gitignore"),
-      "node_modules\n.DS_Store\ndist\n.env\n.bunstone\n"
-    );
+    // Update package.json name
+    const pkgPath = join(projectPath, "package.json");
+    const pkgContent = await readFile(pkgPath, "utf-8");
+    const pkg = JSON.parse(pkgContent);
+    pkg.name = projectName;
+    await writeFile(pkgPath, JSON.stringify(pkg, null, 2));
 
     console.log("📦 Installing dependencies...");
     try {
