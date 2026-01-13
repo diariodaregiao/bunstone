@@ -1,33 +1,33 @@
 # Email Service
 
-O `EmailService` permite o envio de e-mails profissionais utilizando **React** para o corpo da mensagem e **Tailwind CSS** para estilização. Ele resolve automaticamente o problema de suporte a CSS em clientes de e-mail ao realizar o _inlining_ dos estilos durante o processo de renderização.
+The `EmailService` allows sending professional emails using **React** for the message body and **Tailwind CSS** for styling. It automatically resolves CSS support issues in email clients by performing _inlining_ of styles during the rendering process.
 
-## Recursos
+## Features
 
-- **Templates React**: Use o poder do React para construir templates reutilizáveis.
-- **Tailwind CSS**: Estilize seus e-mails com classes utilitárias que são convertidas para estilos inline compatíveis.
-- **Transmparência**: Baseado no `nodemailer` para envio via SMTP.
-- **Injeção de Dependência**: Acesse o serviço em qualquer Controller ou Service via DI.
+- **React Templates**: Use the power of React to build reusable templates.
+- **Tailwind CSS**: Style your emails with utility classes that are converted to compatible inline styles.
+- **Transparency**: Built on `nodemailer` for SMTP sending.
+- **Dependency Injection**: Access the service in any Controller or Service via DI.
 
-## Configuração
+## Configuration
 
-Para habilitar o envio de e-mails, registre o `EmailModule` antes da inicialização do app:
+To enable email sending, register the `EmailModule` before initializing the app:
 
 ```ts
 import { AppStartup, EmailModule } from "@diariodaregiao/bunstone";
 
-// Importe no seu módulo raiz
+// Import in your root module
 @Module({
   imports: [
     EmailModule.register({
-      host: "smtp.exemplo.com",
+      host: "smtp.example.com",
       port: 587,
-      secure: false, // true para porta 465
+      secure: false, // true for port 465
       auth: {
-        user: "seu-usuario",
-        pass: "sua-senha",
+        user: "your-user",
+        pass: "your-password",
       },
-      from: '"Bunstone App" <noreply@exemplo.com>',
+      from: '"Bunstone App" <noreply@example.com>',
     }),
   ],
 })
@@ -36,9 +36,9 @@ class AppModule {}
 const app = AppStartup.create(AppModule);
 ```
 
-## Criando um Template
+## Creating a Template
 
-Utilize o componente `EmailLayout` para fornecer a estrutura base necessária e o suporte ao Tailwind.
+Use the `EmailLayout` component to provide the necessary base structure and Tailwind support.
 
 ```tsx
 // templates/WelcomeEmail.tsx
@@ -47,28 +47,28 @@ import { EmailLayout } from "@diariodaregiao/bunstone";
 import { Heading, Text, Section, Button } from "@react-email/components";
 
 export const WelcomeEmail = ({ name }: { name: string }) => (
-  <EmailLayout preview="Bem-vindo ao nosso sistema!">
+  <EmailLayout preview="Welcome to our system!">
     <Heading className="text-2xl font-bold text-gray-800 mb-4">
-      Olá, {name}!
+      Hello, {name}!
     </Heading>
     <Text className="text-gray-600 mb-6">
-      Estamos felizes em ter você conosco.
+      We are happy to have you with us.
     </Text>
     <Section className="text-center">
       <Button
-        href="https://seusite.com"
+        href="https://yoursite.com"
         className="bg-blue-600 text-white px-6 py-3 rounded-md font-semibold"
       >
-        Acessar Painel
+        Access Dashboard
       </Button>
     </Section>
   </EmailLayout>
 );
 ```
 
-## Enviando E-mails
+## Sending Emails
 
-Injete o `EmailService` no seu Controller ou Service para realizar o envio:
+Inject the `EmailService` in your Controller or Service to perform the sending:
 
 ```ts
 import { Controller, Post, EmailService } from "@diariodaregiao/bunstone";
@@ -80,11 +80,11 @@ export class UserController {
 
   @Post("register")
   async register() {
-    // ... lógica de registro
+    // ... registration logic
 
     await this.emailService.send({
-      to: "usuario@email.com",
-      subject: "Bem-vindo!",
+      to: "user@email.com",
+      subject: "Welcome!",
       component: <WelcomeEmail name="Filipi" />
     });
 
@@ -93,29 +93,29 @@ export class UserController {
 }
 ```
 
-## API do EmailService
+## EmailService API
 
 ### `send(options: SendEmailOptions)`
 
-Envia um e-mail utilizando as opções especificadas:
+Sends an email using the specified options:
 
-| Propriedade   | Tipo                 | Descrição                                     |
-| :------------ | :------------------- | :-------------------------------------------- |
-| `to`          | `string \| string[]` | Destinatário(s).                              |
-| `subject`     | `string`             | Assunto do e-mail.                            |
-| `component`   | `React.ReactElement` | Componente React que será o corpo do e-mail.  |
-| `cc`          | `string \| string[]` | Copiados (opcional).                          |
-| `bcc`         | `string \| string[]` | Copiados ocultos (opcional).                  |
-| `attachments` | `any[]`              | Anexos compatíveis com Nodemailer (opcional). |
+| Property      | Type                 | Description                                        |
+| :------------ | :------------------- | :------------------------------------------------- |
+| `to`          | `string \| string[]` | Recipient(s).                                      |
+| `subject`     | `string`             | Email subject.                                     |
+| `component`   | `React.ReactElement` | React component that will be the email body.       |
+| `cc`          | `string \| string[]` | Carbon copy (optional).                            |
+| `bcc`         | `string \| string[]` | Blind carbon copy (optional).                      |
+| `attachments` | `any[]`              | Attachments compatible with Nodemailer (optional). |
 
-## Observações Importantes
+## Important Notes
 
-1. **Estilos Inline**: O serviço utiliza o `@react-email/tailwind` para converter as classes em estilos `style=""` nos elementos HTML.
-2. **Imagens**: Para imagens, utilize URLs absolutas hospedadas em um CDN, pois imagens locais não são exibidas na maioria dos clientes.
-3. **Compatibilidade**: Evite layouts complexos com Flexbox ou Grid avançado, prefira estruturas simples ou tabelas (o `EmailLayout` já ajuda nessa abstração).
+1. **Inline Styles**: The service uses `@react-email/tailwind` to convert classes into `style=""` attributes on HTML elements.
+2. **Images**: For images, use absolute URLs hosted on a CDN, as local images are not displayed in most clients.
+3. **Compatibility**: Avoid complex layouts with advanced Flexbox or Grid, prefer simple structures or tables (the `EmailLayout` already helps with this abstraction).
 
-## Exemplo Prático
+## Practical Example
 
-Explore a configuração completa e envio de e-mails em um exemplo funcional:
+Explore the complete configuration and email sending in a working example:
 
 <<< @/../examples/11-email-adapter/index.ts
