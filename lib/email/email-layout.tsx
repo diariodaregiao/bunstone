@@ -24,16 +24,16 @@ export const EmailLayout: React.FC<EmailLayoutProps> = ({
   tailwindConfig,
 }) => {
   return (
-    <Html>
-      <Head />
-      {preview && <Preview>{preview}</Preview>}
-      <Tailwind config={tailwindConfig}>
+    <Tailwind config={tailwindConfig}>
+      <Html>
+        <Head />
+        {preview && <Preview>{preview}</Preview>}
         <Body className="bg-white my-auto mx-auto font-sans">
           <Container className="border border-solid border-[#eaeaea] rounded my-[40px] mx-auto p-[20px] w-[465px]">
             <Section className="mt-[32px]">{children}</Section>
           </Container>
         </Body>
-      </Tailwind>
-    </Html>
+      </Html>
+    </Tailwind>
   );
 };
