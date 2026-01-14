@@ -13,8 +13,12 @@
       "types": "./dist/*.d.ts"
     }
   },
-  "version": "0.2.3",
+  "version": "0.2.4",
   "homepage": "https://bunstone.diario.one/",
+  "repository": {
+    "url": "https://github.com/diariodaregiao/bunstone.git",
+    "type": "git"
+  },
   "type": "module",
   "bin": {
     "bunstone": "./bin/cli.ts"
