@@ -500,9 +500,15 @@ if (document.readyState === 'loading') {
 			return;
 		}
 
+		const injectables: Map<any, any> = Reflect.getMetadata(
+			"dip:injectables",
+			module,
+		);
+
 		for (const item of providersTimeouts.entries()) {
 			const [providerInstance, timeouts] = item;
-			const provider = new providerInstance();
+			const provider =
+				injectables?.get(providerInstance) || new providerInstance();
 
 			for (const timeout of timeouts) {
 				AppStartup.logger.log(
@@ -525,9 +531,15 @@ if (document.readyState === 'loading') {
 			return;
 		}
 
+		const injectables: Map<any, any> = Reflect.getMetadata(
+			"dip:injectables",
+			module,
+		);
+
 		for (const item of providersCron.entries()) {
 			const [providerInstance, crons] = item;
-			const provider = new providerInstance();
+			const provider =
+				injectables?.get(providerInstance) || new providerInstance();
 
 			for (const cron of crons) {
 				AppStartup.logger.log(`Scheduling cron for method: ${cron.methodName}`);
