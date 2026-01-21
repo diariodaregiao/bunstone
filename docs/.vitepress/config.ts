@@ -26,6 +26,7 @@ export default defineConfig({
           { text: "Scheduling", link: "/scheduling" },
           { text: "Database (SQL)", link: "/database-sql" },
           { text: "OpenAPI (Swagger)", link: "/openapi" },
+          { text: "Testing", link: "/testing" },
         ],
       },
       {
