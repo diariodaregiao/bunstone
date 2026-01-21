@@ -21,7 +21,9 @@ export class TestingModuleBuilder {
 	 * Starts the process of overriding a provider.
 	 * @param type The provider class to override.
 	 */
-	overrideProvider(type: any) {
+	overrideProvider(type: any): {
+		useValue: (value: any) => TestingModuleBuilder;
+	} {
 		return {
 			useValue: (value: any) => {
 				this.overrides.set(type, value);
