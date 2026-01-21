@@ -1,6 +1,6 @@
 import "reflect-metadata";
-import { Module } from "../module";
-import t
+import { TestingModule } from "./testing-module";
+import {
   GlobalRegistry,
   OverrideRegistry,
 } from "../utils/dependency-injection";
@@ -70,8 +70,5 @@ export class TestingModuleBuilder {
     }
 
     return new TestingModule(TestRootModule, injectables);
-  	}
-
-		return new TestingModule(TestRootModule, injectables);
-	}
+  }
 }
