@@ -79,11 +79,52 @@ export class AppStartup {
 			HttpException,
 		});
 
-		AppStartup.elysia.onError(({ error, set }) => {
+		AppStartup.elysia.onError(({ code, error, set }) => {
 			if (error instanceof HttpException) {
 				set.status = error.getStatus();
 				return error.getResponse();
 			}
+
+			if (code === "VALIDATION") {
+				set.status = 400;
+
+				const extractField = (path: any): string => {
+					if (Array.isArray(path)) {
+						return path
+							.join(".")
+							.replace(/^body\./, "")
+							.replace(/^query\./, "")
+							.replace(/^params\./, "");
+					}
+					if (typeof path === "string") {
+						return path
+							.replace(/^body\./, "")
+							.replace(/^query\./, "")
+							.replace(/^params\./, "");
+					}
+					return "";
+				};
+
+				const allErrors = (error as any).all;
+				const errors =
+					Array.isArray(allErrors) && allErrors.length > 0
+						? allErrors.map((err: any) => ({
+								field: extractField(err.path),
+								message: err.message,
+							}))
+						: [
+								{
+									field: extractField((error as any).path),
+									message: error.message,
+								},
+							];
+
+				return {
+					status: 400,
+					errors,
+				};
+			}
+
 			return error;
 		});
 
