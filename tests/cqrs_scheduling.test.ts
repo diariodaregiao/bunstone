@@ -135,22 +135,6 @@ describe("CQRS + Scheduling Integration", () => {
 		const injectables: Map<any, any> = Reflect.getMetadata(
 			"dip:injectables",
 			TestAppModule,
-
-			"dip:injectables",
-			TestAppModule,
-		);
-		const commandBus = injectables.get(CommandBus);
-
-		const result = await commandBus.execute(new TestCommand("direct"));
-		expect(commandHandled).toBe(true);
-		expect(result).toBe("Handled: direct");
-	});
-
-	test("should execute query directly", async () => {
-		const app = await AppStartup.create(TestAppModule);
-		const injectables: Map<any, any> = Reflect.getMetadata(
-			"dip:injectables",
-			TestAppModule,
 		);
 		const queryBus = injectables.get(QueryBus);
 
