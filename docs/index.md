@@ -26,4 +26,6 @@ features:
     details: Native React support for Server-Side Rendering with @Render decorator.
   - title: Professional Emails
     details: Send emails using React components and Tailwind CSS with automatic inline styling.
+  - title: Integrated Testing
+    details: Optimized tools for integration and E2E testing with provider mocking and headless application support.
 ---

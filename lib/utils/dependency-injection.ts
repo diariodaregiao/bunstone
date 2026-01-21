@@ -7,21 +7,45 @@ import "reflect-metadata";
 const globalDeps = new Map<any, any>();
 
 export const GlobalRegistry = {
-  register(type: any, instance: any) {
-    globalDeps.set(type, instance);
-  },
+	register(type: any, instance: any) {
+		globalDeps.set(type, instance);
+	},
 
-  get(type: any) {
-    return globalDeps.get(type);
-  },
+	get(type: any) {
+		return globalDeps.get(type);
+	},
 
-  has(type: any) {
-    return globalDeps.has(type);
-  },
+	has(type: any) {
+		return globalDeps.has(type);
+	},
 
-  getAll() {
-    return globalDeps;
-  },
+	getAll() {
+		return globalDeps;
+	},
+
+	clear() {
+		globalDeps.clear();
+	},
+};
+
+const overrideDeps = new Map<any, any>();
+
+export const OverrideRegistry = {
+	register(type: any, instance: any) {
+		overrideDeps.set(type, instance);
+	},
+
+	get(type: any) {
+		return overrideDeps.get(type);
+	},
+
+	has(type: any) {
+		return overrideDeps.has(type);
+	},
+
+	clear() {
+		overrideDeps.clear();
+	},
 };
 
 /**
@@ -31,12 +55,12 @@ export const GlobalRegistry = {
  * @returns Array of resolved dependencies.
  */
 export function resolveDependencies(
-  paramTypes: any[],
-  deps: Map<any, any>
+	paramTypes: any[],
+	deps: Map<any, any>,
 ): any[] {
-  return paramTypes.map((paramType: any) => {
-    return resolveType(paramType, deps);
-  });
+	return paramTypes.map((paramType: any) => {
+		return resolveType(paramType, deps);
+	});
 }
 
 /**
@@ -46,50 +70,54 @@ export function resolveDependencies(
  * @returns The resolved instance.
  */
 export function resolveType(type: any, deps: Map<any, any>): any {
-  if (!type) {
-    throw new Error(
-      "Cannot resolve dependency: type is undefined. This often happens due to circular dependencies or using 'import type' for a class that needs to be injected."
-    );
-  }
+	if (!type) {
+		throw new Error(
+			"Cannot resolve dependency: type is undefined. This often happens due to circular dependencies or using 'import type' for a class that needs to be injected.",
+		);
+	}
 
-  if (type === Object) {
-    throw new Error(
-      "Cannot resolve dependency: type is 'Object'. This usually happens when 'emitDecoratorMetadata' is enabled but the class is imported as a type or there is a circular dependency."
-    );
-  }
+	if (type === Object) {
+		throw new Error(
+			"Cannot resolve dependency: type is 'Object'. This usually happens when 'emitDecoratorMetadata' is enabled but the class is imported as a type or there is a circular dependency.",
+		);
+	}
 
-  if (deps.has(type)) {
-    return deps.get(type);
-  }
+	if (OverrideRegistry.has(type)) {
+		return OverrideRegistry.get(type);
+	}
 
-  if (GlobalRegistry.has(type)) {
-    return GlobalRegistry.get(type);
-  }
+	if (deps.has(type)) {
+		return deps.get(type);
+	}
 
-  // Also check by name for backward compatibility or if different references of the same class exist
-  if (typeof type === "function" && type.name) {
-    for (const [key, value] of deps.entries()) {
-      if (typeof key === "function" && key.name === type.name) {
-        return value;
-      }
-    }
+	if (GlobalRegistry.has(type)) {
+		return GlobalRegistry.get(type);
+	}
 
-    for (const [key, value] of GlobalRegistry.getAll().entries()) {
-      if (typeof key === "function" && key.name === type.name) {
-        return value;
-      }
-    }
-  }
+	// Also check by name for backward compatibility or if different references of the same class exist
+	if (typeof type === "function" && type.name) {
+		for (const [key, value] of deps.entries()) {
+			if (typeof key === "function" && key.name === type.name) {
+				return value;
+			}
+		}
 
-  const isInjectable = Reflect.getMetadata("injectable", type);
-  if (!isInjectable) {
-    // Optional: log warning if not marked as injectable
-  }
+		for (const [key, value] of GlobalRegistry.getAll().entries()) {
+			if (typeof key === "function" && key.name === type.name) {
+				return value;
+			}
+		}
+	}
 
-  const paramTypes = Reflect.getMetadata("design:paramtypes", type) || [];
-  const childrenDep = resolveDependencies(paramTypes, deps);
+	const isInjectable = Reflect.getMetadata("injectable", type);
+	if (!isInjectable) {
+		// Optional: log warning if not marked as injectable
+	}
 
-  const instance = new type(...childrenDep);
-  deps.set(type, instance);
-  return instance;
+	const paramTypes = Reflect.getMetadata("design:paramtypes", type) || [];
+	const childrenDep = resolveDependencies(paramTypes, deps);
+
+	const instance = new type(...childrenDep);
+	deps.set(type, instance);
+	return instance;
 }

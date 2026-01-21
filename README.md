@@ -53,6 +53,7 @@ export class AppController {
 - **Zod Validation**: Automatic request body/param validation.
 - **Scheduling**: Decorator-based Cron jobs and Timeouts.
 - **Adapters**: Built-in support for Form-Data, File Uploads, and Caching.
+- **Testing**: Dedicated testing module for integration and E2E tests with mocking capabilities.
 
 ## 📚 Examples
 
@@ -85,6 +86,7 @@ bun run docs:dev
 - [Guards & JWT](./docs/guards-jwt.md)
 - [Scheduling (Cron/Timeout)](./docs/scheduling.md)
 - [Adapters](./docs/adapters/form-data.md)
+- [Testing](./docs/testing.md)
 
 ## 📄 License
 
