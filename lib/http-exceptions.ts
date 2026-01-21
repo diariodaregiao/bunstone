@@ -2,11 +2,16 @@
  * Base class for all HTTP exceptions.
  */
 export class HttpException extends Error {
+	public readonly response: object;
+
 	constructor(
-		public readonly response: string | object,
+		response: string | object,
 		public readonly status: number,
 	) {
-		super(typeof response === "string" ? response : JSON.stringify(response));
+		const responseObj =
+			typeof response === "string" ? { message: response } : response;
+		super(JSON.stringify(responseObj));
+		this.response = responseObj;
 		Object.setPrototypeOf(this, HttpException.prototype);
 	}
 
