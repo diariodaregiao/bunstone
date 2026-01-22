@@ -1,7 +1,3 @@
-import "reflect-metadata";
-import { statSync } from "node:fs";
-import { mkdir, readdir } from "node:fs/promises";
-import { basename, extname, join, resolve } from "node:path";
 import { cors } from "@elysiajs/cors";
 import { html } from "@elysiajs/html";
 import jwt from "@elysiajs/jwt";
@@ -9,8 +5,12 @@ import { staticPlugin } from "@elysiajs/static";
 import { swagger } from "@elysiajs/swagger";
 import Elysia from "elysia";
 import scheduler from "node-cron";
+import { statSync } from "node:fs";
+import { mkdir, readdir } from "node:fs/promises";
+import { basename, extname, join, resolve } from "node:path";
 import React from "react";
 import { renderToReadableStream } from "react-dom/server";
+import "reflect-metadata";
 import { Layout } from "./components/layout";
 import { PARAM_METADATA_KEY } from "./constants";
 import { CommandBus } from "./cqrs/command-bus";
@@ -29,6 +29,8 @@ import {
 	API_TAGS_METADATA,
 } from "./openapi";
 import { RENDER_METADATA } from "./render";
+import type { ReqLimitOptions } from "./req-limit";
+import { rateLimitStore } from "./req-limit";
 import type { Options } from "./types/options";
 import { cwd } from "./utils/cwd";
 import {
@@ -452,6 +454,14 @@ if (document.readyState === 'loading') {
 					guardInstance = new method.guard(...guardDependencies);
 				}
 
+				// Get rate limit options if decorator is applied
+				const rateLimitOptions: ReqLimitOptions | undefined =
+					Reflect.getMetadata(
+						"dip:req-limit",
+						controllerInstance.prototype,
+						method.methodName,
+					);
+
 				(AppStartup.elysia as any)[httpMethod](
 					method.pathname,
 					(req: any) =>
@@ -472,6 +482,27 @@ if (document.readyState === 'loading') {
 							parameters,
 						},
 						beforeHandle(req: any) {
+							// Check rate limit first
+							if (rateLimitOptions) {
+								const identifier =
+									req.headers["x-forwarded-for"] ||
+									req.headers["x-real-ip"] ||
+									req.ip ||
+									"unknown";
+
+								const allowed = rateLimitStore.check(
+									identifier,
+									rateLimitOptions.ttl,
+									rateLimitOptions.limit,
+								);
+
+								if (!allowed) {
+									req.set.status = 429;
+									throw new Error("Too Many Requests");
+								}
+							}
+
+							// Then check guard
 							if (!guardInstance) return;
 							const isValid = guardInstance.validate(req);
 							if (isValid instanceof Promise) {
