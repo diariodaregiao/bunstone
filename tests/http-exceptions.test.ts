@@ -61,71 +61,69 @@ describe("HTTP Exceptions", () => {
 		const app = await AppStartup.create(ExceptionsModule);
 		const elysia = (app as any).getElysia();
 		const response = await elysia.handle(
-			new Request("http://localhost/exceptions/not-found"),,
-    );
+			new Request("http://localhost/exceptions/not-found"),
+		);
 
-    expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({
-      message: "Custom not found message",
-    });
-  });
+		expect(response.status).toBe(404);
+		expect(await response.json()).toEqual({
+			message: "Custom not found message",
+		});
+	});
 
-  test("should handle BadRequestException with object", async () => {
-    const app = await AppStartup.create(ExceptionsModule);
-    const elysia = (app as any).getElysia();
-    const response = await elysia.handle(
-      new Request("http://localhost/exceptions/bad-request"),
-    );
+	test("should handle BadRequestException with object", async () => {
+		const app = await AppStartup.create(ExceptionsModule);
+		const elysia = (app as any).getElysia();
+		const response = await elysia.handle(
+			new Request("http://localhost/exceptions/bad-request"),
+		);
 
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "bad", code: 123 });
-  });
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: "bad", code: 123 });
+	});
 
-  test("should handle UnauthorizedException", async () => {
-    const app = await AppStartup.create(ExceptionsModule);
-    const elysia = (app as any).getElysia();
-    const response = await elysia.handle(
-      new Request("http://localhost/exceptions/unauthorized"),
-    );
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ message: "Unauthorized" });
-  });
+	test("should handle UnauthorizedException", async () => {
+		const app = await AppStartup.create(ExceptionsModule);
+		const elysia = (app as any).getElysia();
+		const response = await elysia.handle(
+			new Request("http://localhost/exceptions/unauthorized"),
+		);
+		expect(response.status).toBe(401);
+		expect(await response.json()).toEqual({ message: "Unauthorized" });
+	});
 
-  test("should handle ForbiddenException", async () => {
-    const app = await AppStartup.create(ExceptionsModule);
-    const elysia = (app as any).getElysia();
-    const response = await elysia.handle(
-      new Request("http://localhost/exceptions/forbidden"),
-    );
-    expect(response.status).toBe(403);
-    expect(await response.json()).toEqual({ message: "Forbidden" });
-  });
+	test("should handle ForbiddenException", async () => {
+		const app = await AppStartup.create(ExceptionsModule);
+		const elysia = (app as any).getElysia();
+		const response = await elysia.handle(
+			new Request("http://localhost/exceptions/forbidden"),
+		);
+		expect(response.status).toBe(403);
+		expect(await response.json()).toEqual({ message: "Forbidden" });
+	});
 
-  test("should handle InternalServerErrorException", async () => {
-    const app = await AppStartup.create(ExceptionsModule);
-    const elysia = (app as any).getElysia();
-    const response = await elysia.handle(
-      new Request("http://localhost/exceptions/internal"),
-    );
-    expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ message: "Internal Server Error" });
-  });
+	test("should handle InternalServerErrorException", async () => {
+		const app = await AppStartup.create(ExceptionsModule);
+		const elysia = (app as any).getElysia();
+		const response = await elysia.handle(
+			new Request("http://localhost/exceptions/internal"),
+		);
+		expect(response.status).toBe(500);
+		expect(await response.json()).toEqual({ message: "Internal Server Error" });
+	});
 
-  test("should handle CreatedResponse", async () => {
-    const app = await AppStartup.create(ExceptionsModule);
-    const elysia = (app as any).getElysia();
-    const response = await elysia.handle(
-      new Request("http://localhost/exceptions/created"),
-    );
-    expect(response.status).toBe(201);
-    expect(await response.json()).toEqual({ id: 1 });
-  });
+	test("should handle CreatedResponse", async () => {
+		const app = await AppStartup.create(ExceptionsModule);
+		const elysia = (app as any).getElysia();
+		const response = await elysia.handle(
+			new Request("http://localhost/exceptions/created"),
+		);
+		expect(response.status).toBe(201);
+		expect(await response.json()).toEqual({ id: 1 });
+	});
 
-  test("should handle NoContentResponse", async () => {
-    const app = await AppStartup.create(ExceptionsModule);
-    const elysia = (app as any).getElysia();
-    const response = await elysia.handle(
-      new Request("http://localhost/exceptions/no-content"),
+	test("should handle NoContentResponse", async () => {
+		const app = await AppStartup.create(ExceptionsModule);
+		const elysia = (app as any).getElysia();
 		const response = await elysia.handle(
 			new Request("http://localhost/exceptions/no-content"),
 		);
