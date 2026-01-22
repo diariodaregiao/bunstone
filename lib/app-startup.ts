@@ -36,6 +36,8 @@ import {
 	resolveDependencies,
 } from "./utils/dependency-injection";
 import { Logger } from "./utils/logger";
+import { ErrorFormatter } from "./utils/error-formatter";
+import { BunstoneError, ConfigurationError } from "./errors";
 
 /**
  * Main entry point for the Bunstone application.
@@ -55,7 +57,8 @@ export class AppStartup {
 	 * @returns An object with a `listen` method to start the server.
 	 */
 	static async create(module: any, options?: Options) {
-		AppStartup.elysia = new Elysia(); // Reset for each creation
+		try {
+			AppStartup.elysia = new Elysia(); // Reset for each creation
 
 		const publicExists = await Bun.file("public").exists();
 		// Ensure public directory exists before static plugin uses it
@@ -153,7 +156,11 @@ export class AppStartup {
 			 */
 			getElysia: () => AppStartup.elysia,
 		};
+	} catch (error: any) {
+		ErrorFormatter.format(error);
+		process.exit(1);
 	}
+}
 
 	/**
 	 * Bundles a client-side component for hydration (internal).
@@ -406,7 +413,10 @@ if (document.readyState === 'loading') {
 				);
 				const httpMethod = method.httpMethod.toLowerCase();
 				if (!(httpMethod in AppStartup.elysia)) {
-					throw new Error(`HTTP method ${method.httpMethod} is not supported.`);
+					throw new ConfigurationError(
+						`HTTP method ${method.httpMethod} is not supported.`,
+						"Ensure you are using standard HTTP methods (GET, POST, PUT, DELETE, etc.) in your controller decorators.",
+					);
 				}
 
 				// OpenAPI Metadata

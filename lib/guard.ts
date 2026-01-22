@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import type { ClassConstructor } from "./interfaces/class-constructor";
 import { isClass } from "./utils/is-class";
+import { GuardError } from "./errors";
 
 /**
  * Decorator to define a guard class.
@@ -14,7 +15,10 @@ export function Guard(guard: ClassConstructor): any {
 		descriptor?: PropertyDescriptor,
 	) => {
 		if (!("validate" in guard.prototype)) {
-			throw new Error(`Guard class must implement 'validate' method.`);
+			throw new GuardError(
+				`Guard class [${guard.name}] must implement 'validate' method.`,
+				"Make sure your guard class implements the GuardContract interface.",
+			);
 		}
 
 		// Stage 3 decorator support (minimal)

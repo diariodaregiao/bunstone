@@ -2,10 +2,16 @@ import { Guard } from "./guard";
 import type { GuardContract } from "./interfaces/guard-contract";
 import type { HttpRequest } from "./types/http-request";
 import { isClass } from "./utils/is-class";
+import { ConfigurationError } from "./errors";
 
 async function validateTokenFromRequest(req: HttpRequest) {
-  if (!req.jwt) throw new Error("JWT middleware is not configured.");
-  if (!req.headers) return false;
+	if (!req.jwt) {
+		throw new ConfigurationError(
+			"JWT middleware is not configured.",
+			"Register the JwtModule in your root module to enable JWT functionality.",
+		);
+	}
+	if (!req.headers) return false;
 
   const authHeader = req.headers.authorization || req.headers.authorization;
   const [_, token] = authHeader?.split(" ") ?? [];
