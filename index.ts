@@ -20,6 +20,7 @@ export * from "./lib/cqrs/interfaces/event.interface";
 export * from "./lib/cqrs/interfaces/query.interface";
 export * from "./lib/cqrs/query-bus";
 export { SqlModule, SqlService } from "./lib/database/sql-module";
+export * from "./lib/errors";
 export * from "./lib/guard";
 export * from "./lib/http-exceptions";
 export * from "./lib/http-methods";

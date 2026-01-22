@@ -241,12 +241,12 @@ export type FormDataOptions = {
 	jsonField?: string;
 };
 
-export type FormDataFields = Record<string, string | string[]>;
+export interface FormDataFields extends Record<string, string | string[]> {}
 
-export type FormDataPayload = {
-	files: File[];
+export class FormDataPayload {
+	files: File[] = [];
 	json?: unknown;
-};
+}
 
 const FORM_DATA_CACHE = Symbol.for("dip:form-data-cache");
 
@@ -340,10 +340,11 @@ function extractFormDataPayload(
 		}
 	}
 
-	return {
-		files,
-		json: parsedJson,
-	};
+	const payload = new FormDataPayload();
+	payload.files = files;
+	payload.json = parsedJson;
+
+	return payload;
 }
 
 function isAllowedFileType(file: File, allowedTypes: string[]): boolean {
