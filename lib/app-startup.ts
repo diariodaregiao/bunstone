@@ -20,6 +20,7 @@ import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorato
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
 import { EventBus } from "./cqrs/event-bus";
 import { QueryBus } from "./cqrs/query-bus";
+import { BunstoneError, ConfigurationError } from "./errors";
 import { HttpException } from "./http-exceptions";
 import { ParamType, processParameters } from "./http-params";
 import {
@@ -35,9 +36,8 @@ import {
 	GlobalRegistry,
 	resolveDependencies,
 } from "./utils/dependency-injection";
-import { Logger } from "./utils/logger";
 import { ErrorFormatter } from "./utils/error-formatter";
-import { BunstoneError, ConfigurationError } from "./errors";
+import { Logger } from "./utils/logger";
 
 /**
  * Main entry point for the Bunstone application.
@@ -60,107 +60,109 @@ export class AppStartup {
 		try {
 			AppStartup.elysia = new Elysia(); // Reset for each creation
 
-		const publicExists = await Bun.file("public").exists();
-		// Ensure public directory exists before static plugin uses it
-		if (!publicExists) await mkdir("./public", { recursive: true });
+			const publicExists = await Bun.file("public").exists();
+			// Ensure public directory exists before static plugin uses it
+			if (!publicExists) await mkdir("./public", { recursive: true });
 
-		AppStartup.elysia.use(html());
-		AppStartup.elysia.use(
-			staticPlugin({
-				assets: "public",
-				prefix: "/public",
-			}),
-		);
-
-		if (options?.viewsDir) {
-			AppStartup.autoBundle(options.viewsDir).catch((err) => {
-				AppStartup.logger.error(`Failed to auto-bundle views: ${err.message}`);
-			});
-		}
-
-		AppStartup.elysia.error({
-			HttpException,
-		});
-
-		AppStartup.elysia.onError(({ code, error, set }) => {
-			if (error instanceof HttpException) {
-				set.status = error.getStatus();
-				return error.getResponse();
-			}
-
-			if (code === "VALIDATION") {
-				set.status = 400;
-
-				const extractField = (path: any): string => {
-					if (Array.isArray(path)) {
-						return path
-							.join(".")
-							.replace(/^body\./, "")
-							.replace(/^query\./, "")
-							.replace(/^params\./, "");
-					}
-					if (typeof path === "string") {
-						return path
-							.replace(/^body\./, "")
-							.replace(/^query\./, "")
-							.replace(/^params\./, "");
-					}
-					return "";
-				};
-
-				const allErrors = (error as any).all;
-				const errors =
-					Array.isArray(allErrors) && allErrors.length > 0
-						? allErrors.map((err: any) => ({
-								field: extractField(err.path),
-								message: err.message,
-							}))
-						: [
-								{
-									field: extractField((error as any).path),
-									message: error.message,
-								},
-							];
-
-				return {
-					status: 400,
-					errors,
-				};
-			}
-
-			return error;
-		});
-
-		if (options?.cors) {
-			AppStartup.elysia.use(cors(options.cors));
-		}
-
-		if (options?.swagger) {
+			AppStartup.elysia.use(html());
 			AppStartup.elysia.use(
-				swagger({
-					path: options.swagger.path || "/swagger",
-					documentation: options.swagger.documentation,
+				staticPlugin({
+					assets: "public",
+					prefix: "/public",
 				}),
 			);
-		}
 
-		AppStartup.registerModules(module);
-		return {
-			/**
-			 * Starts the server on the specified port.
-			 * @param port The port number to listen on.
-			 */
-			listen: AppStartup.listen,
-			/**
-			 * Returns the underlying Elysia instance.
-			 */
-			getElysia: () => AppStartup.elysia,
-		};
-	} catch (error: any) {
-		ErrorFormatter.format(error);
-		process.exit(1);
+			if (options?.viewsDir) {
+				AppStartup.autoBundle(options.viewsDir).catch((err) => {
+					AppStartup.logger.error(
+						`Failed to auto-bundle views: ${err.message}`,
+					);
+				});
+			}
+
+			AppStartup.elysia.error({
+				HttpException,
+			});
+
+			AppStartup.elysia.onError(({ code, error, set }) => {
+				if (error instanceof HttpException) {
+					set.status = error.getStatus();
+					return error.getResponse();
+				}
+
+				if (code === "VALIDATION") {
+					set.status = 400;
+
+					const extractField = (path: any): string => {
+						if (Array.isArray(path)) {
+							return path
+								.join(".")
+								.replace(/^body\./, "")
+								.replace(/^query\./, "")
+								.replace(/^params\./, "");
+						}
+						if (typeof path === "string") {
+							return path
+								.replace(/^body\./, "")
+								.replace(/^query\./, "")
+								.replace(/^params\./, "");
+						}
+						return "";
+					};
+
+					const allErrors = (error as any).all;
+					const errors =
+						Array.isArray(allErrors) && allErrors.length > 0
+							? allErrors.map((err: any) => ({
+									field: extractField(err.path),
+									message: err.message,
+								}))
+							: [
+									{
+										field: extractField((error as any).path),
+										message: error.message,
+									},
+								];
+
+					return {
+						status: 400,
+						errors,
+					};
+				}
+
+				return error;
+			});
+
+			if (options?.cors) {
+				AppStartup.elysia.use(cors(options.cors));
+			}
+
+			if (options?.swagger) {
+				AppStartup.elysia.use(
+					swagger({
+						path: options.swagger.path || "/swagger",
+						documentation: options.swagger.documentation,
+					}),
+				);
+			}
+
+			AppStartup.registerModules(module);
+			return {
+				/**
+				 * Starts the server on the specified port.
+				 * @param port The port number to listen on.
+				 */
+				listen: AppStartup.listen,
+				/**
+				 * Returns the underlying Elysia instance.
+				 */
+				getElysia: () => AppStartup.elysia,
+			};
+		} catch (error: any) {
+			ErrorFormatter.format(error);
+			process.exit(1);
+		}
 	}
-}
 
 	/**
 	 * Bundles a client-side component for hydration (internal).

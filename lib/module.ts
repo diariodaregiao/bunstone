@@ -1,10 +1,10 @@
 import "reflect-metadata";
+import { ModuleInitializationError } from "./errors";
 import type { GuardContract } from "./interfaces/guard-contract";
 import { MapProvidersWithCron } from "./schedule/cron/mappers/map-providers-with-cron";
 import { MapProvidersWithTimeout } from "./schedule/timeout/mappers/map-providers-with-timeouts";
 import type { ModuleConfig } from "./types/module-config";
 import { resolveType } from "./utils/dependency-injection";
-import { ModuleInitializationError } from "./errors";
 import { ErrorFormatter } from "./utils/error-formatter";
 
 /**
@@ -39,7 +39,11 @@ export function Module(moduleConfig: ModuleConfig = {}): any {
 
 		return (target: any, _context?: any) => {
 			Reflect.defineMetadata("dip:module", "is_module", target);
-			Reflect.defineMetadata("dip:module:global", !!moduleConfig.global, target);
+			Reflect.defineMetadata(
+				"dip:module:global",
+				!!moduleConfig.global,
+				target,
+			);
 			Reflect.defineMetadata("dip:module:routes", controllers, target);
 			Reflect.defineMetadata("dip:timeouts", providersTimeouts, target);
 			Reflect.defineMetadata("dip:modules", modules, target);
@@ -58,55 +62,55 @@ export function Module(moduleConfig: ModuleConfig = {}): any {
  * @returns A map of controllers to their methods.
  */
 function mapControllers(controllers: ModuleConfig["controllers"] = []) {
-  const controllersMap = new Map<
-    any,
-    {
-      httpMethod: string;
-      pathname: string;
-      methodName: string;
-      guard?: GuardContract;
-    }[]
-  >();
+	const controllersMap = new Map<
+		any,
+		{
+			httpMethod: string;
+			pathname: string;
+			methodName: string;
+			guard?: GuardContract;
+		}[]
+	>();
 
-  for (const controller of controllers) {
-    controllersMap.set(controller, []);
+	for (const controller of controllers) {
+		controllersMap.set(controller, []);
 
-    for (const controllerSymbol of Object.getOwnPropertySymbols(controller)) {
-      const controllerPathname = Reflect.getOwnMetadata(
-        "dip:controller:pathname",
-        controller
-      );
+		for (const controllerSymbol of Object.getOwnPropertySymbols(controller)) {
+			const controllerPathname = Reflect.getOwnMetadata(
+				"dip:controller:pathname",
+				controller,
+			);
 
-      const controllerGuard = Reflect.getMetadata("dip:guard", controller);
+			const controllerGuard = Reflect.getMetadata("dip:guard", controller);
 
-      const controllerMethods: {
-        httpMethod: string;
-        pathname: string;
-        methodName: string;
-      }[] = (controller as any)[controllerSymbol];
+			const controllerMethods: {
+				httpMethod: string;
+				pathname: string;
+				methodName: string;
+			}[] = (controller as any)[controllerSymbol];
 
-      controllerMethods.forEach((cm) => {
-        const pathname = `${
-          controllerPathname === "/" ? "" : controllerPathname
-        }${cm.pathname}`;
+			controllerMethods.forEach((cm) => {
+				const pathname = `${
+					controllerPathname === "/" ? "" : controllerPathname
+				}${cm.pathname}`;
 
-        const methodGuard = Reflect.getMetadata(
-          "dip:guard",
-          controller.prototype,
-          cm.methodName
-        );
+				const methodGuard = Reflect.getMetadata(
+					"dip:guard",
+					controller.prototype,
+					cm.methodName,
+				);
 
-        controllersMap.get(controller)?.push({
-          httpMethod: cm.httpMethod,
-          pathname,
-          methodName: cm.methodName,
-          guard: methodGuard || controllerGuard,
-        });
-      });
-    }
-  }
+				controllersMap.get(controller)?.push({
+					httpMethod: cm.httpMethod,
+					pathname,
+					methodName: cm.methodName,
+					guard: methodGuard || controllerGuard,
+				});
+			});
+		}
+	}
 
-  return controllersMap;
+	return controllersMap;
 }
 
 /**

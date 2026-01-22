@@ -1,7 +1,7 @@
 import { SQL } from "bun";
+import { DatabaseError } from "../errors";
 import { Injectable } from "../injectable";
 import { Module } from "../module";
-import { DatabaseError } from "../errors";
 
 type ConnectionOptions = {
 	host: string;

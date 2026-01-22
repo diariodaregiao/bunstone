@@ -1,6 +1,6 @@
 import { RedisClient, redis } from "bun";
-import { Injectable } from "../injectable";
 import { AdapterError } from "../errors";
+import { Injectable } from "../injectable";
 
 export type CacheValue = Record<string, unknown>;
 

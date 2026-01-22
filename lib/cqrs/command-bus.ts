@@ -1,7 +1,7 @@
+import { CqrsError } from "../errors";
 import { Injectable } from "../injectable";
 import { COMMAND_HANDLER_METADATA } from "./decorators/command-handler.decorator";
 import type { ICommand, ICommandHandler } from "./interfaces/command.interface";
-import { CqrsError } from "../errors";
 
 /**
  * Bus for dispatching commands to their respective handlers.

@@ -1,7 +1,7 @@
 import "reflect-metadata";
+import { GuardError } from "./errors";
 import type { ClassConstructor } from "./interfaces/class-constructor";
 import { isClass } from "./utils/is-class";
-import { GuardError } from "./errors";
 
 /**
  * Decorator to define a guard class.

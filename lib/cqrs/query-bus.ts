@@ -1,7 +1,7 @@
+import { CqrsError } from "../errors";
 import { Injectable } from "../injectable";
 import { QUERY_HANDLER_METADATA } from "./decorators/query-handler.decorator";
 import type { IQuery, IQueryHandler } from "./interfaces/query.interface";
-import { CqrsError } from "../errors";
 
 /**
  * Bus for dispatching queries to their respective handlers.

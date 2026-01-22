@@ -3,7 +3,12 @@ export abstract class BunstoneError extends Error {
 	public readonly suggestion?: string;
 	public readonly context?: any;
 
-	constructor(message: string, code: string, suggestion?: string, context?: any) {
+	constructor(
+		message: string,
+		code: string,
+		suggestion?: string,
+		context?: any,
+	) {
 		super(message);
 		this.name = this.constructor.name;
 		this.code = code;
