@@ -137,7 +137,10 @@ function mapInjectableProviders(moduleConfig: ModuleConfig) {
 			resolveType(provider, deps);
 		});
 	} catch (error: any) {
-		if (error instanceof ModuleInitializationError) {
+		if (
+			error instanceof ModuleInitializationError ||
+			error.code?.startsWith("BNS-")
+		) {
 			throw error;
 		}
 		throw new ModuleInitializationError(
