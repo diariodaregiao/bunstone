@@ -7,22 +7,48 @@ import "reflect-metadata";
  * @returns A method decorator.
  */
 function HttpMethodDecorator(httpMethod: string, pathname: string = ""): any {
-  if (!pathname.startsWith("/")) {
-    pathname = `/${pathname}`;
-  }
+	if (!pathname.startsWith("/")) {
+		pathname = `/${pathname}`;
+	}
 
-  return (
-    _target: any,
-    _propertyKey: string | symbol,
-    descriptor: PropertyDescriptor
-  ) => {
-    Reflect.defineMetadata(
-      "dip:http-method",
-      `${httpMethod} ${pathname}`,
-      descriptor.value as Function
-    );
-    return descriptor;
-  };
+	return (
+		_target: any,
+		_propertyKey: string | symbol,
+		descriptor: PropertyDescriptor,
+	) => {
+		Reflect.defineMetadata(
+			"dip:http-method",
+			`${httpMethod} ${pathname}`,
+			descriptor.value as Function,
+		);
+		return descriptor;
+	};
+}
+
+export const HTTP_HEADERS_METADATA = "dip:http-headers";
+
+/**
+ * Decorator to set response headers.
+ * @param name Header name.
+ * @param value Header value.
+ */
+export function SetResponseHeader(name: string, value: string): any {
+	return (
+		target: any,
+		propertyKey: string | symbol,
+		descriptor: PropertyDescriptor,
+	) => {
+		const existingHeaders =
+			Reflect.getMetadata(HTTP_HEADERS_METADATA, target, propertyKey) || {};
+		existingHeaders[name] = value;
+		Reflect.defineMetadata(
+			HTTP_HEADERS_METADATA,
+			existingHeaders,
+			target,
+			propertyKey,
+		);
+		return descriptor;
+	};
 }
 
 /**
@@ -30,7 +56,7 @@ function HttpMethodDecorator(httpMethod: string, pathname: string = ""): any {
  * @param pathname Optional path for the route.
  */
 export function Get(pathname: string = ""): any {
-  return HttpMethodDecorator("GET", pathname);
+	return HttpMethodDecorator("GET", pathname);
 }
 
 /**
@@ -38,7 +64,7 @@ export function Get(pathname: string = ""): any {
  * @param pathname Optional path for the route.
  */
 export function Post(pathname: string = ""): any {
-  return HttpMethodDecorator("POST", pathname);
+	return HttpMethodDecorator("POST", pathname);
 }
 
 /**
@@ -46,7 +72,7 @@ export function Post(pathname: string = ""): any {
  * @param pathname Optional path for the route.
  */
 export function Put(pathname: string = ""): any {
-  return HttpMethodDecorator("PUT", pathname);
+	return HttpMethodDecorator("PUT", pathname);
 }
 
 /**
@@ -54,7 +80,7 @@ export function Put(pathname: string = ""): any {
  * @param pathname Optional path for the route.
  */
 export function Delete(pathname: string = ""): any {
-  return HttpMethodDecorator("DELETE", pathname);
+	return HttpMethodDecorator("DELETE", pathname);
 }
 
 /**
@@ -62,7 +88,7 @@ export function Delete(pathname: string = ""): any {
  * @param pathname Optional path for the route.
  */
 export function Patch(pathname: string = ""): any {
-  return HttpMethodDecorator("PATCH", pathname);
+	return HttpMethodDecorator("PATCH", pathname);
 }
 
 /**
@@ -70,7 +96,7 @@ export function Patch(pathname: string = ""): any {
  * @param pathname Optional path for the route.
  */
 export function Options(pathname: string = ""): any {
-  return HttpMethodDecorator("OPTIONS", pathname);
+	return HttpMethodDecorator("OPTIONS", pathname);
 }
 
 /**
@@ -78,5 +104,5 @@ export function Options(pathname: string = ""): any {
  * @param pathname Optional path for the route.
  */
 export function Head(pathname: string = ""): any {
-  return HttpMethodDecorator("HEAD", pathname);
+	return HttpMethodDecorator("HEAD", pathname);
 }

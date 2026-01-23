@@ -24,6 +24,7 @@ export default defineConfig({
           { text: "Guards & JWT", link: "/guards-jwt" },
           { text: "CQRS", link: "/cqrs" },
           { text: "Scheduling", link: "/scheduling" },
+          { text: "BullMQ (Queues)", link: "/bullmq" },
           { text: "Database (SQL)", link: "/database-sql" },
           { text: "OpenAPI (Swagger)", link: "/openapi" },
           { text: "Testing", link: "/testing" },
