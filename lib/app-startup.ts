@@ -7,10 +7,13 @@ import { html } from "@elysiajs/html";
 import jwt from "@elysiajs/jwt";
 import { staticPlugin } from "@elysiajs/static";
 import { swagger } from "@elysiajs/swagger";
+import { Worker } from "bullmq";
 import Elysia from "elysia";
 import scheduler from "node-cron";
 import React from "react";
 import { renderToReadableStream } from "react-dom/server";
+import { BULLMQ_PROCESSOR_METADATA } from "./bullmq/constants";
+import { QueueService } from "./bullmq/queue.service";
 import { Layout } from "./components/layout";
 import { PARAM_METADATA_KEY } from "./constants";
 import { CommandBus } from "./cqrs/command-bus";
@@ -22,6 +25,7 @@ import { EventBus } from "./cqrs/event-bus";
 import { QueryBus } from "./cqrs/query-bus";
 import { BunstoneError, ConfigurationError } from "./errors";
 import { HttpException } from "./http-exceptions";
+import { HTTP_HEADERS_METADATA } from "./http-methods";
 import { ParamType, processParameters } from "./http-params";
 import {
 	API_HEADERS_METADATA,
@@ -304,9 +308,23 @@ if (document.readyState === 'loading') {
 		const args = await processParameters(context, controller, method);
 		const result = await controller[method](...args);
 
+		const customHeaders = Reflect.getMetadata(
+			HTTP_HEADERS_METADATA,
+			controller,
+			method,
+		);
+
+		if (customHeaders) {
+			for (const [name, value] of Object.entries(customHeaders)) {
+				context.set.headers[name] = value as string;
+			}
+		}
+
 		const component = Reflect.getMetadata(RENDER_METADATA, controller, method);
 		if (component) {
-			context.set.headers["Content-Type"] = "text/html; charset=utf8";
+			if (!context.set.headers["Content-Type"]) {
+				context.set.headers["Content-Type"] = "text/html; charset=utf8";
+			}
 
 			const componentName = component.name || component.displayName;
 			const bundle =
@@ -337,16 +355,30 @@ if (document.readyState === 'loading') {
 			);
 
 			return new Response(stream, {
-				headers: { "Content-Type": "text/html; charset=utf8" },
+				headers: context.set.headers,
 			});
 		}
 
 		// Handle direct JSX return
 		if (React.isValidElement(result)) {
 			const stream = await renderToReadableStream(result as React.ReactElement);
+			if (!context.set.headers["Content-Type"]) {
+				context.set.headers["Content-Type"] = "text/html; charset=utf8";
+			}
+
 			return new Response(stream, {
-				headers: { "Content-Type": "text/html; charset=utf8" },
+				headers: context.set.headers,
 			});
+		}
+
+		if (customHeaders && !(result instanceof Response)) {
+			return new Response(
+				typeof result === "string" ? result : JSON.stringify(result),
+				{
+					headers: context.set.headers,
+					status: context.set.status || 200,
+				},
+			);
 		}
 
 		return result;
@@ -370,6 +402,7 @@ if (document.readyState === 'loading') {
 		AppStartup.registerRoutes(module);
 		AppStartup.registerTimeouts(module);
 		AppStartup.registerCronJobs(module);
+		AppStartup.registerBullMqWorkers(module);
 		AppStartup.registerCqrsHandlers(module);
 
 		const modules = Reflect.getMetadata("dip:modules", module) || [];
@@ -600,6 +633,68 @@ if (document.readyState === 'loading') {
 					provider[cron.methodName]();
 				});
 			}
+		}
+	}
+
+	private static registerBullMqWorkers(module: any) {
+		const providersBullMq: Map<any, { name?: string; methodName: string }[]> =
+			Reflect.getMetadata("dip:bullmq", module);
+
+		if (!providersBullMq) {
+			return;
+		}
+
+		const injectables: Map<any, any> = Reflect.getMetadata(
+			"dip:injectables",
+			module,
+		);
+
+		const queueService: QueueService = injectables?.get(QueueService);
+		const redisOptions = (QueueService as any).redisOptions;
+
+		for (const item of providersBullMq.entries()) {
+			const [providerClass, methods] = item;
+			const provider = injectables?.get(providerClass) || new providerClass();
+
+			const processorOptions = Reflect.getMetadata(
+				BULLMQ_PROCESSOR_METADATA,
+				providerClass,
+			);
+
+			if (!processorOptions) {
+				continue;
+			}
+
+			const { queueName, concurrency } = processorOptions;
+
+			AppStartup.logger.log(
+				`Registering BullMQ worker for queue: ${queueName}`,
+			);
+
+			new Worker(
+				queueName,
+				async (job) => {
+					// Find the best matching method
+					// 1. Exact name match
+					// 2. Default handler (no name specified)
+					let handler = methods.find((m) => m.name === job.name);
+					if (!handler) {
+						handler = methods.find((m) => !m.name);
+					}
+
+					if (handler) {
+						return await provider[handler.methodName](job);
+					}
+
+					AppStartup.logger.warn(
+						`No handler found for job ${job.name} in queue ${queueName}`,
+					);
+				},
+				{
+					connection: redisOptions,
+					concurrency: concurrency || 1,
+				},
+			);
 		}
 	}
 

@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { MapProvidersWithBullMq } from "./bullmq/mappers/map-providers-with-bullmq";
 import { ModuleInitializationError } from "./errors";
 import type { GuardContract } from "./interfaces/guard-contract";
 import { MapProvidersWithCron } from "./schedule/cron/mappers/map-providers-with-cron";
@@ -35,6 +36,9 @@ export function Module(moduleConfig: ModuleConfig = {}): any {
 			moduleConfig.providers,
 		);
 		const providersCrons = MapProvidersWithCron.execute(moduleConfig.providers);
+		const providersBullMq = MapProvidersWithBullMq.execute(
+			moduleConfig.providers,
+		);
 		const injectableProviders = mapInjectableProviders(moduleConfig);
 
 		return (target: any, _context?: any) => {
@@ -48,6 +52,7 @@ export function Module(moduleConfig: ModuleConfig = {}): any {
 			Reflect.defineMetadata("dip:timeouts", providersTimeouts, target);
 			Reflect.defineMetadata("dip:modules", modules, target);
 			Reflect.defineMetadata("dip:crons", providersCrons, target);
+			Reflect.defineMetadata("dip:bullmq", providersBullMq, target);
 			Reflect.defineMetadata("dip:injectables", injectableProviders, target);
 		};
 	} catch (error: any) {
