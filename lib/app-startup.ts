@@ -3,6 +3,7 @@ import { html } from "@elysiajs/html";
 import jwt from "@elysiajs/jwt";
 import { staticPlugin } from "@elysiajs/static";
 import { swagger } from "@elysiajs/swagger";
+import { Worker } from "bullmq";
 import Elysia from "elysia";
 import scheduler from "node-cron";
 import { statSync } from "node:fs";
@@ -10,7 +11,8 @@ import { mkdir, readdir } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
 import React from "react";
 import { renderToReadableStream } from "react-dom/server";
-import "reflect-metadata";
+import { BULLMQ_PROCESSOR_METADATA } from "./bullmq/constants";
+import { QueueService } from "./bullmq/queue.service";
 import { Layout } from "./components/layout";
 import { PARAM_METADATA_KEY } from "./constants";
 import { CommandBus } from "./cqrs/command-bus";
@@ -20,7 +22,9 @@ import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorato
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
 import { EventBus } from "./cqrs/event-bus";
 import { QueryBus } from "./cqrs/query-bus";
+import { ConfigurationError } from "./errors";
 import { HttpException } from "./http-exceptions";
+import { HTTP_HEADERS_METADATA } from "./http-methods";
 import { ParamType, processParameters } from "./http-params";
 import {
 	API_HEADERS_METADATA,
@@ -37,6 +41,7 @@ import {
 	GlobalRegistry,
 	resolveDependencies,
 } from "./utils/dependency-injection";
+import { ErrorFormatter } from "./utils/error-formatter";
 import { Logger } from "./utils/logger";
 
 /**
@@ -57,63 +62,111 @@ export class AppStartup {
 	 * @returns An object with a `listen` method to start the server.
 	 */
 	static async create(module: any, options?: Options) {
-		AppStartup.elysia = new Elysia(); // Reset for each creation
+		try {
+			AppStartup.elysia = new Elysia(); // Reset for each creation
 
-		const publicExists = await Bun.file("public").exists();
-		// Ensure public directory exists before static plugin uses it
-		if (!publicExists) await mkdir("./public", { recursive: true });
+			const publicExists = await Bun.file("public").exists();
+			// Ensure public directory exists before static plugin uses it
+			if (!publicExists) await mkdir("./public", { recursive: true });
 
-		AppStartup.elysia.use(html());
-		AppStartup.elysia.use(
-			staticPlugin({
-				assets: "public",
-				prefix: "/public",
-			}),
-		);
-
-		if (options?.viewsDir) {
-			AppStartup.autoBundle(options.viewsDir).catch((err) => {
-				AppStartup.logger.error(`Failed to auto-bundle views: ${err.message}`);
-			});
-		}
-
-		AppStartup.elysia.error({
-			HttpException,
-		});
-
-		AppStartup.elysia.onError(({ error, set }) => {
-			if (error instanceof HttpException) {
-				set.status = error.getStatus();
-				return error.getResponse();
-			}
-			return error;
-		});
-
-		if (options?.cors) {
-			AppStartup.elysia.use(cors(options.cors));
-		}
-
-		if (options?.swagger) {
+			AppStartup.elysia.use(html());
 			AppStartup.elysia.use(
-				swagger({
-					path: options.swagger.path || "/swagger",
-					documentation: options.swagger.documentation,
+				staticPlugin({
+					assets: "public",
+					prefix: "/public",
 				}),
 			);
-		}
 
-		AppStartup.registerModules(module);
-		return {
-			/**
-			 * Starts the server on the specified port.
-			 * @param port The port number to listen on.
-			 */
-			listen: AppStartup.listen,
-			/**
-			 * Returns the underlying Elysia instance.
-			 */
-			getElysia: () => AppStartup.elysia,
-		};
+			if (options?.viewsDir) {
+				AppStartup.autoBundle(options.viewsDir).catch((err) => {
+					AppStartup.logger.error(
+						`Failed to auto-bundle views: ${err.message}`,
+					);
+				});
+			}
+
+			AppStartup.elysia.error({
+				HttpException,
+			});
+
+			AppStartup.elysia.onError(({ code, error, set }) => {
+				if (error instanceof HttpException) {
+					set.status = error.getStatus();
+					return error.getResponse();
+				}
+
+				if (code === "VALIDATION") {
+					set.status = 400;
+
+					const extractField = (path: any): string => {
+						if (Array.isArray(path)) {
+							return path
+								.join(".")
+								.replace(/^body\./, "")
+								.replace(/^query\./, "")
+								.replace(/^params\./, "");
+						}
+						if (typeof path === "string") {
+							return path
+								.replace(/^body\./, "")
+								.replace(/^query\./, "")
+								.replace(/^params\./, "");
+						}
+						return "";
+					};
+
+					const allErrors = (error as any).all;
+					const errors =
+						Array.isArray(allErrors) && allErrors.length > 0
+							? allErrors.map((err: any) => ({
+									field: extractField(err.path),
+									message: err.message,
+								}))
+							: [
+									{
+										field: extractField((error as any).path),
+										message: error.message,
+									},
+								];
+
+					return {
+						status: 400,
+						errors,
+					};
+				}
+
+				return error;
+			});
+
+			if (options?.cors) {
+				AppStartup.elysia.use(cors(options.cors));
+			}
+
+			if (options?.swagger) {
+				AppStartup.elysia.use(
+					swagger({
+						path: options.swagger.path || "/swagger",
+						documentation: options.swagger.documentation,
+					}),
+				);
+			}
+
+			AppStartup.registerModules(module);
+			return {
+				/**
+				 * Starts the server on the specified port.
+				 * @param port The port number to listen on.
+				 */
+				listen: AppStartup.listen,
+				/**
+				 * Returns the underlying Elysia instance.
+				 */
+				getElysia: () => AppStartup.elysia,
+			};
+		} catch (error: any) {
+			ErrorFormatter.format(error);
+			process.exit(1);
+		}
 	}
 
 	/**
@@ -256,9 +309,23 @@ if (document.readyState === 'loading') {
 		const args = await processParameters(context, controller, method);
 		const result = await controller[method](...args);
 
+		const customHeaders = Reflect.getMetadata(
+			HTTP_HEADERS_METADATA,
+			controller,
+			method,
+		);
+
+		if (customHeaders) {
+			for (const [name, value] of Object.entries(customHeaders)) {
+				context.set.headers[name] = value as string;
+			}
+		}
+
 		const component = Reflect.getMetadata(RENDER_METADATA, controller, method);
 		if (component) {
-			context.set.headers["Content-Type"] = "text/html; charset=utf8";
+			if (!context.set.headers["Content-Type"]) {
+				context.set.headers["Content-Type"] = "text/html; charset=utf8";
+			}
 
 			const componentName = component.name || component.displayName;
 			const bundle =
@@ -289,16 +356,30 @@ if (document.readyState === 'loading') {
 			);
 
 			return new Response(stream, {
-				headers: { "Content-Type": "text/html; charset=utf8" },
+				headers: context.set.headers,
 			});
 		}
 
 		// Handle direct JSX return
 		if (React.isValidElement(result)) {
 			const stream = await renderToReadableStream(result as React.ReactElement);
+			if (!context.set.headers["Content-Type"]) {
+				context.set.headers["Content-Type"] = "text/html; charset=utf8";
+			}
+
 			return new Response(stream, {
-				headers: { "Content-Type": "text/html; charset=utf8" },
+				headers: context.set.headers,
 			});
+		}
+
+		if (customHeaders && !(result instanceof Response)) {
+			return new Response(
+				typeof result === "string" ? result : JSON.stringify(result),
+				{
+					headers: context.set.headers,
+					status: context.set.status || 200,
+				},
+			);
 		}
 
 		return result;
@@ -322,6 +403,7 @@ if (document.readyState === 'loading') {
 		AppStartup.registerRoutes(module);
 		AppStartup.registerTimeouts(module);
 		AppStartup.registerCronJobs(module);
+		AppStartup.registerBullMqWorkers(module);
 		AppStartup.registerCqrsHandlers(module);
 
 		const modules = Reflect.getMetadata("dip:modules", module) || [];
@@ -367,7 +449,10 @@ if (document.readyState === 'loading') {
 				);
 				const httpMethod = method.httpMethod.toLowerCase();
 				if (!(httpMethod in AppStartup.elysia)) {
-					throw new Error(`HTTP method ${method.httpMethod} is not supported.`);
+					throw new ConfigurationError(
+						`HTTP method ${method.httpMethod} is not supported.`,
+						"Ensure you are using standard HTTP methods (GET, POST, PUT, DELETE, etc.) in your controller decorators.",
+					);
 				}
 
 				// OpenAPI Metadata
@@ -578,6 +663,68 @@ if (document.readyState === 'loading') {
 					provider[cron.methodName]();
 				});
 			}
+		}
+	}
+
+	private static registerBullMqWorkers(module: any) {
+		const providersBullMq: Map<any, { name?: string; methodName: string }[]> =
+			Reflect.getMetadata("dip:bullmq", module);
+
+		if (!providersBullMq) {
+			return;
+		}
+
+		const injectables: Map<any, any> = Reflect.getMetadata(
+			"dip:injectables",
+			module,
+		);
+
+		const queueService: QueueService = injectables?.get(QueueService);
+		const redisOptions = (QueueService as any).redisOptions;
+
+		for (const item of providersBullMq.entries()) {
+			const [providerClass, methods] = item;
+			const provider = injectables?.get(providerClass) || new providerClass();
+
+			const processorOptions = Reflect.getMetadata(
+				BULLMQ_PROCESSOR_METADATA,
+				providerClass,
+			);
+
+			if (!processorOptions) {
+				continue;
+			}
+
+			const { queueName, concurrency } = processorOptions;
+
+			AppStartup.logger.log(
+				`Registering BullMQ worker for queue: ${queueName}`,
+			);
+
+			new Worker(
+				queueName,
+				async (job) => {
+					// Find the best matching method
+					// 1. Exact name match
+					// 2. Default handler (no name specified)
+					let handler = methods.find((m) => m.name === job.name);
+					if (!handler) {
+						handler = methods.find((m) => !m.name);
+					}
+
+					if (handler) {
+						return await provider[handler.methodName](job);
+					}
+
+					AppStartup.logger.warn(
+						`No handler found for job ${job.name} in queue ${queueName}`,
+					);
+				},
+				{
+					connection: redisOptions,
+					concurrency: concurrency || 1,
+				},
+			);
 		}
 	}
 

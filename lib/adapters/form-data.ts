@@ -1,8 +1,13 @@
 import { PARAM_METADATA_KEY } from "../constants";
-import { type FormDataOptions, ParamType } from "../http-params";
+import {
+	type FormDataFields,
+	type FormDataOptions,
+	FormDataPayload,
+	ParamType,
+} from "../http-params";
 import "reflect-metadata";
 
-export type { FormDataFields, FormDataPayload } from "../http-params";
+export { FormDataPayload, type FormDataFields };
 
 export function FormData(options: FormDataOptions = {}): ParameterDecorator {
 	return (

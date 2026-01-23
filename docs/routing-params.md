@@ -34,6 +34,20 @@ Extract data directly into your method arguments:
 - `@Header(name)`: Request headers.
 - `@Request()`: The full Elysia request object.
 
+## Response Customization
+
+### @SetResponseHeader(name, value)
+
+Sets a custom header for the response.
+
+```typescript
+@Get("xml")
+@SetResponseHeader("Content-Type", "text/xml")
+getXml() {
+  return "<xml><message>Hello</message></xml>";
+}
+```
+
 ### Zod Validation
 
 You can pass a Zod schema to `@Body`, `@Query`, or `@Param` for automatic validation.

@@ -1,4 +1,5 @@
 import { SQL } from "bun";
+import { DatabaseError } from "../errors";
 import { Injectable } from "../injectable";
 import { Module } from "../module";
 
@@ -37,8 +38,9 @@ export class SqlService {
 	private getSqlInstance(): SQL {
 		const sql = SqlModule.getSqlInstance();
 		if (!sql) {
-			throw new Error(
-				"SQL instance not initialized. Call SqlModule.register() first.",
+			throw new DatabaseError(
+				"SQL instance not initialized.",
+				"Ensure that you have registered the SQL module by calling SqlModule.register(config) in your main AppModule imports.",
 			);
 		}
 		return sql;

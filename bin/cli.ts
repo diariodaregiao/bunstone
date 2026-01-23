@@ -7,7 +7,6 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { cwd } from "../lib/utils/cwd";
 
 const args = Bun.argv.slice(2);
 let command = args[0];
@@ -24,7 +23,7 @@ if (!projectName && command === "new") {
 	projectName = "my-bunstone-app";
 }
 
-const projectPath = join(cwd(), projectName || "");
+const projectPath = join(process.cwd(), projectName || "");
 const starterPath = join(import.meta.dir, "..", "starter");
 
 async function copyDir(src: string, dest: string) {

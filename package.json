@@ -13,7 +13,7 @@
       "types": "./dist/*.d.ts"
     }
   },
-  "version": "0.2.5",
+  "version": "0.3.1",
   "homepage": "https://bunstone.diario.one/",
   "repository": {
     "url": "https://github.com/diariodaregiao/bunstone.git",
@@ -26,6 +26,8 @@
   "files": [
     "dist",
     "bin",
+    "lib",
+    "starter",
     "README.md"
   ],
   "scripts": {

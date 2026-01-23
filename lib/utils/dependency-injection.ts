@@ -1,10 +1,12 @@
 import "reflect-metadata";
+import { DependencyResolutionError } from "../errors";
 
 /**
  * Utility functions for dependency injection.
  */
 
 const globalDeps = new Map<any, any>();
+const resolutionStack: string[] = [];
 
 export const GlobalRegistry = {
 	register(type: any, instance: any) {
@@ -70,15 +72,23 @@ export function resolveDependencies(
  * @returns The resolved instance.
  */
 export function resolveType(type: any, deps: Map<any, any>): any {
+	const typeName = type?.name || "unknown";
+
 	if (!type) {
-		throw new Error(
-			"Cannot resolve dependency: type is undefined. This often happens due to circular dependencies or using 'import type' for a class that needs to be injected.",
+		const stack = [...resolutionStack].join(" -> ");
+		throw new DependencyResolutionError(
+			`Cannot resolve dependency: type is undefined at [${stack}].`,
+			"This often happens due to circular dependencies or using 'import type' for a class that needs to be injected. Check your imports and ensure you are not using 'import type' for injected classes.",
+			{ resolutionStack: stack },
 		);
 	}
 
 	if (type === Object) {
-		throw new Error(
-			"Cannot resolve dependency: type is 'Object'. This usually happens when 'emitDecoratorMetadata' is enabled but the class is imported as a type or there is a circular dependency.",
+		const stack = [...resolutionStack, "Object"].join(" -> ");
+		throw new DependencyResolutionError(
+			`Cannot resolve dependency: type is 'Object' at [${stack}].`,
+			"This usually happens when 'emitDecoratorMetadata' is enabled but the class is imported as a type or there is a circular dependency. Check if the class is imported correctly and not as a type.",
+			{ resolutionStack: stack },
 		);
 	}
 
@@ -114,10 +124,16 @@ export function resolveType(type: any, deps: Map<any, any>): any {
 		// Optional: log warning if not marked as injectable
 	}
 
-	const paramTypes = Reflect.getMetadata("design:paramtypes", type) || [];
-	const childrenDep = resolveDependencies(paramTypes, deps);
+	resolutionStack.push(typeName);
 
-	const instance = new type(...childrenDep);
-	deps.set(type, instance);
-	return instance;
+	try {
+		const paramTypes = Reflect.getMetadata("design:paramtypes", type) || [];
+		const childrenDep = resolveDependencies(paramTypes, deps);
+
+		const instance = new type(...childrenDep);
+		deps.set(type, instance);
+		return instance;
+	} finally {
+		resolutionStack.pop();
+	}
 }

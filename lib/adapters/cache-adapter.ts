@@ -1,4 +1,5 @@
 import { RedisClient, redis } from "bun";
+import { AdapterError } from "../errors";
 import { Injectable } from "../injectable";
 
 export type CacheValue = Record<string, unknown>;
@@ -46,7 +47,10 @@ export class CacheAdapter {
 
 		const parsed = safeJsonParse(raw);
 		if (!isRecord(parsed)) {
-			throw new Error(`Cache key "${key}" does not contain a JSON object.`);
+			throw new AdapterError(
+				`Cache key "${key}" does not contain a JSON object.`,
+				"Ensure you are storing only objects in the cache when using CacheAdapter.",
+			);
 		}
 
 		return parsed as T;
@@ -67,7 +71,10 @@ export class CacheAdapter {
 function assertValidKey(key: string): void {
 	const normalized = key.trim();
 	if (normalized.length === 0) {
-		throw new Error("Cache key cannot be empty.");
+		throw new AdapterError(
+			"Cache key cannot be empty.",
+			"Provide a valid non-empty string as a cache key.",
+		);
 	}
 }
 
@@ -75,7 +82,10 @@ function safeJsonParse(value: string): unknown {
 	try {
 		return JSON.parse(value);
 	} catch {
-		throw new Error("Failed to parse cached value as JSON.");
+		throw new AdapterError(
+			"Failed to parse cached value as JSON.",
+			"Ensure that the value cached for this key is a valid JSON string.",
+		);
 	}
 }
 
