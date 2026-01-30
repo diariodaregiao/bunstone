@@ -16,7 +16,8 @@
 			},
 			"complexity": {
 				"noBannedTypes": "off",
-				"noArguments": "off"
+				"noArguments": "off",
+				"noStaticOnlyClass": "off"
 			},
 			"correctness": {
 				"noUnusedImports": "error"

@@ -23,7 +23,7 @@ import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorato
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
 import { EventBus } from "./cqrs/event-bus";
 import { QueryBus } from "./cqrs/query-bus";
-import { BunstoneError, ConfigurationError } from "./errors";
+import { ConfigurationError } from "./errors";
 import { HttpException } from "./http-exceptions";
 import { HTTP_HEADERS_METADATA } from "./http-methods";
 import { ParamType, processParameters } from "./http-params";
