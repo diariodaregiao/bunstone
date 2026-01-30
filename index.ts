@@ -46,3 +46,4 @@ export type { HttpRequest } from "./lib/types/http-request";
 export type { ModuleConfig } from "./lib/types/module-config";
 export type { Options } from "./lib/types/options";
 export * from "./lib/utils/logger";
+export type { GuardContract } from "./lib/interfaces/guard-contract";
