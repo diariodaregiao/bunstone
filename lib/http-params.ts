@@ -67,8 +67,10 @@ export function Param(key?: string): any;
 export function Param(): any {
 	let key: string | undefined;
 	if (arguments.length === 1) {
-		if (isZodSchema(arguments[0])) {
-			return function (target: any, propertyKey: any, parameterIndex: any) {
+		const arg = arguments[0];
+		if (isZodSchema(arg)) {
+			const zodSchema = arg as ZodType;
+			return (target: any, propertyKey: any, parameterIndex: any) => {
 				setParamMetadata(
 					target,
 					propertyKey as string,
@@ -76,12 +78,12 @@ export function Param(): any {
 					ParamType.PARAM,
 					undefined,
 					{
-						zodSchema: arguments[0] as ZodType,
+						zodSchema,
 					},
 				);
 			};
 		}
-		key = arguments[0] as string;
+		key = arg as string;
 	}
 
 	return (target: any, propertyKey: any, parameterIndex: any) => {
@@ -100,8 +102,10 @@ export function Query(key?: string): any;
 export function Query(): any {
 	let key: string | undefined;
 	if (arguments.length === 1) {
-		if (isZodSchema(arguments[0])) {
-			return function (target: any, propertyKey: any, parameterIndex: any) {
+		const arg = arguments[0];
+		if (isZodSchema(arg)) {
+			const zodSchema = arg as ZodType;
+			return (target: any, propertyKey: any, parameterIndex: any) => {
 				setParamMetadata(
 					target,
 					propertyKey as string,
@@ -109,12 +113,12 @@ export function Query(): any {
 					ParamType.QUERY,
 					undefined,
 					{
-						zodSchema: arguments[0] as ZodType,
+						zodSchema,
 					},
 				);
 			};
 		}
-		key = arguments[0] as string;
+		key = arg as string;
 	}
 
 	return (target: any, propertyKey: any, parameterIndex: any) => {
