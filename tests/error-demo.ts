@@ -1,9 +1,9 @@
-import { AppStartup, Injectable, Module } from "../index";
+import { Injectable, Module } from "../index";
 
 @Injectable()
 class BrokenService {
 	// Deliberately using a property that will result in 'undefined' or 'Object' metadata
-	constructor(private unknownDep: any) {}
+	constructor(_unknownDep: any) {}
 }
 
 // To trigger 'undefined' metadata naturally in a single file is hard without circular deps,
@@ -13,7 +13,7 @@ class BrokenService {
 @Module({
 	providers: [BrokenService],
 })
-class BrokenModule {}
+class _BrokenModule {}
 
 async function run() {
 	console.log("Starting Bunstone App with a deliberate DI error...");

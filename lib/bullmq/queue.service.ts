@@ -18,8 +18,9 @@ export class QueueService {
 	}
 
 	getQueue(queueName: string): Queue {
-		if (this.queues.has(queueName)) {
-			return this.queues.get(queueName)!;
+		const existingQueue = this.queues.get(queueName);
+		if (existingQueue) {
+			return existingQueue;
 		}
 
 		if (!QueueService.redisOptions) {

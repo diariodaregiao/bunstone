@@ -35,7 +35,6 @@ import {
 } from "./openapi";
 import type { RateLimitMetadata } from "./ratelimit/ratelimit.decorator";
 import { RateLimitService } from "./ratelimit/ratelimit.service";
-import { MemoryStorage } from "./ratelimit/storage/memory.storage";
 import { RENDER_METADATA } from "./render";
 import type { Options, RateLimitGlobalConfig } from "./types/options";
 import { cwd } from "./utils/cwd";
@@ -602,7 +601,7 @@ if (document.readyState === 'loading') {
 								);
 
 								// Set rate limit headers on the response
-								if (req.set && req.set.headers) {
+								if (req.set?.headers) {
 									Object.entries(result.headers).forEach(([key, value]) => {
 										if (value !== undefined) {
 											req.set.headers[key] = value;
@@ -750,7 +749,7 @@ if (document.readyState === 'loading') {
 			module,
 		);
 
-		const queueService: QueueService = injectables?.get(QueueService);
+		const _queueService: QueueService = injectables?.get(QueueService);
 		const redisOptions = (QueueService as any).redisOptions;
 
 		for (const item of providersBullMq.entries()) {

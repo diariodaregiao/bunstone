@@ -1,6 +1,5 @@
-import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import {
-	AppStartup,
 	BullMqModule,
 	Module,
 	Process,

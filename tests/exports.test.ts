@@ -1,22 +1,22 @@
+import { describe, expect, test } from "bun:test";
 import {
-  ApiTags,
-  ApiOperation,
-  EmailModule,
-  EmailService,
-  EmailLayout,
+	ApiOperation,
+	ApiTags,
+	EmailLayout,
+	EmailModule,
+	EmailService,
 } from "../index";
-import { expect, test, describe } from "bun:test";
 
 describe("Exports", () => {
-  test("should export EmailModule and EmailService", () => {
-    expect(EmailModule).toBeDefined();
-    expect(EmailService).toBeDefined();
-    expect(EmailLayout).toBeDefined();
-  });
+	test("should export EmailModule and EmailService", () => {
+		expect(EmailModule).toBeDefined();
+		expect(EmailService).toBeDefined();
+		expect(EmailLayout).toBeDefined();
+	});
 
-  test("should export OpenAPI decorators", () => {
-    expect(ApiTags).toBeDefined();
-    expect(ApiOperation).toBeDefined();
-    expect(typeof ApiTags).toBe("function");
-  });
+	test("should export OpenAPI decorators", () => {
+		expect(ApiTags).toBeDefined();
+		expect(ApiOperation).toBeDefined();
+		expect(typeof ApiTags).toBe("function");
+	});
 });

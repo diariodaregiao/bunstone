@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
 	AppStartup,
-	Module,
-	Timeout,
-	Cron,
-	Injectable,
 	CommandBus,
-	QueryBus,
-	EventBus,
 	CqrsModule,
+	Cron,
+	EventBus,
+	Injectable,
+	Module,
+	QueryBus,
+	Timeout,
 } from "../index";
 import { CommandHandler } from "../lib/cqrs/decorators/command-handler.decorator";
 import { EventsHandler } from "../lib/cqrs/decorators/event-handler.decorator";
@@ -50,7 +50,7 @@ class TestQueryHandler {
 
 @EventsHandler(TestEvent)
 class TestEventHandler {
-	async handle(event: TestEvent) {
+	async handle(_event: TestEvent) {
 		eventHandled = true;
 	}
 }
@@ -102,7 +102,7 @@ describe("CQRS + Scheduling Integration", () => {
 	});
 
 	test("should have dependencies injected in Timeout and Cron handlers", async () => {
-		const app = await AppStartup.create(TestAppModule);
+		const _app = await AppStartup.create(TestAppModule);
 
 		// Wait for timeout (100ms)
 		await new Promise((resolve) => setTimeout(resolve, 300));
@@ -118,7 +118,7 @@ describe("CQRS + Scheduling Integration", () => {
 	});
 
 	test("should execute command directly", async () => {
-		const app = await AppStartup.create(TestAppModule);
+		const _app = await AppStartup.create(TestAppModule);
 		const injectables: Map<any, any> = Reflect.getMetadata(
 			"dip:injectables",
 			TestAppModule,
@@ -131,7 +131,7 @@ describe("CQRS + Scheduling Integration", () => {
 	});
 
 	test("should execute query directly", async () => {
-		const app = await AppStartup.create(TestAppModule);
+		const _app = await AppStartup.create(TestAppModule);
 		const injectables: Map<any, any> = Reflect.getMetadata(
 			"dip:injectables",
 			TestAppModule,
