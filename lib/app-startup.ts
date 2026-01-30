@@ -7,7 +7,7 @@ import { html } from "@elysiajs/html";
 import jwt from "@elysiajs/jwt";
 import { staticPlugin } from "@elysiajs/static";
 import { swagger } from "@elysiajs/swagger";
-import { Worker } from "bullmq";
+import { type Job, Worker } from "bullmq";
 import Elysia from "elysia";
 import scheduler from "node-cron";
 import React from "react";
@@ -773,7 +773,7 @@ if (document.readyState === 'loading') {
 
 			new Worker(
 				queueName,
-				async (job) => {
+				async (job: Job) => {
 					// Find the best matching method
 					// 1. Exact name match
 					// 2. Default handler (no name specified)

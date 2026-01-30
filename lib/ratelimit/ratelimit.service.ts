@@ -154,13 +154,16 @@ export class RateLimitService {
 	private extractIp(req: HttpRequest): string {
 		// Headers comuns de proxy
 		const forwarded = req.headers["x-forwarded-for"];
-		if (forwarded != null && typeof forwarded === "string") {
+		if (forwarded && typeof forwarded === "string") {
 			// Pega o primeiro IP da lista
-			return forwarded.split(",")[0].trim();
+			const firstIp = forwarded.split(",")[0];
+			if (firstIp) {
+				return firstIp.trim();
+			}
 		}
 
 		const realIp = req.headers["x-real-ip"];
-		if (realIp != null && typeof realIp === "string") {
+		if (realIp && typeof realIp === "string") {
 			return realIp;
 		}
 

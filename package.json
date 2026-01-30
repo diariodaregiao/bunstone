@@ -76,6 +76,7 @@
     "@react-email/components": "^1.0.4",
     "@react-email/render": "^2.0.2",
     "@react-email/tailwind": "^2.0.3",
+    "bullmq": "^5.40.2",
     "elysia": "^1.4.21",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.12",
