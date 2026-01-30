@@ -33,8 +33,11 @@ import {
 	API_RESPONSE_METADATA,
 	API_TAGS_METADATA,
 } from "./openapi";
+import type { RateLimitMetadata } from "./ratelimit/ratelimit.decorator";
+import { RateLimitService } from "./ratelimit/ratelimit.service";
+import { MemoryStorage } from "./ratelimit/storage/memory.storage";
 import { RENDER_METADATA } from "./render";
-import type { Options } from "./types/options";
+import type { Options, RateLimitGlobalConfig } from "./types/options";
 import { cwd } from "./utils/cwd";
 import {
 	GlobalRegistry,
@@ -52,6 +55,8 @@ export class AppStartup {
 	private static readonly logger = new Logger(AppStartup.name);
 	private static readonly registeredSagas = new WeakSet<any>();
 	private static readonly viewBundles = new Map<string, string>();
+	private static globalRateLimitConfig: RateLimitGlobalConfig | undefined;
+	private static rateLimitService: RateLimitService = new RateLimitService();
 
 	/**
 	 * Initializes the application from a root module.
@@ -149,6 +154,9 @@ export class AppStartup {
 					}),
 				);
 			}
+
+			// Store global rate limit config
+			AppStartup.globalRateLimitConfig = options?.rateLimit;
 
 			AppStartup.registerModules(module);
 			return {
@@ -420,6 +428,7 @@ if (document.readyState === 'loading') {
 				pathname: string;
 				methodName: string;
 				guard?: any;
+				rateLimit?: RateLimitMetadata;
 			}[]
 		> = Reflect.getMetadata("dip:module:routes", module);
 
@@ -490,6 +499,28 @@ if (document.readyState === 'loading') {
 					};
 				});
 
+				// Add 429 response to OpenAPI if rate limiting is configured
+				const hasRateLimit =
+					method.rateLimit ||
+					(AppStartup.globalRateLimitConfig?.enabled !== false &&
+						AppStartup.globalRateLimitConfig);
+				if (hasRateLimit) {
+					responses["429"] = {
+						description: "Too Many Requests - Rate limit exceeded",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "number" },
+										message: { type: "string" },
+									},
+								},
+							},
+						},
+					};
+				}
+
 				// OpenAPI Headers
 				const controllerHeaders =
 					Reflect.getMetadata(API_HEADERS_METADATA, controllerInstance) || [];
@@ -538,6 +569,11 @@ if (document.readyState === 'loading') {
 					guardInstance = new method.guard(...guardDependencies);
 				}
 
+				// Build effective rate limit config
+				const effectiveRateLimit = AppStartup.buildEffectiveRateLimit(
+					method.rateLimit,
+				);
+
 				(AppStartup.elysia as any)[httpMethod](
 					method.pathname,
 					(req: any) =>
@@ -557,7 +593,35 @@ if (document.readyState === 'loading') {
 							responses,
 							parameters,
 						},
-						beforeHandle(req: any) {
+						async beforeHandle(req: any) {
+							// Check rate limit first
+							if (effectiveRateLimit) {
+								const result = await AppStartup.rateLimitService.process(
+									req,
+									effectiveRateLimit,
+								);
+
+								// Set rate limit headers on the response
+								if (req.set && req.set.headers) {
+									Object.entries(result.headers).forEach(([key, value]) => {
+										if (value !== undefined) {
+											req.set.headers[key] = value;
+										}
+									});
+								}
+
+								if (!result.allowed) {
+									req.set.status = 429;
+									return {
+										status: 429,
+										message:
+											effectiveRateLimit.message ||
+											"Too many requests, please try again later.",
+									};
+								}
+							}
+
+							// Then check guard
 							if (!guardInstance) return;
 							const isValid = guardInstance.validate(req);
 							if (isValid instanceof Promise) {
@@ -576,6 +640,43 @@ if (document.readyState === 'loading') {
 				);
 			}
 		}
+	}
+
+	/**
+	 * Builds effective rate limit configuration by merging global config with method config
+	 */
+	private static buildEffectiveRateLimit(
+		methodRateLimit?: RateLimitMetadata,
+	): RateLimitMetadata | undefined {
+		const global = AppStartup.globalRateLimitConfig;
+
+		// If method has explicit rate limit config, use it
+		if (methodRateLimit?.enabled) {
+			// Merge with global storage if not specified
+			if (!methodRateLimit.storage && global?.storage) {
+				return {
+					...methodRateLimit,
+					storage: global.storage,
+				};
+			}
+			return methodRateLimit;
+		}
+
+		// If global rate limit is enabled and method doesn't disable it
+		if (global?.enabled !== false && global) {
+			return {
+				enabled: true,
+				max: global.max ?? 100,
+				windowMs: global.windowMs ?? 60000,
+				storage: global.storage,
+				keyGenerator: global.keyGenerator,
+				skipHeader: global.skipHeader,
+				skip: global.skip,
+				message: global.message,
+			};
+		}
+
+		return undefined;
 	}
 
 	private static registerTimeouts(module: any) {
