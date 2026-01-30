@@ -22,6 +22,7 @@ export default defineConfig({
           { text: "Routing & Params", link: "/routing-params" },
           { text: "MVC & SSR (React)", link: "/mvc-ssr" },
           { text: "Guards & JWT", link: "/guards-jwt" },
+          { text: "Rate Limiting", link: "/rate-limiting" },
           { text: "CQRS", link: "/cqrs" },
           { text: "Scheduling", link: "/scheduling" },
           { text: "BullMQ (Queues)", link: "/bullmq" },

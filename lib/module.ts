@@ -2,6 +2,11 @@ import "reflect-metadata";
 import { MapProvidersWithBullMq } from "./bullmq/mappers/map-providers-with-bullmq";
 import { ModuleInitializationError } from "./errors";
 import type { GuardContract } from "./interfaces/guard-contract";
+import {
+	RATELIMIT_CONTROLLER_METADATA_KEY,
+	RATELIMIT_METADATA_KEY,
+} from "./ratelimit/constants";
+import type { RateLimitMetadata } from "./ratelimit/ratelimit.decorator";
 import { MapProvidersWithCron } from "./schedule/cron/mappers/map-providers-with-cron";
 import { MapProvidersWithTimeout } from "./schedule/timeout/mappers/map-providers-with-timeouts";
 import type { ModuleConfig } from "./types/module-config";
@@ -74,11 +79,18 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
 			pathname: string;
 			methodName: string;
 			guard?: GuardContract;
+			rateLimit?: RateLimitMetadata;
 		}[]
 	>();
 
 	for (const controller of controllers) {
 		controllersMap.set(controller, []);
+
+		// Obtém configuração de rate limit do controller (nível controller)
+		const controllerRateLimit = Reflect.getMetadata(
+			RATELIMIT_CONTROLLER_METADATA_KEY,
+			controller,
+		) as RateLimitMetadata | undefined;
 
 		for (const controllerSymbol of Object.getOwnPropertySymbols(controller)) {
 			const controllerPathname = Reflect.getOwnMetadata(
@@ -105,11 +117,21 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
 					cm.methodName,
 				);
 
+				// Obtém rate limit do método (nível endpoint) - tem precedência sobre controller
+				const methodRateLimit = Reflect.getMetadata(
+					RATELIMIT_METADATA_KEY,
+					controller.prototype[cm.methodName],
+				) as RateLimitMetadata | undefined;
+
+				// Usa rate limit do método se existir, senão usa do controller
+				const effectiveRateLimit = methodRateLimit || controllerRateLimit;
+
 				controllersMap.get(controller)?.push({
 					httpMethod: cm.httpMethod,
 					pathname,
 					methodName: cm.methodName,
 					guard: methodGuard || controllerGuard,
+					rateLimit: effectiveRateLimit,
 				});
 			});
 		}
