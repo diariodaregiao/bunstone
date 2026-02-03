@@ -649,19 +649,27 @@ if (document.readyState === 'loading') {
 	): RateLimitMetadata | undefined {
 		const global = AppStartup.globalRateLimitConfig;
 
-		// If method has explicit rate limit config, use it
-		if (methodRateLimit?.enabled) {
-			// Merge with global storage if not specified
-			if (!methodRateLimit.storage && global?.storage) {
-				return {
-					...methodRateLimit,
-					storage: global.storage,
-				};
+		// If method has explicit rate limit config
+		if (methodRateLimit) {
+			// If explicitly disabled at method level, return undefined
+			if (methodRateLimit.enabled === false) {
+				return undefined;
 			}
-			return methodRateLimit;
+
+			// Merge method config with global config for missing properties
+			return {
+				enabled: true,
+				max: methodRateLimit.max ?? global?.max ?? 100,
+				windowMs: methodRateLimit.windowMs ?? global?.windowMs ?? 60000,
+				storage: methodRateLimit.storage ?? global?.storage,
+				keyGenerator: methodRateLimit.keyGenerator ?? global?.keyGenerator,
+				skipHeader: methodRateLimit.skipHeader ?? global?.skipHeader,
+				skip: methodRateLimit.skip ?? global?.skip,
+				message: methodRateLimit.message ?? global?.message,
+			};
 		}
 
-		// If global rate limit is enabled and method doesn't disable it
+		// If global rate limit is enabled and method doesn't have config
 		if (global?.enabled !== false && global) {
 			return {
 				enabled: true,

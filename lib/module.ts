@@ -92,49 +92,48 @@ function mapControllers(controllers: ModuleConfig["controllers"] = []) {
 			controller,
 		) as RateLimitMetadata | undefined;
 
-		for (const controllerSymbol of Object.getOwnPropertySymbols(controller)) {
-			const controllerPathname = Reflect.getOwnMetadata(
-				"dip:controller:pathname",
-				controller,
+		const controllerPathname = Reflect.getOwnMetadata(
+			"dip:controller:pathname",
+			controller,
+		);
+
+		const controllerGuard = Reflect.getMetadata("dip:guard", controller);
+
+		const methodsSymbol = Symbol.for("dip:controller:http-methods");
+		const controllerMethods: {
+			httpMethod: string;
+			pathname: string;
+			methodName: string;
+		}[] = (controller as any)[methodsSymbol] || [];
+
+		controllerMethods.forEach((cm) => {
+			const pathname = `${
+				controllerPathname === "/" ? "" : controllerPathname
+			}${cm.pathname}`;
+
+			const methodGuard = Reflect.getMetadata(
+				"dip:guard",
+				controller.prototype,
+				cm.methodName,
 			);
 
-			const controllerGuard = Reflect.getMetadata("dip:guard", controller);
+			// Obtém rate limit do método (nível endpoint) - tem precedência sobre controller
+			const methodRateLimit = Reflect.getMetadata(
+				RATELIMIT_METADATA_KEY,
+				controller.prototype[cm.methodName],
+			) as RateLimitMetadata | undefined;
 
-			const controllerMethods: {
-				httpMethod: string;
-				pathname: string;
-				methodName: string;
-			}[] = (controller as any)[controllerSymbol];
+			// Usa rate limit do método se existir, senão usa do controller
+			const effectiveRateLimit = methodRateLimit || controllerRateLimit;
 
-			controllerMethods.forEach((cm) => {
-				const pathname = `${
-					controllerPathname === "/" ? "" : controllerPathname
-				}${cm.pathname}`;
-
-				const methodGuard = Reflect.getMetadata(
-					"dip:guard",
-					controller.prototype,
-					cm.methodName,
-				);
-
-				// Obtém rate limit do método (nível endpoint) - tem precedência sobre controller
-				const methodRateLimit = Reflect.getMetadata(
-					RATELIMIT_METADATA_KEY,
-					controller.prototype[cm.methodName],
-				) as RateLimitMetadata | undefined;
-
-				// Usa rate limit do método se existir, senão usa do controller
-				const effectiveRateLimit = methodRateLimit || controllerRateLimit;
-
-				controllersMap.get(controller)?.push({
-					httpMethod: cm.httpMethod,
-					pathname,
-					methodName: cm.methodName,
-					guard: methodGuard || controllerGuard,
-					rateLimit: effectiveRateLimit,
-				});
+			controllersMap.get(controller)?.push({
+				httpMethod: cm.httpMethod,
+				pathname,
+				methodName: cm.methodName,
+				guard: methodGuard || controllerGuard,
+				rateLimit: effectiveRateLimit,
 			});
-		}
+		});
 	}
 
 	return controllersMap;
