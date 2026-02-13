@@ -37,10 +37,32 @@ test("should scaffold a new project correctly", async () => {
 	);
 	expect(await exists(join(projectPath, "src/views/Welcome.tsx"))).toBe(true);
 	expect(await exists(join(projectPath, ".gitignore"))).toBe(true);
+	expect(await exists(join(projectPath, "biome.json"))).toBe(true);
 
 	// Check package.json content
 	const pkg = await Bun.file(join(projectPath, "package.json")).json();
 	expect(pkg.name).toBe(testProjectName);
+}, 30000);
+
+test("should scaffold a new project using shorthand command", async () => {
+	const shorthandName = "test-shorthand-app";
+	const shorthandPath = join(process.cwd(), shorthandName);
+
+	if (await exists(shorthandPath)) {
+		await rm(shorthandPath, { recursive: true, force: true });
+	}
+
+	spawnSync("bun", ["run", "bin/cli.ts", shorthandName], {
+		encoding: "utf-8",
+	});
+
+	expect(await exists(shorthandPath)).toBe(true);
+	expect(await exists(join(shorthandPath, "biome.json"))).toBe(true);
+
+	const pkg = await Bun.file(join(shorthandPath, "package.json")).json();
+	expect(pkg.name).toBe(shorthandName);
+
+	await rm(shorthandPath, { recursive: true, force: true });
 }, 30000);
 
 afterAll(async () => {
