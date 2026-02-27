@@ -593,6 +593,7 @@ if (document.readyState === 'loading') {
 								description: operation.description,
 							}),
 							...(responses && { responses }),
+							...(parameters.length > 0 && { parameters }),
 						},
 						async beforeHandle(req: any) {
 							// Check rate limit first
