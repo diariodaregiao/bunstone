@@ -1,4 +1,3 @@
-import "reflect-metadata";
 import { statSync } from "node:fs";
 import { mkdir, readdir } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
@@ -12,6 +11,8 @@ import Elysia from "elysia";
 import scheduler from "node-cron";
 import React from "react";
 import { renderToReadableStream } from "react-dom/server";
+import "reflect-metadata";
+import z4 from "zod/v4";
 import { BULLMQ_PROCESSOR_METADATA } from "./bullmq/constants";
 import { QueueService } from "./bullmq/queue.service";
 import { Layout } from "./components/layout";
@@ -582,15 +583,16 @@ if (document.readyState === 'loading') {
 							method.methodName,
 						),
 					{
-						body: bodySchema,
-						query: querySchema,
-						params: paramsSchema,
+						...(bodySchema && { body: z4.toJSONSchema(bodySchema) }),
+						...(querySchema && { query: z4.toJSONSchema(querySchema) }),
+						...(paramsSchema && { params: z4.toJSONSchema(paramsSchema) }),
 						detail: {
-							tags,
-							summary: operation?.summary,
-							description: operation?.description,
-							responses,
-							parameters,
+							...(tags && { tags }),
+							...(operation?.summary && { summary: operation.summary }),
+							...(operation?.description && {
+								description: operation.description,
+							}),
+							...(responses && { responses }),
 						},
 						async beforeHandle(req: any) {
 							// Check rate limit first
