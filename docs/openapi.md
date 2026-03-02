@@ -47,7 +47,7 @@ await AppStartup.create(AppModule, {
 }).listen(3000);
 ```
 
-When `auth` is set, any request to the documentation path (and its sub-paths such as `/docs/json`) will require a valid `Authorization: Basic <base64(username:password)>` header. Unauthenticated requests receive a `401 Unauthorized` response with a `WWW-Authenticate` challenge, which causes browsers to display a native login dialog.
+When `auth` is set, any request to the documentation path (and its sub-paths such as `/docs/json`) will require a valid `Authorization: Basic <base64(username:password)>` header. Unauthenticated requests receive a `401 Unauthorized` response with a `WWW-Authenticate` challenge, which causes browsers to display a native login dialog. For security, you should only expose this endpoint over HTTPS (or behind a reverse proxy that terminates HTTPS), as Basic Auth credentials are otherwise sent in clear text and can be intercepted.
 
 ## Decorators
 
