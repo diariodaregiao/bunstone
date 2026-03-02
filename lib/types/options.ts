@@ -58,6 +58,14 @@ export type Options = {
 			};
 			tags?: { name: string; description: string }[];
 		};
+		/**
+		 * Optional Basic Auth protection for the Swagger documentation page.
+		 * When set, the documentation route will require HTTP Basic Authentication.
+		 */
+		auth?: {
+			username: string;
+			password: string;
+		};
 	};
 	/** Global rate limit configuration applied to all endpoints */
 	rateLimit?: RateLimitGlobalConfig;

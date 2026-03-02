@@ -72,3 +72,80 @@ describe("OpenAPI Documentation", () => {
 		).toBeDefined();
 	});
 });
+
+describe("OpenAPI Basic Auth", () => {
+	test("should return 401 when accessing swagger without credentials", async () => {
+		const app = await AppStartup.create(OpenApiTestModule, {
+			swagger: {
+				path: "/docs",
+				auth: {
+					username: "admin",
+					password: "secret",
+				},
+			},
+		});
+		const elysia = (app as any).getElysia();
+
+		const response = await elysia.handle(new Request("http://localhost/docs"));
+		expect(response.status).toBe(401);
+		expect(response.headers.get("WWW-Authenticate")).toBe(
+			'Basic realm="Swagger Documentation"',
+		);
+	});
+
+	test("should return 401 when accessing swagger with wrong credentials", async () => {
+		const app = await AppStartup.create(OpenApiTestModule, {
+			swagger: {
+				path: "/docs",
+				auth: {
+					username: "admin",
+					password: "secret",
+				},
+			},
+		});
+		const elysia = (app as any).getElysia();
+
+		const wrongToken = Buffer.from("admin:wrong").toString("base64");
+		const response = await elysia.handle(
+			new Request("http://localhost/docs", {
+				headers: { Authorization: `Basic ${wrongToken}` },
+			}),
+		);
+		expect(response.status).toBe(401);
+	});
+
+	test("should allow access with correct credentials", async () => {
+		const app = await AppStartup.create(OpenApiTestModule, {
+			swagger: {
+				path: "/docs",
+				auth: {
+					username: "admin",
+					password: "secret",
+				},
+			},
+		});
+		const elysia = (app as any).getElysia();
+
+		const validToken = Buffer.from("admin:secret").toString("base64");
+		const response = await elysia.handle(
+			new Request("http://localhost/docs/json", {
+				headers: { Authorization: `Basic ${validToken}` },
+			}),
+		);
+		expect(response.status).toBe(200);
+	});
+
+	test("should not require auth when auth option is not set", async () => {
+		const app = await AppStartup.create(OpenApiTestModule, {
+			swagger: {
+				path: "/swagger",
+			},
+		});
+		const elysia = (app as any).getElysia();
+
+		const response = await elysia.handle(
+			new Request("http://localhost/swagger/json"),
+		);
+		expect(response.status).toBe(200);
+	});
+});
