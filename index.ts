@@ -1,4 +1,19 @@
 import "reflect-metadata";
+
+/**
+ * CONVENÇÃO DE EXPORTS:
+ * Toda nova implementação adicionada em lib/ DEVE ser exportada neste arquivo
+ * para que consumidores da biblioteca possam utilizá-la.
+ *
+ * Regras:
+ *  - Classes, serviços e módulos: export { NomeDaClasse } from "./lib/..."
+ *  - Decorators e utilitários: export * from "./lib/..."
+ *  - Interfaces e tipos públicos: export type * from "./lib/..." (ou export type { ... })
+ *  - Constantes públicas (ex: symbols de metadata): export { CONSTANTE } from "./lib/..."
+ *
+ * Nunca deixe uma nova feature da lib sem a respectiva entrada aqui.
+ */
+
 export * from "./lib/adapters/cache-adapter";
 export { EmailModule, EmailService } from "./lib/email/email-module";
 export { EmailLayout } from "./lib/email/email-layout";
@@ -29,9 +44,8 @@ export { RabbitMQService } from "./lib/rabbitmq/rabbitmq.service";
 export { RabbitMQConnection } from "./lib/rabbitmq/rabbitmq-connection";
 export * from "./lib/rabbitmq/decorators/consumer.decorator";
 export * from "./lib/rabbitmq/decorators/subscribe.decorator";
-export type { RabbitMQModuleOptions } from "./lib/rabbitmq/interfaces/rabbitmq-options.interface";
-export type { RabbitMQExchangeConfig, RabbitMQQueueConfig, RabbitMQQueueBinding } from "./lib/rabbitmq/interfaces/rabbitmq-options.interface";
-export type { RabbitMessage, RabbitPublishOptions } from "./lib/rabbitmq/interfaces/rabbitmq-message.interface";
+export type * from "./lib/rabbitmq/interfaces/rabbitmq-options.interface";
+export type * from "./lib/rabbitmq/interfaces/rabbitmq-message.interface";
 export * from "./lib/errors";
 export * from "./lib/guard";
 export * from "./lib/http-exceptions";
