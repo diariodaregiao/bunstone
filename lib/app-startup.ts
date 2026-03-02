@@ -146,9 +146,46 @@ export class AppStartup {
 			}
 
 			if (options?.swagger) {
+				const swaggerPath = options.swagger.path || "/swagger";
+
+				if (options.swagger.auth) {
+					const { username, password } = options.swagger.auth;
+					const expectedToken = Buffer.from(`${username}:${password}`).toString(
+						"base64",
+					);
+
+					AppStartup.elysia.onBeforeHandle(({ request, set }) => {
+						const url = new URL(request.url);
+						if (url.pathname.startsWith(swaggerPath)) {
+							const authHeader = request.headers.get("authorization");
+							let validCredentials = false;
+
+							if (authHeader) {
+								const parts = authHeader.trim().split(/\s+/);
+								if (parts.length >= 2) {
+									const scheme = parts[0] ?? "";
+									const token = parts.slice(1).join(" ");
+									if (
+										scheme.toLowerCase() === "basic" &&
+										token === expectedToken
+									) {
+										validCredentials = true;
+									}
+								}
+							}
+							if (!validCredentials) {
+								set.status = 401;
+								set.headers["WWW-Authenticate"] =
+									'Basic realm="Swagger Documentation"';
+								return new Response("Unauthorized", { status: 401 });
+							}
+						}
+					});
+				}
+
 				AppStartup.elysia.use(
 					swagger({
-						path: options.swagger.path || "/swagger",
+						path: swaggerPath,
 						documentation: options.swagger.documentation,
 					}),
 				);

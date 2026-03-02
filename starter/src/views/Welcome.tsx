@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 export const Welcome = ({
   message,
@@ -20,6 +20,7 @@ export const Welcome = ({
         </p>
         <div className="flex items-center justify-center gap-4">
           <button
+            type="button"
             onClick={() => setCount(count - 1)}
             className="bg-white border border-indigo-200 px-3 py-1 rounded shadow-sm hover:bg-indigo-100"
           >
@@ -29,6 +30,7 @@ export const Welcome = ({
             {count}
           </span>
           <button
+            type="button"
             onClick={() => setCount(count + 1)}
             className="bg-white border border-indigo-200 px-3 py-1 rounded shadow-sm hover:bg-indigo-100"
           >
