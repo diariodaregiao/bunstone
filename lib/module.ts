@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { MapProvidersWithBullMq } from "./bullmq/mappers/map-providers-with-bullmq";
 import { ModuleInitializationError } from "./errors";
 import type { GuardContract } from "./interfaces/guard-contract";
+import { MapProvidersWithRabbitMQ } from "./rabbitmq/mappers/map-providers-with-rabbitmq";
 import {
 	RATELIMIT_CONTROLLER_METADATA_KEY,
 	RATELIMIT_METADATA_KEY,
@@ -44,6 +45,9 @@ export function Module(moduleConfig: ModuleConfig = {}): any {
 		const providersBullMq = MapProvidersWithBullMq.execute(
 			moduleConfig.providers,
 		);
+		const providersRabbitMQ = MapProvidersWithRabbitMQ.execute(
+			moduleConfig.providers,
+		);
 		const injectableProviders = mapInjectableProviders(moduleConfig);
 
 		return (target: any, _context?: any) => {
@@ -58,6 +62,7 @@ export function Module(moduleConfig: ModuleConfig = {}): any {
 			Reflect.defineMetadata("dip:modules", modules, target);
 			Reflect.defineMetadata("dip:crons", providersCrons, target);
 			Reflect.defineMetadata("dip:bullmq", providersBullMq, target);
+			Reflect.defineMetadata("dip:rabbitmq", providersRabbitMQ, target);
 			Reflect.defineMetadata("dip:injectables", injectableProviders, target);
 		};
 	} catch (error: any) {

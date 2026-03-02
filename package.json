@@ -13,7 +13,7 @@
       "types": "./dist/*.d.ts"
     }
   },
-  "version": "0.3.5",
+  "version": "0.3.6",
   "homepage": "https://bunstone.diario.one/",
   "repository": {
     "url": "https://github.com/diariodaregiao/bunstone.git",
@@ -61,7 +61,13 @@
   "peerDependencies": {
     "react": ">=19",
     "react-dom": ">=19",
-    "typescript": "^5"
+    "typescript": "^5",
+    "amqplib": ""
+  },
+  "peerDependenciesMeta": {
+    "amqplib": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
@@ -76,6 +82,7 @@
     "@react-email/components": "^1.0.4",
     "@react-email/render": "^2.0.2",
     "@react-email/tailwind": "^2.0.3",
+    "@types/amqplib": "^0.10.8",
     "bullmq": "^5.40.2",
     "elysia": "^1.4.21",
     "node-cron": "^4.2.1",
