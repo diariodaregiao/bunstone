@@ -55,6 +55,7 @@ export * from "./lib/http-params";
 export * from "./lib/injectable";
 export * from "./lib/jwt";
 export * from "./lib/jwt/jwt-module";
+export { JwtService } from "./lib/jwt/jwt.service";
 export * from "./lib/module";
 export * from "./lib/openapi";
 export * from "./lib/render";
