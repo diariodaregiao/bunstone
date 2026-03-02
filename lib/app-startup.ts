@@ -163,9 +163,12 @@ export class AppStartup {
 							if (authHeader) {
 								const parts = authHeader.trim().split(/\s+/);
 								if (parts.length >= 2) {
-									const scheme = parts[0];
+									const scheme = parts[0] ?? "";
 									const token = parts.slice(1).join(" ");
-									if (scheme.toLowerCase() === "basic" && token === expectedToken) {
+									if (
+										scheme.toLowerCase() === "basic" &&
+										token === expectedToken
+									) {
 										validCredentials = true;
 									}
 								}
