@@ -158,8 +158,18 @@ export class AppStartup {
 						const url = new URL(request.url);
 						if (url.pathname.startsWith(swaggerPath)) {
 							const authHeader = request.headers.get("authorization");
-							const validCredentials = authHeader === `Basic ${expectedToken}`;
+							let validCredentials = false;
 
+							if (authHeader) {
+								const parts = authHeader.trim().split(/\s+/);
+								if (parts.length >= 2) {
+									const scheme = parts[0];
+									const token = parts.slice(1).join(" ");
+									if (scheme.toLowerCase() === "basic" && token === expectedToken) {
+										validCredentials = true;
+									}
+								}
+							}
 							if (!validCredentials) {
 								set.status = 401;
 								set.headers["WWW-Authenticate"] =
