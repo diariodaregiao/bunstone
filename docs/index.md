@@ -28,6 +28,8 @@ features:
     details: Send emails using React components and Tailwind CSS with automatic inline styling.
   - title: BullMQ
     details: Effortless background job processing with BullMQ integration.
+  - title: RabbitMQ
+    details: Full AMQP message broker integration with exchanges, queues, routing keys, dead letters and auto-reconnect.
   - title: Integrated Testing
     details: Optimized tools for integration and E2E testing with provider mocking and headless application support.
 ---

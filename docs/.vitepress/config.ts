@@ -26,6 +26,7 @@ export default defineConfig({
           { text: "CQRS", link: "/cqrs" },
           { text: "Scheduling", link: "/scheduling" },
           { text: "BullMQ (Queues)", link: "/bullmq" },
+          { text: "RabbitMQ", link: "/rabbitmq" },
           { text: "Database (SQL)", link: "/database-sql" },
           { text: "OpenAPI (Swagger)", link: "/openapi" },
           { text: "Testing", link: "/testing" },

@@ -33,6 +33,9 @@ import {
 	API_RESPONSE_METADATA,
 	API_TAGS_METADATA,
 } from "./openapi";
+import type { RabbitMessage } from "./rabbitmq/interfaces/rabbitmq-message.interface";
+import type { RabbitMQMethodDescriptor } from "./rabbitmq/mappers/map-providers-with-rabbitmq";
+import { RabbitMQConnection } from "./rabbitmq/rabbitmq-connection";
 import type { RateLimitMetadata } from "./ratelimit/ratelimit.decorator";
 import { RateLimitService } from "./ratelimit/ratelimit.service";
 import { RENDER_METADATA } from "./render";
@@ -448,6 +451,7 @@ if (document.readyState === 'loading') {
 		AppStartup.registerCronJobs(module);
 		AppStartup.registerBullMqWorkers(module);
 		AppStartup.registerCqrsHandlers(module);
+		AppStartup.registerRabbitMQConsumers(module);
 
 		const modules = Reflect.getMetadata("dip:modules", module) || [];
 
@@ -841,6 +845,92 @@ if (document.readyState === 'loading') {
 				},
 			);
 		}
+	}
+
+	/**
+	 * Sets up RabbitMQ consumers for every provider that has `@RabbitSubscribe`
+	 * methods registered in the given module.
+	 */
+	private static registerRabbitMQConsumers(module: any): void {
+		const providersRabbitMQ: Map<any, RabbitMQMethodDescriptor[]> | undefined =
+			Reflect.getMetadata("dip:rabbitmq", module);
+
+		if (!providersRabbitMQ || providersRabbitMQ.size === 0) {
+			return;
+		}
+
+		const injectables: Map<any, any> | undefined = Reflect.getMetadata(
+			"dip:injectables",
+			module,
+		);
+
+		// Fire-and-forget – connect asynchronously so startup is never blocked
+		(async () => {
+			try {
+				await RabbitMQConnection.initialise();
+			} catch (err: any) {
+				AppStartup.logger.error(
+					`RabbitMQ initialisation failed: ${err.message}`,
+				);
+				return;
+			}
+
+			for (const [providerClass, descriptors] of providersRabbitMQ.entries()) {
+				const instance = injectables?.get(providerClass) ?? new providerClass();
+
+				for (const descriptor of descriptors) {
+					const { queue, noAck = false } = descriptor.options;
+
+					AppStartup.logger.log(
+						`Registering RabbitMQ consumer for queue: "${queue}" → ${providerClass.name}.${descriptor.methodName}()`,
+					);
+
+					try {
+						const channel = await RabbitMQConnection.getConsumerChannel(queue);
+
+						await channel.consume(
+							queue,
+							async (raw) => {
+								if (!raw) return; // consumer cancelled
+
+								const data = (() => {
+									try {
+										return JSON.parse(raw.content.toString());
+									} catch {
+										return raw.content.toString();
+									}
+								})();
+
+								const msg: RabbitMessage = {
+									data,
+									raw,
+									ack: () => channel.ack(raw),
+									nack: (requeue = true) => channel.nack(raw, false, requeue),
+									reject: () => channel.reject(raw, false),
+								};
+
+								try {
+									await instance[descriptor.methodName](msg);
+								} catch (err: any) {
+									AppStartup.logger.error(
+										`Unhandled error in RabbitMQ handler ${providerClass.name}.${descriptor.methodName}() on queue "${queue}": ${err.message}`,
+									);
+									if (!noAck) {
+										// Nack and requeue by default so the message isn't lost
+										channel.nack(raw, false, true);
+									}
+								}
+							},
+							{ noAck },
+						);
+					} catch (err: any) {
+						AppStartup.logger.error(
+							`Failed to register consumer for queue "${queue}": ${err.message}`,
+						);
+					}
+				}
+			}
+		})();
 	}
 
 	private static registerCqrsHandlers(module: any) {
