@@ -44,6 +44,21 @@ export interface RabbitMQQueueConfig {
 	deadLetterExchange?: string;
 	/** Dead letter routing key */
 	deadLetterRoutingKey?: string;
+	/**
+	 * When provided, the lib will automatically:
+	 * 1. Assert the `deadLetterExchange` (type controlled by `deadLetterExchangeType`)
+	 * 2. Assert a queue with this name
+	 * 3. Bind that queue to the DLX using `deadLetterRoutingKey` (or `""`)
+	 *
+	 * This removes the need to manually declare the DLX exchange + queue in your
+	 * `exchanges` and `queues` arrays.
+	 */
+	deadLetterQueue?: string;
+	/**
+	 * Exchange type used when auto-asserting the dead letter exchange.
+	 * Only used when `deadLetterQueue` is set. Default: `"direct"`.
+	 */
+	deadLetterExchangeType?: "direct" | "topic" | "fanout";
 	/** Maximum time (ms) a message can remain in the queue undelivered */
 	messageTtl?: number;
 	/** Maximum number of messages the queue can hold */

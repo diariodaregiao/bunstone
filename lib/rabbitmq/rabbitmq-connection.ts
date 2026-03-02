@@ -243,6 +243,38 @@ export class RabbitMQConnection {
 						`Queue "${q.name}" bound to exchange "${binding.exchange}" with key "${binding.routingKey ?? ""}"`,
 					);
 				}
+
+				// ── Auto Dead Letter topology ──────────────────────────────────
+				// When `deadLetterQueue` + `deadLetterExchange` are both set, the lib
+				// automatically asserts the DLX exchange, the DLQ queue, and their binding.
+				// This removes the need to declare them manually in exchanges/queues arrays.
+				if (q.deadLetterQueue && q.deadLetterExchange) {
+					const dlxType = q.deadLetterExchangeType ?? "direct";
+					await channel.assertExchange(q.deadLetterExchange, dlxType, {
+						durable: true,
+						autoDelete: false,
+					});
+					logger.log(
+						`Dead letter exchange asserted: [${dlxType}] ${q.deadLetterExchange}`,
+					);
+
+					await channel.assertQueue(q.deadLetterQueue, {
+						durable: true,
+						exclusive: false,
+						autoDelete: false,
+					});
+					logger.log(`Dead letter queue asserted: ${q.deadLetterQueue}`);
+
+					const dlxBindingKey = q.deadLetterRoutingKey ?? "";
+					await channel.bindQueue(
+						q.deadLetterQueue,
+						q.deadLetterExchange,
+						dlxBindingKey,
+					);
+					logger.log(
+						`DLQ "${q.deadLetterQueue}" bound to DLX "${q.deadLetterExchange}" with key "${dlxBindingKey}"`,
+					);
+				}
 			}
 		} finally {
 			await channel.close().catch(() => {});

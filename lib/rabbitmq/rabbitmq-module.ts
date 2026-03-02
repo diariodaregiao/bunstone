@@ -1,4 +1,5 @@
 import { Module } from "../module";
+import { RabbitMQDeadLetterService } from "./dead-letter.service";
 import type { RabbitMQModuleOptions } from "./interfaces/rabbitmq-options.interface";
 import { RabbitMQService } from "./rabbitmq.service";
 import { RabbitMQConnection } from "./rabbitmq-connection";
@@ -33,8 +34,8 @@ import { RabbitMQConnection } from "./rabbitmq-connection";
  * ```
  */
 @Module({
-	providers: [RabbitMQService],
-	exports: [RabbitMQService],
+	providers: [RabbitMQService, RabbitMQDeadLetterService],
+	exports: [RabbitMQService, RabbitMQDeadLetterService],
 	global: true,
 })
 export class RabbitMQModule {

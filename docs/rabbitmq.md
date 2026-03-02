@@ -214,30 +214,224 @@ export class EventConsumer {
 
 ---
 
-## Dead Letter Exchanges
+## Dead Letter Exchanges & DLQ Reprocessing
 
-Route failed/expired messages to a DLX for inspection or retry:
+When a message is **rejected**, **expired** (TTL), or the queue reaches `maxLength`, RabbitMQ
+routes it to a configured **Dead Letter Exchange (DLX)**, from where it lands in a
+**Dead Letter Queue (DLQ)**. The lib gives you two tools to work with DLQs:
+
+1. **Auto-topology** – declare the DLX exchange + DLQ queue with a single config option
+2. **`RabbitMQDeadLetterService`** – inspect, requeue, or discard dead-lettered messages
+
+### 1. Auto-topology with `deadLetterQueue`
+
+Set `deadLetterExchange` **and** `deadLetterQueue` together. The lib will automatically
+assert the DLX exchange, the DLQ queue, and their binding on startup — no need to list
+them in the `exchanges` or `queues` arrays separately.
 
 ```typescript
 RabbitMQModule.register({
   exchanges: [
-    { name: "orders", type: "topic" },
-    { name: "orders.dlx", type: "fanout" },
+    { name: "events", type: "topic" },
+    // ↑ you only need to declare your main exchange
+    // The DLX "orders.cancelled.dlx" is auto-asserted below
   ],
   queues: [
     {
-      name: "orders.created",
-      bindings: { exchange: "orders", routingKey: "orders.created" },
-      deadLetterExchange: "orders.dlx",
-      messageTtl: 30_000,
-    },
-    {
-      // Queue that receives dead-lettered messages
-      name: "orders.dead",
-      bindings: { exchange: "orders.dlx", routingKey: "" },
+      name: "orders.cancelled",
+      bindings: { exchange: "events", routingKey: "orders.cancelled" },
+
+      // ─── Dead Letter config ─────────────────────────────────────────────
+      deadLetterExchange:    "orders.cancelled.dlx",  // DLX name (auto-asserted)
+      deadLetterRoutingKey:  "orders.cancelled.dead", // routing key to DLQ
+      deadLetterQueue:       "orders.cancelled.dlq",  // DLQ name (auto-asserted + bound)
+      deadLetterExchangeType: "direct",               // optional, default: "direct"
+
+      messageTtl: 30_000, // messages expire → go to DLQ after 30 s
     },
   ],
 })
+```
+
+> **What happens at startup**
+>
+> | Step | Action |
+> |------|--------|
+> | 1 | Assert `orders.cancelled` queue with `x-dead-letter-exchange` arg |
+> | 2 | Assert exchange `orders.cancelled.dlx` (direct, durable) |
+> | 3 | Assert queue `orders.cancelled.dlq` (durable) |
+> | 4 | Bind `orders.cancelled.dlq` → `orders.cancelled.dlx` with key `orders.cancelled.dead` |
+
+---
+
+### 2. Consuming DLQ messages with `@RabbitSubscribe`
+
+Since the DLQ is a normal queue, you can attach a `@RabbitConsumer` to it.
+Messages arrive as `DeadLetterMessage<T>` (import the type from the lib) which
+adds a `deathInfo` field and a `republish()` helper.
+
+```typescript
+import { RabbitConsumer, RabbitSubscribe } from "@grupodiariodaregiao/bunstone";
+import type { DeadLetterMessage } from "@grupodiariodaregiao/bunstone";
+
+@RabbitConsumer()
+export class OrderDLQConsumer {
+
+  @RabbitSubscribe({ queue: "orders.cancelled.dlq" })
+  async handle(msg: DeadLetterMessage<{ orderId: string }>) {
+    const { orderId } = msg.data;
+    const info = msg.deathInfo; // structured x-death metadata
+
+    console.warn(`Dead letter: ${orderId} | reason=${info?.reason} | attempts=${info?.count}`);
+
+    if ((info?.count ?? 0) < 3) {
+      // Retry: republish to the original exchange
+      await msg.republish("events", "orders.cancelled");
+      msg.ack(); // remove from DLQ after successful republish
+    } else {
+      // Too many failures → discard
+      console.error(`Giving up on order ${orderId}`);
+      msg.ack();
+    }
+  }
+}
+```
+
+#### `DeadLetterMessage<T>`
+
+| Property | Type | Description |
+|---|---|---|
+| `data` | `T` | Deserialized JSON payload |
+| `raw` | `ConsumeMessage` | Raw amqplib message |
+| `deathInfo` | `DeadLetterDeathInfo \| null` | Structured `x-death` metadata |
+| `ack()` | `() => void` | Remove permanently from DLQ |
+| `nack(requeue?)` | `(boolean?) => void` | Return to DLQ (requeue default: `false`) |
+| `republish(exchange, key, opts?)` | `Promise<void>` | Re-publish to an exchange for reprocessing |
+
+#### `DeadLetterDeathInfo`
+
+| Property | Type | Description |
+|---|---|---|
+| `queue` | `string` | Original queue where the message died |
+| `exchange` | `string` | Exchange where it was published |
+| `routingKeys` | `string[]` | Routing keys used |
+| `count` | `number` | How many times this message has died |
+| `reason` | `"rejected" \| "expired" \| "maxlen" \| "delivery-limit"` | Why it was dead-lettered |
+| `time` | `Date` | When it was dead-lettered |
+
+---
+
+### 3. Manual reprocessing with `RabbitMQDeadLetterService`
+
+`RabbitMQDeadLetterService` is registered **globally** by `RabbitMQModule` and can be
+injected anywhere in your application. Useful for admin REST endpoints, scheduled
+requeue jobs, or CLI scripts.
+
+```typescript
+import { Injectable } from "@grupodiariodaregiao/bunstone";
+import { RabbitMQDeadLetterService } from "@grupodiariodaregiao/bunstone";
+
+@Injectable()
+export class DLQAdminService {
+  constructor(private readonly dlq: RabbitMQDeadLetterService) {}
+
+  // How many messages are stuck
+  async countFailed() {
+    return this.dlq.messageCount("orders.cancelled.dlq");
+  }
+
+  // Peek at messages without consuming them
+  async preview(limit = 10) {
+    return this.dlq.inspect("orders.cancelled.dlq", limit);
+  }
+
+  // Move all messages back to the original exchange
+  async retryAll() {
+    return this.dlq.requeueMessages({
+      fromQueue:  "orders.cancelled.dlq",
+      toExchange: "events",
+      routingKey: "orders.cancelled",
+    });
+  }
+
+  // Move only the first 50
+  async retryBatch() {
+    return this.dlq.requeueMessages({
+      fromQueue:  "orders.cancelled.dlq",
+      toExchange: "events",
+      routingKey: "orders.cancelled",
+      count: 50,
+    });
+  }
+
+  // Permanently delete all dead letters
+  async purge() {
+    return this.dlq.discardMessages("orders.cancelled.dlq");
+  }
+}
+```
+
+#### `RabbitMQDeadLetterService` API
+
+| Method | Returns | Description |
+|---|---|---|
+| `inspect<T>(queue, count?)` | `Promise<DeadLetterMessage<T>[]>` | Peek at messages (put back after reading) |
+| `requeueMessages(options)` | `Promise<number>` | Move messages → exchange. Returns count requeued. |
+| `discardMessages(queue, count?)` | `Promise<number>` | Permanently delete messages. Returns count discarded. |
+| `messageCount(queue)` | `Promise<number>` | Current message count in a queue |
+
+#### `RequeueOptions`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `fromQueue` | `string` | ✅ | Dead letter queue to consume from |
+| `toExchange` | `string` | ✅ | Exchange to republish to |
+| `routingKey` | `string` | ✅ | Routing key for republished messages |
+| `count` | `number` | — | Max messages to requeue. Omit for **all**. |
+| `publishOptions` | `RabbitPublishOptions` | — | Additional publish options |
+
+> Every republished message gets an `x-dlq-requeued` header incremented on each manual requeue,
+> so you can track how many times a message has been manually retried if needed.
+
+---
+
+### 4. Admin HTTP endpoints example
+
+A common pattern is exposing DLQ management via protected REST endpoints:
+
+```typescript
+@Controller("/admin/dlq")
+export class DLQController {
+  constructor(private readonly dlq: RabbitMQDeadLetterService) {}
+
+  @Get("/count")
+  count() {
+    return this.dlq.messageCount("orders.cancelled.dlq");
+  }
+
+  @Get("/inspect")
+  inspect(@Query("limit") limit: string) {
+    return this.dlq.inspect("orders.cancelled.dlq", Number(limit ?? 10));
+  }
+
+  @Get("/requeue")
+  requeue(@Query("limit") limit: string) {
+    return this.dlq.requeueMessages({
+      fromQueue:  "orders.cancelled.dlq",
+      toExchange: "events",
+      routingKey: "orders.cancelled",
+      count: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("/discard")
+  discard(@Query("limit") limit: string) {
+    return this.dlq.discardMessages(
+      "orders.cancelled.dlq",
+      limit ? Number(limit) : undefined,
+    );
+  }
+}
 ```
 
 ---
@@ -247,3 +441,4 @@ RabbitMQModule.register({
 <<< @/../examples/13-rabbitmq/index.ts
 
 [See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/13-rabbitmq/index.ts)
+

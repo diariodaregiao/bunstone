@@ -41,6 +41,7 @@ export * from "./lib/bullmq/decorators/processor.decorator";
 export * from "./lib/bullmq/decorators/process.decorator";
 export { RabbitMQModule } from "./lib/rabbitmq/rabbitmq-module";
 export { RabbitMQService } from "./lib/rabbitmq/rabbitmq.service";
+export { RabbitMQDeadLetterService } from "./lib/rabbitmq/dead-letter.service";
 export { RabbitMQConnection } from "./lib/rabbitmq/rabbitmq-connection";
 export * from "./lib/rabbitmq/decorators/consumer.decorator";
 export * from "./lib/rabbitmq/decorators/subscribe.decorator";
