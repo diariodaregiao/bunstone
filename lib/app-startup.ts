@@ -879,6 +879,34 @@ if (document.readyState === 'loading') {
 			module,
 		);
 
+		/**
+		 * Matches a RabbitMQ topic routing key pattern against a concrete routing key.
+		 * Supports `*` (exactly one word) and `#` (zero or more words).
+		 */
+		function matchRoutingKey(pattern: string, routingKey: string): boolean {
+			if (pattern === routingKey) return true;
+			if (!pattern.includes("*") && !pattern.includes("#")) return false;
+
+			const pp = pattern.split(".");
+			const kp = routingKey.split(".");
+
+			function go(pi: number, ki: number): boolean {
+				if (pi === pp.length && ki === kp.length) return true;
+				if (pi === pp.length) return false;
+				if (pp[pi] === "#") {
+					for (let j = ki; j <= kp.length; j++) {
+						if (go(pi + 1, j)) return true;
+					}
+					return false;
+				}
+				if (ki === kp.length) return false;
+				if (pp[pi] === "*" || pp[pi] === kp[ki]) return go(pi + 1, ki + 1);
+				return false;
+			}
+
+			return go(0, 0);
+		}
+
 		type QueueHandler = {
 			instance: any;
 			descriptor: RabbitMQMethodDescriptor;
@@ -995,7 +1023,10 @@ if (document.readyState === 'loading') {
 				const noAck = handlers.every((h) => h.noAck);
 
 				const handlerList = handlers
-					.map((h) => `${h.providerName}.${h.descriptor.methodName}()`)
+					.map((h) => {
+						const rk = h.descriptor.options.routingKey;
+						return `${h.providerName}.${h.descriptor.methodName}()${rk ? ` [${rk}]` : ""}`;
+					})
 					.join(", ");
 
 				AppStartup.logger.log(
@@ -1043,6 +1074,17 @@ if (document.readyState === 'loading') {
 								noAck: handlerNoAck,
 								providerName,
 							} of handlers) {
+								// ── Routing-key filter ─────────────────────────────────────────────
+								// When { queue, routingKey } is set without exchange, only dispatch
+								// if the message's routing key matches the declared pattern.
+								const handlerRoutingKey = descriptor.options.routingKey;
+								if (
+									handlerRoutingKey &&
+									!matchRoutingKey(handlerRoutingKey, raw.fields.routingKey)
+								) {
+									continue;
+								}
+
 								try {
 									await instance[descriptor.methodName](msg);
 								} catch (err: any) {
@@ -1053,6 +1095,13 @@ if (document.readyState === 'loading') {
 										settle(() => channel.nack(raw, false, true));
 									}
 								}
+							}
+
+							// ── Auto-ack if no handler consumed the message ────────────────
+							// All handlers were filtered out by routingKey – ack silently
+							// to prevent the message from piling up as unacked.
+							if (!noAck && !settled) {
+								settle(() => channel.ack(raw));
 							}
 						},
 						{ noAck },
