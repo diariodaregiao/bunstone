@@ -886,7 +886,76 @@ if (document.readyState === 'loading') {
 				const instance = injectables?.get(providerClass) ?? new providerClass();
 
 				for (const descriptor of descriptors) {
-					const { queue, noAck = false } = descriptor.options;
+					const {
+						queue,
+						exchange,
+						routingKey,
+						noAck = false,
+					} = descriptor.options;
+
+					// ── Routing-key mode: exchange + routingKey ─────────────────────────
+					if (exchange && routingKey) {
+						AppStartup.logger.log(
+							`Registering RabbitMQ consumer for exchange: "${exchange}" routingKey: "${routingKey}" → ${providerClass.name}.${descriptor.methodName}()`,
+						);
+
+						try {
+							const { channel, queueName } =
+								await RabbitMQConnection.createRoutingKeyConsumerChannel(
+									exchange,
+									routingKey,
+								);
+
+							await channel.consume(
+								queueName,
+								async (raw) => {
+									if (!raw) return;
+
+									const data = (() => {
+										try {
+											return JSON.parse(raw.content.toString());
+										} catch {
+											return raw.content.toString();
+										}
+									})();
+
+									const msg: RabbitMessage = {
+										data,
+										raw,
+										ack: () => channel.ack(raw),
+										nack: (requeue = true) => channel.nack(raw, false, requeue),
+										reject: () => channel.reject(raw, false),
+									};
+
+									try {
+										await instance[descriptor.methodName](msg);
+									} catch (err: any) {
+										AppStartup.logger.error(
+											`Unhandled error in RabbitMQ handler ${providerClass.name}.${descriptor.methodName}() on exchange "${exchange}" routingKey "${routingKey}": ${err.message}`,
+										);
+										if (!noAck) {
+											channel.nack(raw, false, true);
+										}
+									}
+								},
+								{ noAck },
+							);
+						} catch (err: any) {
+							AppStartup.logger.error(
+								`Failed to register consumer for exchange "${exchange}" routingKey "${routingKey}": ${err.message}`,
+							);
+						}
+
+						continue;
+					}
+
+					// ── Direct queue mode ──────────────────────────────────────────────
+					if (!queue) {
+						AppStartup.logger.warn(
+							`@RabbitSubscribe on ${providerClass.name}.${descriptor.methodName}() has neither 'queue' nor 'exchange'+'routingKey' – skipping.`,
+						);
+						continue;
+					}
 
 					AppStartup.logger.log(
 						`Registering RabbitMQ consumer for queue: "${queue}" → ${providerClass.name}.${descriptor.methodName}()`,

@@ -220,7 +220,72 @@ export class OrderController {
 	}
 }
 
-// ─── 6. App Module ───────────────────────────────────────────────────────────
+// ─── 6. Routing-key consumers (topic exchange fan-out) ───────────────────────
+//
+// Instead of naming a pre-declared queue, these handlers use
+//   exchange + routingKey
+// The lib creates an exclusive auto-delete queue per handler and binds it to
+// the exchange. Because every handler gets its OWN queue, publishing a single
+// message to "article.published" triggers ALL handlers subscribed to that key.
+//
+// Publish with:
+//   await this.rabbit.publish("articles", "article.published", { articleId: "1" });
+
+interface ArticlePayload {
+	articleId: string;
+}
+
+/** First handler for article.published – e.g. invalidate cache */
+@RabbitConsumer()
+export class ArticleCacheHandler {
+	@RabbitSubscribe({ exchange: "articles", routingKey: "article.published" })
+	async onPublished(msg: RabbitMessage<ArticlePayload>) {
+		console.log("[ArticleCacheHandler] Invalidate cache for", msg.data.articleId);
+		msg.ack();
+	}
+
+	@RabbitSubscribe({ exchange: "articles", routingKey: "article.updated" })
+	async onUpdated(msg: RabbitMessage<ArticlePayload>) {
+		console.log("[ArticleCacheHandler] Refresh cache for", msg.data.articleId);
+		msg.ack();
+	}
+
+	@RabbitSubscribe({ exchange: "articles", routingKey: "article.deleted" })
+	async onDeleted(msg: RabbitMessage<ArticlePayload>) {
+		console.log("[ArticleCacheHandler] Evict cache for", msg.data.articleId);
+		msg.ack();
+	}
+}
+
+/** Second handler for article.published – e.g. send notification */
+@RabbitConsumer()
+export class ArticleNotificationHandler {
+	@RabbitSubscribe({ exchange: "articles", routingKey: "article.published" })
+	async onPublished(msg: RabbitMessage<ArticlePayload>) {
+		console.log(
+			"[ArticleNotificationHandler] Send push notification for",
+			msg.data.articleId,
+		);
+		msg.ack();
+	}
+}
+
+/** Wildcard: subscribe to ALL article events with article.# */
+@RabbitConsumer()
+export class ArticleAuditHandler {
+	@RabbitSubscribe({ exchange: "articles", routingKey: "article.#" })
+	async onAnyArticleEvent(msg: RabbitMessage<ArticlePayload>) {
+		console.log(
+			"[ArticleAuditHandler] Audit event for",
+			msg.data.articleId,
+			"| routingKey:",
+			msg.raw.fields.routingKey,
+		);
+		msg.ack();
+	}
+}
+
+// ─── 7. App Module ───────────────────────────────────────────────────────────
 
 @Module({
 	imports: [
@@ -232,6 +297,12 @@ export class OrderController {
 			exchanges: [
 				{
 					name: "events",
+					type: "topic",
+					durable: true,
+				},
+				// Topic exchange for article events – used by routing-key consumers above
+				{
+					name: "articles",
 					type: "topic",
 					durable: true,
 				},
@@ -266,6 +337,8 @@ export class OrderController {
 					name: "notifications",
 					durable: true,
 				},
+				// Note: NO queue declarations needed for the routing-key consumers above.
+				// The lib creates exclusive auto-delete queues automatically at runtime.
 			],
 
 			// How many unacked messages each consumer channel may hold
@@ -279,7 +352,16 @@ export class OrderController {
 		}),
 	],
 	controllers: [OrderController],
-	providers: [OrderService, OrderConsumer, NotificationConsumer, OrderDLQConsumer],
+	providers: [
+		OrderService,
+		OrderConsumer,
+		NotificationConsumer,
+		OrderDLQConsumer,
+		// Routing-key consumers
+		ArticleCacheHandler,
+		ArticleNotificationHandler,
+		ArticleAuditHandler,
+	],
 })
 class AppModule {}
 
