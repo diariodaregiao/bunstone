@@ -857,6 +857,14 @@ if (document.readyState === 'loading') {
 	/**
 	 * Sets up RabbitMQ consumers for every provider that has `@RabbitSubscribe`
 	 * methods registered in the given module.
+	 *
+	 * Queue mode (fan-out): all handlers subscribed to the same named queue share a
+	 * single AMQP consumer. Every message is delivered to ALL handlers in declaration
+	 * order. A "settle guard" ensures ack/nack/reject is called only once per message
+	 * regardless of how many handlers invoke it.
+	 *
+	 * Routing-key mode: each handler gets its own exclusive auto-delete queue bound
+	 * to the exchange, so the broker itself handles fan-out.
 	 */
 	private static registerRabbitMQConsumers(module: any): void {
 		const providersRabbitMQ: Map<any, RabbitMQMethodDescriptor[]> | undefined =
@@ -871,6 +879,13 @@ if (document.readyState === 'loading') {
 			module,
 		);
 
+		type QueueHandler = {
+			instance: any;
+			descriptor: RabbitMQMethodDescriptor;
+			noAck: boolean;
+			providerName: string;
+		};
+
 		// Fire-and-forget – connect asynchronously so startup is never blocked
 		(async () => {
 			try {
@@ -881,6 +896,12 @@ if (document.readyState === 'loading') {
 				);
 				return;
 			}
+
+			// ── Step 1: separate routing-key handlers from named-queue handlers ──
+			// Named-queue handlers are grouped by queue name so that a single AMQP
+			// consumer is created per queue and every message is fanned-out to all
+			// registered handlers in-process.
+			const queueMap = new Map<string, QueueHandler[]>();
 
 			for (const [providerClass, descriptors] of providersRabbitMQ.entries()) {
 				const instance = injectables?.get(providerClass) ?? new providerClass();
@@ -893,7 +914,7 @@ if (document.readyState === 'loading') {
 						noAck = false,
 					} = descriptor.options;
 
-					// ── Routing-key mode: exchange + routingKey ─────────────────────────
+					// ── Routing-key mode: exchange + routingKey ─────────────────────
 					if (exchange && routingKey) {
 						AppStartup.logger.log(
 							`Registering RabbitMQ consumer for exchange: "${exchange}" routingKey: "${routingKey}" → ${providerClass.name}.${descriptor.methodName}()`,
@@ -949,7 +970,7 @@ if (document.readyState === 'loading') {
 						continue;
 					}
 
-					// ── Direct queue mode ──────────────────────────────────────────────
+					// ── Queue mode: collect and group by queue name ─────────────────
 					if (!queue) {
 						AppStartup.logger.warn(
 							`@RabbitSubscribe on ${providerClass.name}.${descriptor.methodName}() has neither 'queue' nor 'exchange'+'routingKey' – skipping.`,
@@ -957,53 +978,89 @@ if (document.readyState === 'loading') {
 						continue;
 					}
 
-					AppStartup.logger.log(
-						`Registering RabbitMQ consumer for queue: "${queue}" → ${providerClass.name}.${descriptor.methodName}()`,
-					);
+					if (!queueMap.has(queue)) queueMap.set(queue, []);
+					const queueHandlers = queueMap.get(queue) as QueueHandler[];
+					queueHandlers.push({
+						instance,
+						descriptor,
+						noAck,
+						providerName: providerClass.name,
+					});
+				}
+			}
 
-					try {
-						const channel = await RabbitMQConnection.getConsumerChannel(queue);
+			// ── Step 2: one AMQP consumer per unique queue, fan-out in-process ──
+			for (const [queue, handlers] of queueMap.entries()) {
+				// Use noAck only when every handler opts in; otherwise manual ack.
+				const noAck = handlers.every((h) => h.noAck);
 
-						await channel.consume(
-							queue,
-							async (raw) => {
-								if (!raw) return; // consumer cancelled
+				const handlerList = handlers
+					.map((h) => `${h.providerName}.${h.descriptor.methodName}()`)
+					.join(", ");
 
-								const data = (() => {
-									try {
-										return JSON.parse(raw.content.toString());
-									} catch {
-										return raw.content.toString();
-									}
-								})();
+				AppStartup.logger.log(
+					`Registering RabbitMQ consumer for queue: "${queue}" → [${handlerList}]`,
+				);
 
-								const msg: RabbitMessage = {
-									data,
-									raw,
-									ack: () => channel.ack(raw),
-									nack: (requeue = true) => channel.nack(raw, false, requeue),
-									reject: () => channel.reject(raw, false),
-								};
+				try {
+					const channel = await RabbitMQConnection.getConsumerChannel(queue);
 
+					await channel.consume(
+						queue,
+						async (raw) => {
+							if (!raw) return; // consumer cancelled
+
+							const data = (() => {
+								try {
+									return JSON.parse(raw.content.toString());
+								} catch {
+									return raw.content.toString();
+								}
+							})();
+
+							// Settle guard: ack/nack/reject may only be called once per
+							// delivery tag regardless of how many handlers invoke it.
+							let settled = false;
+							const settle = (fn: () => void) => {
+								if (!settled) {
+									settled = true;
+									fn();
+								}
+							};
+
+							const msg: RabbitMessage = {
+								data,
+								raw,
+								ack: () => settle(() => channel.ack(raw)),
+								nack: (requeue = true) =>
+									settle(() => channel.nack(raw, false, requeue)),
+								reject: () => settle(() => channel.reject(raw, false)),
+							};
+
+							for (const {
+								instance,
+								descriptor,
+								noAck: handlerNoAck,
+								providerName,
+							} of handlers) {
 								try {
 									await instance[descriptor.methodName](msg);
 								} catch (err: any) {
 									AppStartup.logger.error(
-										`Unhandled error in RabbitMQ handler ${providerClass.name}.${descriptor.methodName}() on queue "${queue}": ${err.message}`,
+										`Unhandled error in RabbitMQ handler ${providerName}.${descriptor.methodName}() on queue "${queue}": ${err.message}`,
 									);
-									if (!noAck) {
-										// Nack and requeue by default so the message isn't lost
-										channel.nack(raw, false, true);
+									if (!handlerNoAck && !settled) {
+										settle(() => channel.nack(raw, false, true));
 									}
 								}
-							},
-							{ noAck },
-						);
-					} catch (err: any) {
-						AppStartup.logger.error(
-							`Failed to register consumer for queue "${queue}": ${err.message}`,
-						);
-					}
+							}
+						},
+						{ noAck },
+					);
+				} catch (err: any) {
+					AppStartup.logger.error(
+						`Failed to register consumer for queue "${queue}": ${err.message}`,
+					);
 				}
 			}
 		})();
