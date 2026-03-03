@@ -57,7 +57,7 @@ export * from "./lib/jwt";
 export * from "./lib/jwt/jwt-module";
 export { JwtService } from "./lib/jwt/jwt.service";
 export * from "./lib/module";
-export * from "./lib/on-module-init";
+export * from "./lib/on-module";
 export * from "./lib/openapi";
 export * from "./lib/render";
 export * from "./lib/types/options";
