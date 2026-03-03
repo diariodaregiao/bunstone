@@ -134,13 +134,51 @@ export interface RabbitPublishOptions {
 
 /**
  * Options for the `@RabbitSubscribe` method decorator.
+ *
+ * Two usage modes:
+ *
+ * 1. **Direct queue** – set `queue` to consume from a named queue.
+ * 2. **Routing key** – set `exchange` + `routingKey` to subscribe to a topic/direct
+ *    exchange with a specific routing key pattern. The lib creates an exclusive
+ *    auto-delete queue per handler, so **every** handler bound to the same routing
+ *    key receives its own copy of the message (fan-out per key).
+ *
+ * @example Queue mode
+ * ```typescript
+ * @RabbitSubscribe({ queue: 'orders.created' })
+ * async handle(msg: RabbitMessage<Order>) { msg.ack(); }
+ * ```
+ *
+ * @example Routing key mode
+ * ```typescript
+ * @RabbitSubscribe({ exchange: 'events', routingKey: 'article.published' })
+ * async onPublished(msg: RabbitMessage<Article>) { msg.ack(); }
+ * ```
  */
 export interface RabbitSubscribeOptions {
 	/**
 	 * Queue to consume messages from.
 	 * The queue must be declared either via `RabbitMQModule.register({ queues: [...] })` or by the broker.
+	 * Mutually exclusive with `exchange` + `routingKey`.
 	 */
-	queue: string;
+	queue?: string;
+	/**
+	 * Exchange name to bind to. Must be used together with `routingKey`.
+	 * The lib automatically creates an exclusive auto-delete queue for each handler
+	 * and binds it to this exchange, so all handlers for the same routing key
+	 * receive a copy of every published message.
+	 */
+	exchange?: string;
+	/**
+	 * Routing key to subscribe to. Supports wildcards for topic exchanges:
+	 * - `*` matches exactly one word
+	 * - `#` matches zero or more words
+	 *
+	 * Examples: `article.published`, `article.*`, `article.#`
+	 *
+	 * Must be used together with `exchange`.
+	 */
+	routingKey?: string;
 	/**
 	 * When `true`, messages are automatically acknowledged as soon as they are delivered.
 	 * When `false` (default), you must call `msg.ack()` / `msg.nack()` manually.

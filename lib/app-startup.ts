@@ -964,6 +964,14 @@ if (document.readyState === 'loading') {
 	/**
 	 * Sets up RabbitMQ consumers for every provider that has `@RabbitSubscribe`
 	 * methods registered in the given module.
+	 *
+	 * Queue mode (fan-out): all handlers subscribed to the same named queue share a
+	 * single AMQP consumer. Every message is delivered to ALL handlers in declaration
+	 * order. A "settle guard" ensures ack/nack/reject is called only once per message
+	 * regardless of how many handlers invoke it.
+	 *
+	 * Routing-key mode: each handler gets its own exclusive auto-delete queue bound
+	 * to the exchange, so the broker itself handles fan-out.
 	 */
 	private static registerRabbitMQConsumers(module: any): void {
 		const providersRabbitMQ: Map<any, RabbitMQMethodDescriptor[]> | undefined =
@@ -978,6 +986,41 @@ if (document.readyState === 'loading') {
 			module,
 		);
 
+		/**
+		 * Matches a RabbitMQ topic routing key pattern against a concrete routing key.
+		 * Supports `*` (exactly one word) and `#` (zero or more words).
+		 */
+		function matchRoutingKey(pattern: string, routingKey: string): boolean {
+			if (pattern === routingKey) return true;
+			if (!pattern.includes("*") && !pattern.includes("#")) return false;
+
+			const pp = pattern.split(".");
+			const kp = routingKey.split(".");
+
+			function go(pi: number, ki: number): boolean {
+				if (pi === pp.length && ki === kp.length) return true;
+				if (pi === pp.length) return false;
+				if (pp[pi] === "#") {
+					for (let j = ki; j <= kp.length; j++) {
+						if (go(pi + 1, j)) return true;
+					}
+					return false;
+				}
+				if (ki === kp.length) return false;
+				if (pp[pi] === "*" || pp[pi] === kp[ki]) return go(pi + 1, ki + 1);
+				return false;
+			}
+
+			return go(0, 0);
+		}
+
+		type QueueHandler = {
+			instance: any;
+			descriptor: RabbitMQMethodDescriptor;
+			noAck: boolean;
+			providerName: string;
+		};
+
 		// Fire-and-forget – connect asynchronously so startup is never blocked
 		(async () => {
 			try {
@@ -989,59 +1032,191 @@ if (document.readyState === 'loading') {
 				return;
 			}
 
+			// ── Step 1: separate routing-key handlers from named-queue handlers ──
+			// Named-queue handlers are grouped by queue name so that a single AMQP
+			// consumer is created per queue and every message is fanned-out to all
+			// registered handlers in-process.
+			const queueMap = new Map<string, QueueHandler[]>();
+
 			for (const [providerClass, descriptors] of providersRabbitMQ.entries()) {
 				const instance = injectables?.get(providerClass) ?? new providerClass();
 
 				for (const descriptor of descriptors) {
-					const { queue, noAck = false } = descriptor.options;
+					const {
+						queue,
+						exchange,
+						routingKey,
+						noAck = false,
+					} = descriptor.options;
 
-					AppStartup.logger.log(
-						`Registering RabbitMQ consumer for queue: "${queue}" → ${providerClass.name}.${descriptor.methodName}()`,
-					);
+					// ── Routing-key mode: exchange + routingKey ─────────────────────
+					if (exchange && routingKey) {
+						AppStartup.logger.log(
+							`Registering RabbitMQ consumer for exchange: "${exchange}" routingKey: "${routingKey}" → ${providerClass.name}.${descriptor.methodName}()`,
+						);
 
-					try {
-						const channel = await RabbitMQConnection.getConsumerChannel(queue);
+						try {
+							const { channel, queueName } =
+								await RabbitMQConnection.createRoutingKeyConsumerChannel(
+									exchange,
+									routingKey,
+								);
 
-						await channel.consume(
-							queue,
-							async (raw) => {
-								if (!raw) return; // consumer cancelled
+							await channel.consume(
+								queueName,
+								async (raw) => {
+									if (!raw) return;
 
-								const data = (() => {
+									const data = (() => {
+										try {
+											return JSON.parse(raw.content.toString());
+										} catch {
+											return raw.content.toString();
+										}
+									})();
+
+									const msg: RabbitMessage = {
+										data,
+										raw,
+										ack: () => channel.ack(raw),
+										nack: (requeue = true) => channel.nack(raw, false, requeue),
+										reject: () => channel.reject(raw, false),
+									};
+
 									try {
-										return JSON.parse(raw.content.toString());
-									} catch {
-										return raw.content.toString();
+										await instance[descriptor.methodName](msg);
+									} catch (err: any) {
+										AppStartup.logger.error(
+											`Unhandled error in RabbitMQ handler ${providerClass.name}.${descriptor.methodName}() on exchange "${exchange}" routingKey "${routingKey}": ${err.message}`,
+										);
+										if (!noAck) {
+											channel.nack(raw, false, true);
+										}
 									}
-								})();
+								},
+								{ noAck },
+							);
+						} catch (err: any) {
+							AppStartup.logger.error(
+								`Failed to register consumer for exchange "${exchange}" routingKey "${routingKey}": ${err.message}`,
+							);
+						}
 
-								const msg: RabbitMessage = {
-									data,
-									raw,
-									ack: () => channel.ack(raw),
-									nack: (requeue = true) => channel.nack(raw, false, requeue),
-									reject: () => channel.reject(raw, false),
-								};
+						continue;
+					}
+
+					// ── Queue mode: collect and group by queue name ─────────────────
+					if (!queue) {
+						AppStartup.logger.warn(
+							`@RabbitSubscribe on ${providerClass.name}.${descriptor.methodName}() has neither 'queue' nor 'exchange'+'routingKey' – skipping.`,
+						);
+						continue;
+					}
+
+					if (!queueMap.has(queue)) queueMap.set(queue, []);
+					const queueHandlers = queueMap.get(queue) as QueueHandler[];
+					queueHandlers.push({
+						instance,
+						descriptor,
+						noAck,
+						providerName: providerClass.name,
+					});
+				}
+			}
+
+			// ── Step 2: one AMQP consumer per unique queue, fan-out in-process ──
+			for (const [queue, handlers] of queueMap.entries()) {
+				// Use noAck only when every handler opts in; otherwise manual ack.
+				const noAck = handlers.every((h) => h.noAck);
+
+				const handlerList = handlers
+					.map((h) => {
+						const rk = h.descriptor.options.routingKey;
+						return `${h.providerName}.${h.descriptor.methodName}()${rk ? ` [${rk}]` : ""}`;
+					})
+					.join(", ");
+
+				AppStartup.logger.log(
+					`Registering RabbitMQ consumer for queue: "${queue}" → [${handlerList}]`,
+				);
+
+				try {
+					const channel = await RabbitMQConnection.getConsumerChannel(queue);
+
+					await channel.consume(
+						queue,
+						async (raw) => {
+							if (!raw) return; // consumer cancelled
+
+							const data = (() => {
+								try {
+									return JSON.parse(raw.content.toString());
+								} catch {
+									return raw.content.toString();
+								}
+							})();
+
+							// Settle guard: ack/nack/reject may only be called once per
+							// delivery tag regardless of how many handlers invoke it.
+							let settled = false;
+							const settle = (fn: () => void) => {
+								if (!settled) {
+									settled = true;
+									fn();
+								}
+							};
+
+							const msg: RabbitMessage = {
+								data,
+								raw,
+								ack: () => settle(() => channel.ack(raw)),
+								nack: (requeue = true) =>
+									settle(() => channel.nack(raw, false, requeue)),
+								reject: () => settle(() => channel.reject(raw, false)),
+							};
+
+							for (const {
+								instance,
+								descriptor,
+								noAck: handlerNoAck,
+								providerName,
+							} of handlers) {
+								// ── Routing-key filter ─────────────────────────────────────────────
+								// When { queue, routingKey } is set without exchange, only dispatch
+								// if the message's routing key matches the declared pattern.
+								const handlerRoutingKey = descriptor.options.routingKey;
+								if (
+									handlerRoutingKey &&
+									!matchRoutingKey(handlerRoutingKey, raw.fields.routingKey)
+								) {
+									continue;
+								}
 
 								try {
 									await instance[descriptor.methodName](msg);
 								} catch (err: any) {
 									AppStartup.logger.error(
-										`Unhandled error in RabbitMQ handler ${providerClass.name}.${descriptor.methodName}() on queue "${queue}": ${err.message}`,
+										`Unhandled error in RabbitMQ handler ${providerName}.${descriptor.methodName}() on queue "${queue}": ${err.message}`,
 									);
-									if (!noAck) {
-										// Nack and requeue by default so the message isn't lost
-										channel.nack(raw, false, true);
+									if (!handlerNoAck && !settled) {
+										settle(() => channel.nack(raw, false, true));
 									}
 								}
-							},
-							{ noAck },
-						);
-					} catch (err: any) {
-						AppStartup.logger.error(
-							`Failed to register consumer for queue "${queue}": ${err.message}`,
-						);
-					}
+							}
+
+							// ── Auto-ack if no handler consumed the message ────────────────
+							// All handlers were filtered out by routingKey – ack silently
+							// to prevent the message from piling up as unacked.
+							if (!noAck && !settled) {
+								settle(() => channel.ack(raw));
+							}
+						},
+						{ noAck },
+					);
+				} catch (err: any) {
+					AppStartup.logger.error(
+						`Failed to register consumer for queue "${queue}": ${err.message}`,
+					);
 				}
 			}
 		})();

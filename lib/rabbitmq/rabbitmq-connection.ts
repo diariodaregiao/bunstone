@@ -71,6 +71,42 @@ export class RabbitMQConnection {
 	}
 
 	/**
+	 * Creates a **new** channel with an exclusive, auto-delete server-named queue
+	 * bound to `exchange` with `routingKey`.
+	 *
+	 * Because each call creates an independent queue, every handler that subscribes
+	 * to the same exchange + routing key receives its own copy of the message
+	 * (fan-out behaviour per routing key).
+	 *
+	 * The channel and queue are **not** cached – each call returns a fresh pair.
+	 */
+	static async createRoutingKeyConsumerChannel(
+		exchange: string,
+		routingKey: string,
+	): Promise<{ channel: Channel; queueName: string }> {
+		const connection = await RabbitMQConnection.getConnection();
+		const channel = await connection.createChannel();
+
+		const prefetch = RabbitMQConnection.options?.prefetch ?? 10;
+		await channel.prefetch(prefetch);
+
+		// Server-generated name, exclusive so only this consumer uses it,
+		// autoDelete so it disappears when the consumer disconnects.
+		const { queue: queueName } = await channel.assertQueue("", {
+			exclusive: true,
+			autoDelete: true,
+			durable: false,
+		});
+
+		await channel.bindQueue(queueName, exchange, routingKey);
+		logger.log(
+			`Routing-key consumer queue "${queueName}" bound to exchange "${exchange}" with key "${routingKey}"`,
+		);
+
+		return { channel, queueName };
+	}
+
+	/**
 	 * Initialises the connection, asserts all configured exchanges and queues,
 	 * then resolves. Safe to call multiple times – returns the same promise.
 	 */
