@@ -28,6 +28,7 @@ import { ConfigurationError } from "./errors";
 import { HttpException } from "./http-exceptions";
 import { HTTP_HEADERS_METADATA } from "./http-methods";
 import { ParamType, processParameters } from "./http-params";
+import { OnModuleInit } from "./on-module-init";
 import {
 	API_HEADERS_METADATA,
 	API_OPERATION_METADATA,
@@ -57,6 +58,7 @@ export class AppStartup {
 	private static elysia: Elysia = new Elysia();
 	private static readonly logger = new Logger(AppStartup.name);
 	private static readonly registeredSagas = new WeakSet<any>();
+	private static readonly initializedModuleHooks = new WeakSet<OnModuleInit>();
 	private static readonly viewBundles = new Map<string, string>();
 	private static globalRateLimitConfig: RateLimitGlobalConfig | undefined;
 	private static rateLimitService: RateLimitService = new RateLimitService();
@@ -202,7 +204,7 @@ export class AppStartup {
 			// Store global rate limit config
 			AppStartup.globalRateLimitConfig = options?.rateLimit;
 
-			AppStartup.registerModules(module);
+			await AppStartup.registerModules(module);
 			return {
 				/**
 				 * Starts the server on the specified port.
@@ -436,7 +438,7 @@ if (document.readyState === 'loading') {
 		return result;
 	}
 
-	private static registerModules(module: any) {
+	private static async registerModules(module: any) {
 		const isGlobal = Reflect.getMetadata("dip:module:global", module);
 		if (isGlobal) {
 			const injectables: Map<any, any> = Reflect.getMetadata(
@@ -461,7 +463,33 @@ if (document.readyState === 'loading') {
 		const modules = Reflect.getMetadata("dip:modules", module) || [];
 
 		for (const mod of modules) {
-			AppStartup.registerModules(mod);
+			await AppStartup.registerModules(mod);
+		}
+
+		await AppStartup.executeOnModuleInit(module);
+	}
+
+	private static async executeOnModuleInit(module: any) {
+		const injectables: Map<any, any> | undefined = Reflect.getMetadata(
+			"dip:injectables",
+			module,
+		);
+
+		if (!injectables) {
+			return;
+		}
+
+		for (const provider of injectables.values()) {
+			if (!(provider instanceof OnModuleInit)) {
+				continue;
+			}
+
+			if (AppStartup.initializedModuleHooks.has(provider)) {
+				continue;
+			}
+
+			AppStartup.initializedModuleHooks.add(provider);
+			await provider.onModuleInit();
 		}
 	}
 
