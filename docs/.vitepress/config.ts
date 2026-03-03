@@ -19,6 +19,8 @@ export default defineConfig({
       {
         text: "Features",
         items: [
+          { text: "OnModuleInit", link: "/on-module-init" },
+          { text: "OnModuleDestroy", link: "/on-module-destroy" },
           { text: "Routing & Params", link: "/routing-params" },
           { text: "MVC & SSR (React)", link: "/mvc-ssr" },
           { text: "Guards & JWT", link: "/guards-jwt" },

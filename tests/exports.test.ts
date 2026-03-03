@@ -5,6 +5,8 @@ import {
 	EmailLayout,
 	EmailModule,
 	EmailService,
+	OnModuleDestroy,
+	OnModuleInit,
 } from "../index";
 
 describe("Exports", () => {
@@ -18,5 +20,10 @@ describe("Exports", () => {
 		expect(ApiTags).toBeDefined();
 		expect(ApiOperation).toBeDefined();
 		expect(typeof ApiTags).toBe("function");
+	});
+
+	test("should export module lifecycle classes", () => {
+		expect(OnModuleInit).toBeDefined();
+		expect(OnModuleDestroy).toBeDefined();
 	});
 });
