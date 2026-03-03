@@ -142,7 +142,11 @@ export class AppStartup {
 					};
 				}
 
-				return error;
+				set.status = 500;
+				return {
+					message:
+						error instanceof Error ? error.message : "Internal Server Error",
+				};
 			});
 
 			if (options?.cors) {

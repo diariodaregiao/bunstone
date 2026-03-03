@@ -10,17 +10,12 @@ export class HttpException extends Error {
 	) {
 		const responseObj =
 			typeof response === "string" ? { message: response } : response;
-		// Extract a simple message string for the Error base class
-		// to avoid JSON.stringify issues when error is serialized
-		const errorMessage =
+		const message =
 			typeof response === "string"
 				? response
-				: typeof response === "object" &&
-						response !== null &&
-						"message" in response
-					? String(response.message)
-					: "Error";
-		super(errorMessage);
+				: ((response as { message?: string }).message ??
+					JSON.stringify(response));
+		super(message);
 		this.response = responseObj;
 		Object.setPrototypeOf(this, HttpException.prototype);
 	}
