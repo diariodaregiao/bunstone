@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { AppStartup, Injectable, Module, OnModuleInit } from "../index";
+import type { OnModuleInit } from "../index";
+import { AppStartup, Injectable, Module } from "../index";
 
 const executionOrder: string[] = [];
 
 @Injectable()
-class ModuleInitService extends OnModuleInit {
+class ModuleInitService implements OnModuleInit {
 	async onModuleInit(): Promise<void> {
 		await new Promise((resolve) => setTimeout(resolve, 20));
 		executionOrder.push("hook");

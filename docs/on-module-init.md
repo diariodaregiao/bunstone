@@ -1,16 +1,17 @@
 # OnModuleInit
 
-`OnModuleInit` is an abstract lifecycle class for providers that need startup logic.
+`OnModuleInit` is a lifecycle interface for providers that need startup logic.
 
-When a module is initialized, Bunstone executes `onModuleInit()` for providers that extend `OnModuleInit`.
+When a module is initialized, Bunstone executes `onModuleInit()` for providers that implement `OnModuleInit`.
 
 ## Basic Usage
 
 ```typescript
-import { Injectable, Module, OnModuleInit } from "@grupodiariodaregiao/bunstone";
+import { Injectable, Module } from "@grupodiariodaregiao/bunstone";
+import type { OnModuleInit } from "@grupodiariodaregiao/bunstone";
 
 @Injectable()
-class AppInitService extends OnModuleInit {
+class AppInitService implements OnModuleInit {
   onModuleInit(): void {
     console.log("Module initialized");
   }
@@ -28,7 +29,7 @@ export class AppModule {}
 
 ```typescript
 @Injectable()
-class CacheWarmupService extends OnModuleInit {
+class CacheWarmupService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     await this.loadCache();
   }

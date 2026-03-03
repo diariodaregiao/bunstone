@@ -1,3 +1,3 @@
-export abstract class OnModuleDestroy {
-	abstract onModuleDestroy(): Promise<void> | void;
+export interface OnModuleDestroy {
+	onModuleDestroy(): Promise<void> | void;
 }

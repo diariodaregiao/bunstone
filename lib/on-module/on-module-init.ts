@@ -1,3 +1,3 @@
-export abstract class OnModuleInit {
-	abstract onModuleInit(): Promise<void> | void;
+export interface OnModuleInit {
+	onModuleInit(): Promise<void> | void;
 }
