@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { AppStartup, Injectable, Module, OnModuleDestroy } from "../index";
+import type { OnModuleDestroy } from "../index";
+import { AppStartup, Injectable, Module } from "../index";
 
 const executionOrder: string[] = [];
 
 @Injectable()
-class ModuleDestroyService extends OnModuleDestroy {
+class ModuleDestroyService implements OnModuleDestroy {
 	async onModuleDestroy(): Promise<void> {
 		executionOrder.push("hook");
 	}
