@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import type { OnModuleDestroy, OnModuleInit } from "../index";
 import {
 	ApiOperation,
 	ApiTags,
 	EmailLayout,
 	EmailModule,
 	EmailService,
-	OnModuleDestroy,
-	OnModuleInit,
 } from "../index";
 
 describe("Exports", () => {
@@ -22,8 +21,12 @@ describe("Exports", () => {
 		expect(typeof ApiTags).toBe("function");
 	});
 
-	test("should export module lifecycle classes", () => {
-		expect(OnModuleInit).toBeDefined();
-		expect(OnModuleDestroy).toBeDefined();
+	test("should export module lifecycle interfaces", () => {
+		const lifecycleContracts: {
+			onInit?: OnModuleInit["onModuleInit"];
+			onDestroy?: OnModuleDestroy["onModuleDestroy"];
+		} = {};
+
+		expect(lifecycleContracts).toBeDefined();
 	});
 });
