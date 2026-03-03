@@ -28,8 +28,8 @@ import { ConfigurationError } from "./errors";
 import { HttpException } from "./http-exceptions";
 import { HTTP_HEADERS_METADATA } from "./http-methods";
 import { ParamType, processParameters } from "./http-params";
-import { OnModuleDestroy } from "./on-module/on-module-destroy";
-import { OnModuleInit } from "./on-module/on-module-init";
+import type { OnModuleDestroy } from "./on-module/on-module-destroy";
+import type { OnModuleInit } from "./on-module/on-module-init";
 import {
 	API_HEADERS_METADATA,
 	API_OPERATION_METADATA,
@@ -535,16 +535,14 @@ if (document.readyState === 'loading') {
 		}
 
 		for (const provider of injectables.values()) {
-			if (!(provider instanceof OnModuleInit)) {
-				continue;
-			}
-
 			if (AppStartup.initializedModuleHooks.has(provider)) {
 				continue;
 			}
 
-			AppStartup.initializedModuleHooks.add(provider);
-			await provider.onModuleInit();
+			if (AppStartup.hasOnModuleInit(provider)) {
+				AppStartup.initializedModuleHooks.add(provider);
+				await provider.onModuleInit();
+			}
 		}
 	}
 
@@ -559,17 +557,25 @@ if (document.readyState === 'loading') {
 		}
 
 		for (const provider of injectables.values()) {
-			if (!(provider instanceof OnModuleDestroy)) {
-				continue;
-			}
-
 			if (AppStartup.destroyedModuleHooks.has(provider)) {
 				continue;
 			}
 
-			AppStartup.destroyedModuleHooks.add(provider);
-			await provider.onModuleDestroy();
+			if (AppStartup.hasOnModuleDestroy(provider)) {
+				AppStartup.destroyedModuleHooks.add(provider);
+				await provider.onModuleDestroy();
+			}
 		}
+	}
+
+	private static hasOnModuleInit(provider: any): provider is OnModuleInit {
+		return !!provider && typeof provider.onModuleInit === "function";
+	}
+
+	private static hasOnModuleDestroy(
+		provider: any,
+	): provider is OnModuleDestroy {
+		return !!provider && typeof provider.onModuleDestroy === "function";
 	}
 
 	private static registerRoutes(module: any) {
