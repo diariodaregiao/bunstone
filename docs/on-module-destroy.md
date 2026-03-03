@@ -1,6 +1,6 @@
 # OnModuleDestroy
 
-`OnModuleDestroy` is an abstract lifecycle class for cleanup logic.
+`OnModuleDestroy` is a lifecycle interface for cleanup logic.
 
 `onModuleDestroy()` is executed in Elysia's own `onStop` hook, which is the lifecycle hook for application shutdown (end of the lifecycle).
 
@@ -11,11 +11,11 @@ import {
   AppStartup,
   Injectable,
   Module,
-  OnModuleDestroy,
 } from "@grupodiariodaregiao/bunstone";
+import type { OnModuleDestroy } from "@grupodiariodaregiao/bunstone";
 
 @Injectable()
-class AppCleanupService extends OnModuleDestroy {
+class AppCleanupService implements OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     // close resources, flush queues, etc.
   }
