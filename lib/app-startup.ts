@@ -28,7 +28,8 @@ import { ConfigurationError } from "./errors";
 import { HttpException } from "./http-exceptions";
 import { HTTP_HEADERS_METADATA } from "./http-methods";
 import { ParamType, processParameters } from "./http-params";
-import { OnModuleInit } from "./on-module-init";
+import { OnModuleDestroy } from "./on-module/on-module-destroy";
+import { OnModuleInit } from "./on-module/on-module-init";
 import {
 	API_HEADERS_METADATA,
 	API_OPERATION_METADATA,
@@ -58,7 +59,11 @@ export class AppStartup {
 	private static elysia: Elysia = new Elysia();
 	private static readonly logger = new Logger(AppStartup.name);
 	private static readonly registeredSagas = new WeakSet<any>();
-	private static readonly initializedModuleHooks = new WeakSet<OnModuleInit>();
+	private static initializedModuleHooks = new WeakSet<OnModuleInit>();
+	private static destroyedModuleHooks = new WeakSet<OnModuleDestroy>();
+	private static destroyPromise: Promise<void> | null = null;
+	private static hasBeenDestroyed = false;
+	private static rootModule: any;
 	private static readonly viewBundles = new Map<string, string>();
 	private static globalRateLimitConfig: RateLimitGlobalConfig | undefined;
 	private static rateLimitService: RateLimitService = new RateLimitService();
@@ -73,6 +78,11 @@ export class AppStartup {
 	static async create(module: any, options?: Options) {
 		try {
 			AppStartup.elysia = new Elysia(); // Reset for each creation
+			AppStartup.rootModule = module;
+			AppStartup.initializedModuleHooks = new WeakSet<OnModuleInit>();
+			AppStartup.destroyedModuleHooks = new WeakSet<OnModuleDestroy>();
+			AppStartup.destroyPromise = null;
+			AppStartup.hasBeenDestroyed = false;
 
 			const publicExists = await Bun.file("public").exists();
 			// Ensure public directory exists before static plugin uses it
@@ -149,6 +159,10 @@ export class AppStartup {
 					message:
 						error instanceof Error ? error.message : "Internal Server Error",
 				};
+			});
+
+			AppStartup.elysia.onStop(async () => {
+				await AppStartup.executeDestroyLifecycle();
 			});
 
 			if (options?.cors) {
@@ -354,6 +368,37 @@ if (document.readyState === 'loading') {
 		AppStartup.elysia.listen(port);
 	}
 
+	private static async executeDestroyLifecycle() {
+		if (!AppStartup.rootModule) {
+			return;
+		}
+
+		if (AppStartup.hasBeenDestroyed) {
+			return;
+		}
+
+		if (AppStartup.destroyPromise) {
+			await AppStartup.destroyPromise;
+			return;
+		}
+
+		AppStartup.destroyPromise = (async () => {
+			await AppStartup.destroyModules(AppStartup.rootModule);
+			AppStartup.hasBeenDestroyed = true;
+		})()
+			.catch((error) => {
+				AppStartup.logger.error(
+					`Error while executing OnModuleDestroy hooks: ${error?.message || error}`,
+				);
+				throw error;
+			})
+			.finally(() => {
+				AppStartup.destroyPromise = null;
+			});
+
+		await AppStartup.destroyPromise;
+	}
+
 	private static async executeControllerMethod(
 		context: any,
 		controller: any,
@@ -469,6 +514,16 @@ if (document.readyState === 'loading') {
 		await AppStartup.executeOnModuleInit(module);
 	}
 
+	private static async destroyModules(module: any) {
+		const modules = Reflect.getMetadata("dip:modules", module) || [];
+
+		for (const mod of modules) {
+			await AppStartup.destroyModules(mod);
+		}
+
+		await AppStartup.executeOnModuleDestroy(module);
+	}
+
 	private static async executeOnModuleInit(module: any) {
 		const injectables: Map<any, any> | undefined = Reflect.getMetadata(
 			"dip:injectables",
@@ -490,6 +545,30 @@ if (document.readyState === 'loading') {
 
 			AppStartup.initializedModuleHooks.add(provider);
 			await provider.onModuleInit();
+		}
+	}
+
+	private static async executeOnModuleDestroy(module: any) {
+		const injectables: Map<any, any> | undefined = Reflect.getMetadata(
+			"dip:injectables",
+			module,
+		);
+
+		if (!injectables) {
+			return;
+		}
+
+		for (const provider of injectables.values()) {
+			if (!(provider instanceof OnModuleDestroy)) {
+				continue;
+			}
+
+			if (AppStartup.destroyedModuleHooks.has(provider)) {
+				continue;
+			}
+
+			AppStartup.destroyedModuleHooks.add(provider);
+			await provider.onModuleDestroy();
 		}
 	}
 
