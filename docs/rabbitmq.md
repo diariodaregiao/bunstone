@@ -106,12 +106,13 @@ queues: [
 
 A **consumer** is a class decorated with `@RabbitConsumer()` that contains methods decorated with `@RabbitSubscribe()`.
 
-There are two subscription modes:
+There are three subscription modes:
 
 | Mode | When to use |
 |---|---|
-| **Queue mode** – `{ queue: "..." }` | You have a pre-declared, persistent queue (e.g. work queues, durable event queues). All handlers subscribed to the same queue name receive every message (in-process fan-out). |
-| **Routing key mode** – `{ exchange: "...", routingKey: "..." }` | Fan-out per key at the broker level: every handler subscribed to the same routing key receives its own copy. The lib creates the queue automatically. |
+| **Queue mode** – `{ queue: "..." }` | Consume from a pre-declared, persistent queue. The handler receives **every** message that arrives on that queue, regardless of routing key. |
+| **Queue + routing key filter** – `{ queue: "...", routingKey: "..." }` | Consume from a pre-declared queue but **only dispatch** messages whose routing key matches the declared pattern. Messages that don't match are silently acked. |
+| **Exchange / routing key mode** – `{ exchange: "...", routingKey: "..." }` | The lib creates an exclusive auto-delete queue per handler and binds it to the exchange. Every handler for the same routing key gets its own copy (broker-level fan-out). |
 
 ### Queue mode – in-process fan-out
 
@@ -136,6 +137,64 @@ export class Consumer2 {
   }
 }
 ```
+
+### Queue mode with routing key filter
+
+Add `routingKey` to a queue-mode subscription to make it **selective**: the handler is only called when the incoming message's routing key matches the declared pattern. Messages that don't match any handler are **silently acknowledged** so they don't pile up as unacked.
+
+This is useful when a single durable queue receives multiple event types (e.g. `article.*`) but different handlers should react only to specific ones.
+
+```typescript
+RabbitMQModule.register({
+  exchanges: [{ name: "articles", type: "topic", durable: true }],
+  queues: [
+    {
+      name: "article",
+      durable: true,
+      bindings: { exchange: "articles", routingKey: "article.*" },
+    },
+  ],
+})
+```
+
+```typescript
+@RabbitConsumer()
+export class ArticleConsumer {
+
+  // ✅ Only called when routingKey === "article.published"
+  @RabbitSubscribe({ queue: "article", routingKey: "article.published" })
+  async onPublished(msg: RabbitMessage<{ articleId: string }>) {
+    console.log("published", msg.data.articleId);
+    msg.ack();
+  }
+
+  // ✅ Only called when routingKey === "article.deleted"
+  @RabbitSubscribe({ queue: "article", routingKey: "article.deleted" })
+  async onDeleted(msg: RabbitMessage<{ articleId: string }>) {
+    console.log("deleted", msg.data.articleId);
+    msg.ack();
+  }
+
+  // ✅ No routingKey → called for EVERY message on the queue
+  @RabbitSubscribe({ queue: "article" })
+  async onAll(msg: RabbitMessage<{ articleId: string }>) {
+    console.log("any event", msg.raw.fields.routingKey, msg.data.articleId);
+    msg.ack();
+  }
+}
+```
+
+> **Wildcard patterns** – `routingKey` supports the same `*` (one word) and `#` (zero or more words) wildcards as topic exchanges:
+> ```typescript
+> @RabbitSubscribe({ queue: "article", routingKey: "article.#" })
+> // matches: article.published, article.deleted, article.updated.title, …
+> ```
+
+> **Unmatched messages** – if a message arrives on the queue but no handler's `routingKey` matches it (and no handler has `routingKey` omitted), the lib automatically acks it to prevent it from blocking the queue.
+
+> **Mix freely** – you can combine filtered and unfiltered handlers on the same queue. Unfiltered handlers (`routingKey` omitted) always run.
+
+> **Durability** – unlike exchange + routing key mode, the queue persists even when no consumers are connected, so messages are never lost. This mode is recommended for production workloads.
 
 > **Settle guard** – `ack()`, `nack()`, and `reject()` are wrapped so only the **first** call takes effect. Subsequent calls from other handlers are silently ignored, preventing "already acknowledged" errors.
 
@@ -359,10 +418,18 @@ export class ArticleAuditHandler {
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `queue` | `string` | ✅ *(mode 1)* | Named queue to consume from. Mutually exclusive with `exchange`+`routingKey`. |
-| `exchange` | `string` | ✅ *(mode 2)* | Exchange to bind to. Must be used together with `routingKey`. |
-| `routingKey` | `string` | ✅ *(mode 2)* | Routing key pattern. Supports `*` and `#` wildcards on topic exchanges. |
+| `queue` | `string` | ✅ *(modes 1 & 2)* | Named queue to consume from. |
+| `exchange` | `string` | ✅ *(mode 3)* | Exchange to bind to. Must be used together with `routingKey` and **without** `queue`. |
+| `routingKey` | `string` | — | Routing key pattern. Supports `*` and `#` wildcards.<br>• With `queue` (mode 2): filters which messages dispatch to this handler.<br>• With `exchange` (mode 3): binds an ephemeral queue to the exchange. |
 | `noAck` | `boolean` | — | Auto-acknowledge on delivery. Default: `false`. |
+
+**Mode summary**
+
+| `queue` | `exchange` | `routingKey` | Behaviour |
+|:---:|:---:|:---:|---|
+| ✅ | — | — | Receives every message from the named queue |
+| ✅ | — | ✅ | Receives only messages whose routing key matches the pattern |
+| — | ✅ | ✅ | Creates an ephemeral exclusive queue bound to the exchange |
 
 ---
 
