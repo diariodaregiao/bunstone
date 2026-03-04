@@ -1,4 +1,5 @@
 import type { Channel, ChannelModel, ConfirmChannel } from "amqplib";
+import { RabbitMQError } from "../errors";
 import { Logger } from "../utils/logger";
 import type { RabbitMQModuleOptions } from "./interfaces/rabbitmq-options.interface";
 
@@ -342,9 +343,7 @@ export class RabbitMQConnection {
 
 	private static assertConfigured(): void {
 		if (!RabbitMQConnection.configured) {
-			throw new Error(
-				"RabbitMQModule not configured. Call RabbitMQModule.register() in your AppModule imports.",
-			);
+			throw RabbitMQError.notConfigured();
 		}
 	}
 

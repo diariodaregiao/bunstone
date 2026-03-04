@@ -174,10 +174,9 @@ function mapInjectableProviders(moduleConfig: ModuleConfig) {
 		) {
 			throw error;
 		}
-		throw new ModuleInitializationError(
-			`Failed to initialize providers for module configuration.`,
-			"Ensure all providers are correctly decorated with @Injectable() and there are no circular dependencies.",
+		throw ModuleInitializationError.providersFailed(
 			{ originalError: error.message },
+			error instanceof Error ? error : undefined,
 		);
 	}
 

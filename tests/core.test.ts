@@ -102,7 +102,7 @@ describe("Bunstone Framework Core", () => {
 			const response = await elysia.handle(
 				new Request("http://localhost/jwt/protected"),
 			);
-			expect(response.status).toBe(500); // Unauthorized error
+			expect(response.status).toBe(401); // UnauthorizedException is correctly handled as 401
 		});
 
 		test("should allow request with valid token", async () => {
@@ -232,7 +232,7 @@ describe("Bunstone Framework Core", () => {
 			const response = await elysia.handle(
 				new Request("http://localhost/guarded/secret"),
 			);
-			expect(response.status).toBe(500); // Elysia throws error which results in 500 by default if not handled
+			expect(response.status).toBe(401); // UnauthorizedException is correctly propagated as 401
 		});
 
 		test("should allow authorized requests", async () => {

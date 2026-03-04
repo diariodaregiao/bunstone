@@ -48,6 +48,7 @@ export * from "./lib/rabbitmq/decorators/subscribe.decorator";
 export type * from "./lib/rabbitmq/interfaces/rabbitmq-options.interface";
 export type * from "./lib/rabbitmq/interfaces/rabbitmq-message.interface";
 export * from "./lib/errors";
+export { ErrorFormatter } from "./lib/utils/error-formatter";
 export * from "./lib/guard";
 export * from "./lib/http-exceptions";
 export * from "./lib/http-methods";

@@ -8,6 +8,7 @@ async function validateTokenFromRequest(req: HttpRequest) {
 	if (!req.jwt) {
 		throw new ConfigurationError(
 			"JWT middleware is not configured.",
+			"BNS-CFG-002",
 			"Register the JwtModule in your root module to enable JWT functionality.",
 		);
 	}

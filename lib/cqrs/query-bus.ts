@@ -36,10 +36,7 @@ export class QueryBus {
 		const queryType = query.constructor;
 		const handler = this.handlers.get(queryType);
 		if (!handler) {
-			throw new CqrsError(
-				`No handler found for query: ${queryType.name}`,
-				`Ensure that a handler for ${queryType.name} is registered in your module's providers and decorated with @QueryHandler(${queryType.name}).`,
-			);
+			throw CqrsError.noQueryHandler(queryType.name);
 		}
 		return handler.execute(query);
 	}

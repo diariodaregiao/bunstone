@@ -1,3 +1,4 @@
+import { RateLimitError } from "../../errors";
 import type {
 	RateLimitInfo,
 	RateLimitStorage,
@@ -60,12 +61,12 @@ export class RedisStorage implements RateLimitStorage {
 		const result = await multi.exec();
 
 		if (!result) {
-			throw new Error("Failed to execute Redis transaction");
+			throw RateLimitError.transactionFailed();
 		}
 
 		const results = result[1];
 		if (!results || !Array.isArray(results)) {
-			throw new Error("Invalid Redis transaction response");
+			throw RateLimitError.invalidResponse();
 		}
 
 		// results[0] = incr result: [Error | null, string | number | null]

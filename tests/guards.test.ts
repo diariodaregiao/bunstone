@@ -62,7 +62,7 @@ describe("Guards Integration", () => {
 		const res1 = await elysia.handle(
 			new Request("http://localhost/guards/async"),
 		);
-		expect(res1.status).toBe(500); // AppStartup throws Error("Unauthorized") which results in 500 by default if not handled differently
+		expect(res1.status).toBe(401); // UnauthorizedException is properly handled as 401
 
 		// Authorized
 		const res2 = await elysia.handle(

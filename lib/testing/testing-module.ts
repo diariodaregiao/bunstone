@@ -1,4 +1,5 @@
 import { AppStartup } from "../app-startup";
+import { TestingError } from "../errors";
 import type { Options } from "../types/options";
 import { OverrideRegistry } from "../utils/dependency-injection";
 import { TestApp } from "./test-app";
@@ -25,7 +26,7 @@ export class TestingModule {
 
 		const instance = this.injectables.get(type);
 		if (!instance) {
-			throw new Error(`Provider ${type.name} not found in TestingModule.`);
+			throw TestingError.providerNotFound(type.name);
 		}
 		return instance;
 	}

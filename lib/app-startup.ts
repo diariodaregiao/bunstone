@@ -24,8 +24,8 @@ import { QUERY_HANDLER_METADATA } from "./cqrs/decorators/query-handler.decorato
 import { SAGA_METADATA } from "./cqrs/decorators/saga.decorator";
 import { EventBus } from "./cqrs/event-bus";
 import { QueryBus } from "./cqrs/query-bus";
-import { ConfigurationError } from "./errors";
-import { HttpException } from "./http-exceptions";
+import { ModuleInitializationError } from "./errors";
+import { HttpException, UnauthorizedException } from "./http-exceptions";
 import { HTTP_HEADERS_METADATA } from "./http-methods";
 import { ParamType, processParameters } from "./http-params";
 import type { OnModuleDestroy } from "./on-module/on-module-destroy";
@@ -615,9 +615,8 @@ if (document.readyState === 'loading') {
 				);
 				const httpMethod = method.httpMethod.toLowerCase();
 				if (!(httpMethod in AppStartup.elysia)) {
-					throw new ConfigurationError(
-						`HTTP method ${method.httpMethod} is not supported.`,
-						"Ensure you are using standard HTTP methods (GET, POST, PUT, DELETE, etc.) in your controller decorators.",
+					throw ModuleInitializationError.unsupportedHttpMethod(
+						method.httpMethod,
 					);
 				}
 
@@ -787,12 +786,12 @@ if (document.readyState === 'loading') {
 							if (isValid instanceof Promise) {
 								return isValid.then((valid) => {
 									if (!valid) {
-										throw new Error("Unauthorized");
+										throw new UnauthorizedException();
 									}
 								});
 							} else {
 								if (!isValid) {
-									throw new Error("Unauthorized");
+									throw new UnauthorizedException();
 								}
 							}
 						},
