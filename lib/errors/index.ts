@@ -679,3 +679,92 @@ export class AdapterError extends BunstoneError {
 		super(message, code, suggestion, context, cause);
 	}
 }
+
+// ─── Import ───────────────────────────────────────────────────────────────────
+
+/**
+ * Represents an import-time error detected by the `bunstone run` CLI.
+ *
+ * Bun raises a raw `SyntaxError: Export named 'X' not found` that gives no
+ * guidance on the problem.  This error carries structured context so the CLI
+ * can print a rich, actionable crash report.
+ *
+ * Codes:
+ * - `BNS-IMP-001` – name is a type-only export (must use `import type`)
+ * - `BNS-IMP-002` – name does not exist at all in the package (typo / wrong name)
+ */
+export class ImportError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-IMP-001" | "BNS-IMP-002" = "BNS-IMP-002",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	/**
+	 * The user imported a type-only name as a value.
+	 * e.g. `import { RabbitMessage }` instead of `import type { RabbitMessage }`.
+	 */
+	static typeOnlyImport(
+		name: string,
+		pkg: string,
+		valueAlternatives: string[],
+	): ImportError {
+		const altSection =
+			valueAlternatives.length > 0
+				? [
+						"",
+						"If you were looking for a runtime value with a similar name, did you mean one of these?",
+						...valueAlternatives.map((s) => `  - ${s}`),
+					].join("\n  ")
+				: "";
+
+		return new ImportError(
+			`'${name}' is a type-only export of '${pkg}' — it does not exist at runtime.`,
+			"BNS-IMP-001",
+			[
+				`Replace the import with 'import type':`,
+				`  ✗  import { ${name} } from '${pkg}'`,
+				`  ✓  import type { ${name} } from '${pkg}'`,
+				altSection,
+			]
+				.filter(Boolean)
+				.join("\n  "),
+			{ name, package: pkg },
+		);
+	}
+
+	/**
+	 * The user imported a name that does not exist in the package at all.
+	 */
+	static unknownExport(
+		name: string,
+		pkg: string,
+		suggestions: string[],
+	): ImportError {
+		const didYouMean =
+			suggestions.length > 0
+				? [
+						"",
+						"Did you mean one of these?",
+						...suggestions.map((s) => `  - ${s}`),
+					].join("\n  ")
+				: "";
+
+		return new ImportError(
+			`'${name}' is not exported by '${pkg}'.`,
+			"BNS-IMP-002",
+			[
+				"Check the spelling of the imported name.",
+				"Run 'bunstone exports' to see all available exports.",
+				didYouMean,
+			]
+				.filter(Boolean)
+				.join("\n  "),
+			{ name, package: pkg },
+		);
+	}
+}
