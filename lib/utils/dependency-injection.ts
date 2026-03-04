@@ -76,20 +76,12 @@ export function resolveType(type: any, deps: Map<any, any>): any {
 
 	if (!type) {
 		const stack = [...resolutionStack].join(" -> ");
-		throw new DependencyResolutionError(
-			`Cannot resolve dependency: type is undefined at [${stack}].`,
-			"This often happens due to circular dependencies or using 'import type' for a class that needs to be injected. Check your imports and ensure you are not using 'import type' for injected classes.",
-			{ resolutionStack: stack },
-		);
+		throw DependencyResolutionError.undefinedType(stack);
 	}
 
 	if (type === Object) {
 		const stack = [...resolutionStack, "Object"].join(" -> ");
-		throw new DependencyResolutionError(
-			`Cannot resolve dependency: type is 'Object' at [${stack}].`,
-			"This usually happens when 'emitDecoratorMetadata' is enabled but the class is imported as a type or there is a circular dependency. Check if the class is imported correctly and not as a type.",
-			{ resolutionStack: stack },
-		);
+		throw DependencyResolutionError.objectType(stack);
 	}
 
 	if (OverrideRegistry.has(type)) {

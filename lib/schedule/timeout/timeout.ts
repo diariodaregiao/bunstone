@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { ScheduleError } from "../../errors";
 
 /**
  * Decorator to define a timeout delay.
@@ -7,7 +8,7 @@ import "reflect-metadata";
  */
 export function Timeout(delay: number): any {
 	if (!delay || delay < 0) {
-		throw new Error("Delay must be a positive number.");
+		throw ScheduleError.invalidDelay(delay);
 	}
 	return (target: any, propertyKey: string | symbol, _descriptor?: any) => {
 		// Stage 3 support

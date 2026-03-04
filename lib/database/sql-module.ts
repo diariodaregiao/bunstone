@@ -38,10 +38,7 @@ export class SqlService {
 	private getSqlInstance(): SQL {
 		const sql = SqlModule.getSqlInstance();
 		if (!sql) {
-			throw new DatabaseError(
-				"SQL instance not initialized.",
-				"Ensure that you have registered the SQL module by calling SqlModule.register(config) in your main AppModule imports.",
-			);
+			throw DatabaseError.notInitialized();
 		}
 		return sql;
 	}

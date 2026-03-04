@@ -17,6 +17,7 @@ export function Guard(guard: ClassConstructor): any {
 		if (!("validate" in guard.prototype)) {
 			throw new GuardError(
 				`Guard class [${guard.name}] must implement 'validate' method.`,
+				"BNS-GRD-001",
 				"Make sure your guard class implements the GuardContract interface.",
 			);
 		}

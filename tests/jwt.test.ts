@@ -54,7 +54,7 @@ describe("JWT Authentication", () => {
 		const resNoToken = await elysia.handle(
 			new Request("http://localhost/auth/protected"),
 		);
-		expect(resNoToken.status).toBe(500); // Unauthorized throws error
+		expect(resNoToken.status).toBe(401); // UnauthorizedException is properly handled as 401
 
 		// 3. Access protected route with valid token
 		const resValidToken = await elysia.handle(
@@ -74,6 +74,6 @@ describe("JWT Authentication", () => {
 				headers: { authorization: "Bearer invalid-token" },
 			}),
 		);
-		expect(resInvalidToken.status).toBe(500);
+		expect(resInvalidToken.status).toBe(401); // UnauthorizedException is properly handled as 401
 	});
 });

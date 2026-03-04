@@ -33,6 +33,7 @@ export class JwtService {
 		if (!options?.secret) {
 			throw new ConfigurationError(
 				"JWT is not configured.",
+				"BNS-CFG-002",
 				"Call JwtModule.register({ secret: '...' }) in your root module before using JwtService.",
 			);
 		}

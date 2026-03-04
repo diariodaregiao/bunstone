@@ -1,4 +1,5 @@
 import { S3Client, type S3Options, s3 } from "bun";
+import { UploadError } from "../errors";
 import { Injectable } from "../injectable";
 import "reflect-metadata";
 
@@ -56,7 +57,7 @@ export class UploadAdapter {
 function normalizeS3Key(path: string): string {
 	const normalized = path.replaceAll("\\", "/").replace(/^\/+/, "");
 	if (normalized.length === 0) {
-		throw new Error("S3 object path cannot be empty.");
+		throw UploadError.emptyPath();
 	}
 	return normalized.replace(/\/{2,}/g, "/");
 }

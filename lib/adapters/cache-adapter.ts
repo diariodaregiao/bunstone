@@ -49,6 +49,7 @@ export class CacheAdapter {
 		if (!isRecord(parsed)) {
 			throw new AdapterError(
 				`Cache key "${key}" does not contain a JSON object.`,
+				"BNS-ADP-001",
 				"Ensure you are storing only objects in the cache when using CacheAdapter.",
 			);
 		}
@@ -73,6 +74,7 @@ function assertValidKey(key: string): void {
 	if (normalized.length === 0) {
 		throw new AdapterError(
 			"Cache key cannot be empty.",
+			"BNS-ADP-001",
 			"Provide a valid non-empty string as a cache key.",
 		);
 	}
@@ -84,6 +86,7 @@ function safeJsonParse(value: string): unknown {
 	} catch {
 		throw new AdapterError(
 			"Failed to parse cached value as JSON.",
+			"BNS-ADP-002",
 			"Ensure that the value cached for this key is a valid JSON string.",
 		);
 	}

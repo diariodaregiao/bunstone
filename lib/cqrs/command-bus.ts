@@ -36,10 +36,7 @@ export class CommandBus {
 		const commandType = command.constructor;
 		const handler = this.handlers.get(commandType);
 		if (!handler) {
-			throw new CqrsError(
-				`No handler found for command: ${commandType.name}`,
-				`Ensure that a handler for ${commandType.name} is registered in your module's providers and decorated with @CommandHandler(${commandType.name}).`,
-			);
+			throw CqrsError.noCommandHandler(commandType.name);
 		}
 		return handler.execute(command);
 	}

@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { ScheduleError } from "../../errors";
 
 /**
  * Decorator to define a cron expression.
@@ -7,7 +8,7 @@ import "reflect-metadata";
  */
 export function Cron(expression: string): any {
 	if (!expression) {
-		throw new Error("Invalid cron expression.");
+		throw ScheduleError.invalidCron(expression);
 	}
 	return (target: any, propertyKey: string | symbol, _descriptor?: any) => {
 		// Stage 3 support

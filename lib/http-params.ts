@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { ZodError, type ZodType } from "zod/v4";
 import { PARAM_METADATA_KEY } from "./constants";
+import { HttpParamError } from "./errors";
 import { BadRequestException } from "./http-exceptions";
 import { isZodSchema } from "./utils/is-zod-schema";
 
@@ -269,7 +270,7 @@ async function readFormData(request: any): Promise<FormData> {
 	const requestLike = request?.request || request?.raw || request;
 
 	if (!requestLike || typeof requestLike.formData !== "function") {
-		throw new Error("FormData is not available on this request.");
+		throw HttpParamError.formDataUnavailable();
 	}
 
 	let formData: FormData;
@@ -295,7 +296,9 @@ async function readFormData(request: any): Promise<FormData> {
 	}
 
 	if (!(formData instanceof FormData)) {
-		throw new Error("Could not read multipart form data from the request.");
+		throw HttpParamError.formDataReadFailed(
+			"Parsed result is not a FormData instance.",
+		);
 	}
 
 	request[FORM_DATA_CACHE] = formData;

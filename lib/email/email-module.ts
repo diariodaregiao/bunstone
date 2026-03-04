@@ -1,6 +1,7 @@
 import { render } from "@react-email/render";
 import nodemailer from "nodemailer";
 import type React from "react";
+import { EmailError } from "../errors";
 import { Injectable } from "../injectable";
 import { Module } from "../module";
 import type { EmailConfig } from "../types/options";
@@ -25,9 +26,7 @@ export class EmailService {
 		const config = EmailModule.getConfig();
 
 		if (!transporter) {
-			throw new Error(
-				"EmailService is not configured. Call EmailModule.register() first.",
-			);
+			throw EmailError.notConfigured();
 		}
 
 		const html = await render(options.component);

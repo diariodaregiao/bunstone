@@ -1,4 +1,5 @@
 import { type JobsOptions, Queue, type RedisOptions } from "bullmq";
+import { BullMQError } from "../errors";
 import { Injectable } from "../injectable";
 import { Logger } from "../utils/logger";
 
@@ -24,10 +25,7 @@ export class QueueService {
 		}
 
 		if (!QueueService.redisOptions) {
-			this.logger.error(
-				`Redis options not set for BullMQ. Ensure BullMqModule.register() is called in your AppModule imports.`,
-			);
-			throw new Error("BullMQ Redis options not configured.");
+			throw BullMQError.notConfigured();
 		}
 
 		const queue = new Queue(queueName, {
