@@ -1080,6 +1080,24 @@ if (document.readyState === 'loading') {
 										}
 									})();
 
+									const xDeath = raw.properties.headers?.["x-death"];
+									const isDeadLetter =
+										Array.isArray(xDeath) && xDeath.length > 0;
+									const isDlqQueue = queueName.toLowerCase().includes(".dlq");
+
+									// If the handler is on a DLQ or uses DeadLetterMessage type,
+									// only process messages that have x-death headers.
+									if (
+										(isDlqQueue ||
+											descriptor.options.queue
+												?.toLowerCase()
+												.includes(".dlq")) &&
+										!isDeadLetter
+									) {
+										channel.ack(raw);
+										return;
+									}
+
 									const msg: RabbitMessage = {
 										data,
 										raw,
@@ -1095,7 +1113,7 @@ if (document.readyState === 'loading') {
 											`Unhandled error in RabbitMQ handler ${providerClass.name}.${descriptor.methodName}() on exchange "${exchange}" routingKey "${routingKey}": ${err.message}`,
 										);
 										if (!noAck) {
-											channel.nack(raw, false, true);
+											channel.nack(raw, false, false);
 										}
 									}
 								},
@@ -1161,6 +1179,17 @@ if (document.readyState === 'loading') {
 								}
 							})();
 
+							const xDeath = raw.properties.headers?.["x-death"];
+							const isDeadLetter = Array.isArray(xDeath) && xDeath.length > 0;
+							const isDlqQueue = queue.toLowerCase().includes(".dlq");
+
+							// If this is a DLQ, skip messages that don't have x-death headers
+							// (i.e. someone published directly to the DLQ instead of it being a failed message)
+							if (isDlqQueue && !isDeadLetter) {
+								channel.ack(raw);
+								return;
+							}
+
 							// Settle guard: ack/nack/reject may only be called once per
 							// delivery tag regardless of how many handlers invoke it.
 							let settled = false;
@@ -1204,7 +1233,7 @@ if (document.readyState === 'loading') {
 										`Unhandled error in RabbitMQ handler ${providerName}.${descriptor.methodName}() on queue "${queue}": ${err.message}`,
 									);
 									if (!handlerNoAck && !settled) {
-										settle(() => channel.nack(raw, false, true));
+										settle(() => channel.nack(raw, false, false));
 									}
 								}
 							}
