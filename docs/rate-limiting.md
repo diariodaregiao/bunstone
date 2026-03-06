@@ -1,22 +1,22 @@
 # Rate Limiting
 
-Proteja seus endpoints contra abuso com rate limiting configurável. O Bunstone oferece suporte a limitação de requisições em múltiplos níveis, com storage em memória ou Redis.
+Protect your endpoints against abuse with configurable rate limiting. Bunstone supports request limiting at multiple levels, with in-memory or Redis-backed storage.
 
-## Visão Geral
+## Overview
 
-O sistema de rate limiting do Bunstone oferece:
+Bunstone's rate limiting system provides:
 
-- **Múltiplos níveis de configuração**: Global, Controller ou Endpoint
-- **Storage flexível**: Memória (padrão) ou Redis (produção)
-- **Identificação inteligente**: IP + Método + Endpoint
-- **Headers automáticos**: Informações de limites em todas as respostas
-- **Mensagens customizáveis**: Personalize a mensagem de erro 429
+- **Multiple configuration levels**: Global, Controller, or Endpoint
+- **Flexible storage**: Memory (default) or Redis (production)
+- **Smart identification**: IP + Method + Endpoint
+- **Automatic headers**: Limit information on every response
+- **Customizable messages**: Customize the 429 error message
 
-## Uso Básico
+## Basic Usage
 
-### Por Endpoint com @RateLimit()
+### Per Endpoint with @RateLimit()
 
-Use o decorator `@RateLimit()` para aplicar limites específicos a endpoints individuais:
+Use the `@RateLimit()` decorator to apply specific limits to individual endpoints:
 
 ```typescript
 import { Controller, Get, Post, RateLimit } from "@grupodiariodaregiao/bunstone";
@@ -24,84 +24,84 @@ import { Controller, Get, Post, RateLimit } from "@grupodiariodaregiao/bunstone"
 @Controller("api")
 export class ApiController {
   @Get("public")
-  @RateLimit({ max: 100, windowMs: 60000 }) // 100 requisições/minuto
+  @RateLimit({ max: 100, windowMs: 60000 }) // 100 requests/minute
   getPublic() {
     return { data: [] };
   }
 
   @Post("sensitive")
-  @RateLimit({ max: 5, windowMs: 60000 }) // 5 requisições/minuto (mais restritivo)
+  @RateLimit({ max: 5, windowMs: 60000 }) // 5 requests/minute (more restrictive)
   createSensitive() {
     return { success: true };
   }
 }
 ```
 
-### Configuração Global
+### Global Configuration
 
-Aplique rate limiting em toda a aplicação via `AppStartup.create()`:
+Apply rate limiting across the entire application via `AppStartup.create()`:
 
 ```typescript
 const app = await AppStartup.create(AppModule, {
   rateLimit: {
     enabled: true,
     max: 1000,
-    windowMs: 60000, // 1000 requisições/minuto para todos os endpoints
+    windowMs: 60000, // 1000 requests/minute for all endpoints
   },
 });
 ```
 
-## Opções de Configuração
+## Configuration Options
 
 ### @RateLimit() Decorator
 
 ```typescript
 @RateLimit({
-  max: 100,              // Máximo de requisições na janela
-  windowMs: 60000,       // Janela de tempo em milissegundos (1 minuto)
-  message?: string,      // Mensagem personalizada quando exceder (opcional)
-  storage?: Storage,     // Storage customizado (opcional)
-  keyGenerator?: fn,     // Função para gerar chave de identificação (opcional)
-  skipHeader?: string,   // Header que permite bypass (opcional)
-  skip?: fn              // Função para pular rate limit (opcional)
+  max: 100,              // Maximum requests within the window
+  windowMs: 60000,       // Time window in milliseconds (1 minute)
+  message?: string,      // Custom message when exceeded (optional)
+  storage?: Storage,     // Custom storage (optional)
+  keyGenerator?: fn,     // Function to generate the identification key (optional)
+  skipHeader?: string,   // Header that allows bypass (optional)
+  skip?: fn              // Function to skip rate limiting (optional)
 })
 ```
 
-### Configuração Global
+### Global Configuration
 
 ```typescript
 {
   rateLimit: {
-    enabled?: boolean,     // Habilita/desabilita rate limiting global
-    max?: number,          // Máximo de requisições (padrão: 100)
-    windowMs?: number,     // Janela em ms (padrão: 60000)
-    storage?: Storage,     // Storage customizado
-    keyGenerator?: fn,     // Gerador de chave customizado
-    skipHeader?: string,   // Header de bypass
-    skip?: fn,             // Função de bypass
-    message?: string       // Mensagem de erro
+    enabled?: boolean,     // Enable/disable global rate limiting
+    max?: number,          // Maximum requests (default: 100)
+    windowMs?: number,     // Window in ms (default: 60000)
+    storage?: Storage,     // Custom storage
+    keyGenerator?: fn,     // Custom key generator
+    skipHeader?: string,   // Bypass header
+    skip?: fn,             // Bypass function
+    message?: string       // Error message
   }
 }
 ```
 
 ## Storage
 
-### MemoryStorage (Padrão)
+### MemoryStorage (Default)
 
-Ideal para desenvolvimento e aplicações single-instance:
+Ideal for development and single-instance applications:
 
 ```typescript
-// Não requer configuração - é o padrão
+// No configuration required - this is the default
 @RateLimit({ max: 100, windowMs: 60000 })
 ```
 
 ### RedisStorage
 
-Para aplicações em produção com múltiplas instâncias:
+For production applications with multiple instances:
 
 ```typescript
 import { RedisStorage } from "@grupodiariodaregiao/bunstone";
-import Redis from "ioredis"; // ou "redis"
+import Redis from "ioredis"; // or "redis"
 
 const redisClient = new Redis({
   host: "localhost",
@@ -113,14 +113,14 @@ const app = await AppStartup.create(AppModule, {
     enabled: true,
     max: 1000,
     windowMs: 60000,
-    storage: new RedisStorage(redisClient, "ratelimit:"), // prefix opcional
+    storage: new RedisStorage(redisClient, "ratelimit:"), // optional prefix
   },
 });
 ```
 
-## Headers de Resposta
+## Response Headers
 
-Todas as respostas incluem headers informativos:
+All responses include informative headers:
 
 ```
 X-RateLimit-Limit: 100
@@ -128,7 +128,7 @@ X-RateLimit-Remaining: 87
 X-RateLimit-Reset: 1706640000
 ```
 
-Quando o limite é excedido (HTTP 429):
+When the limit is exceeded (HTTP 429):
 
 ```
 HTTP/1.1 429 Too Many Requests
@@ -140,18 +140,18 @@ Retry-After: 45
 { "status": 429, "message": "Too many requests, please try again later." }
 ```
 
-## Casos de Uso Avançados
+## Advanced Use Cases
 
-### Chave de Identificação Customizada
+### Custom Identification Key
 
-Por padrão, a chave é `IP:Método:Path`. Você pode customizar:
+By default, the key is `IP:Method:Path`. You can customize it:
 
 ```typescript
 @RateLimit({
   max: 100,
   windowMs: 60000,
   keyGenerator: (req) => {
-    // Rate limit por usuário autenticado em vez de IP
+    // Rate limit by authenticated user instead of IP
     return req.headers["x-user-id"] || req.ip;
   },
 })
@@ -159,54 +159,54 @@ Por padrão, a chave é `IP:Método:Path`. Você pode customizar:
 
 ### Bypass via Header
 
-Permitir bypass em ambientes internos:
+Allow bypass in internal environments:
 
 ```typescript
 @RateLimit({
   max: 100,
   windowMs: 60000,
-  skipHeader: "x-internal-request", // Requisições com este header ignoram o limit
+  skipHeader: "x-internal-request", // Requests with this header ignore the limit
 })
 ```
 
-### Bypass Condicional
+### Conditional Bypass
 
-Lógica customizada para pular rate limiting:
+Custom logic to skip rate limiting:
 
 ```typescript
 @RateLimit({
   max: 100,
   windowMs: 60000,
   skip: (req) => {
-    // Pular para IPs internos
+    // Skip for internal IPs
     return req.ip?.startsWith("10.0.0.");
   },
 })
 ```
 
-### Mensagens Customizadas
+### Custom Messages
 
 ```typescript
 @RateLimit({
   max: 5,
   windowMs: 60000,
-  message: "Você atingiu o limite de tentativas. Aguarde 1 minuto.",
+  message: "You have reached the attempt limit. Please wait 1 minute.",
 })
 ```
 
-## Hierarquia de Configuração
+## Configuration Hierarchy
 
-As configurações são aplicadas na seguinte ordem de precedência:
+Settings are applied in the following precedence order:
 
-1. **Decorator `@RateLimit()`** (maior precedência)
-2. **Configuração do Controller** (se implementado)
-3. **Configuração Global** em `AppStartup.create()`
-4. **Sem rate limit** (padrão se nenhuma configuração)
+1. **`@RateLimit()` decorator** (highest precedence)
+2. **Controller configuration** (if implemented)
+3. **Global configuration** in `AppStartup.create()`
+4. **No rate limit** (default if no configuration is provided)
 
-Exemplo de mesclagem:
+Merge example:
 
 ```typescript
-// Configuração global: 1000 req/min
+// Global configuration: 1000 req/min
 const app = await AppStartup.create(AppModule, {
   rateLimit: { enabled: true, max: 1000, windowMs: 60000 },
 });
@@ -214,47 +214,47 @@ const app = await AppStartup.create(AppModule, {
 @Controller("api")
 class ApiController {
   @Get("strict")
-  @RateLimit({ max: 10 }) // Usa 10 req/min (sobrescreve global)
+  @RateLimit({ max: 10 }) // Uses 10 req/min (overrides global)
   strictEndpoint() {}
 
   @Get("default")
-  defaultEndpoint() {} // Usa 1000 req/min (herda global)
+  defaultEndpoint() {} // Uses 1000 req/min (inherits global)
 }
 ```
 
-## Exemplo Completo
+## Complete Example
 
 <<< @/../examples/08-ratelimit/index.ts
 
-## Dicas de Produção
+## Production Tips
 
-1. **Use RedisStorage** para aplicações multi-instância
-2. **Configure skipHeader** para health checks e monitoramento interno
-3. **Ajuste windowMs** conforme o padrão de uso (APIs REST geralmente usam 1 minuto)
-4. **Monitore os headers** para entender o padrão de uso
-5. **Mensagens informativas** ajudam usuários a entenderem os limites
+1. **Use RedisStorage** for multi-instance applications
+2. **Configure skipHeader** for health checks and internal monitoring
+3. **Adjust windowMs** according to the usage pattern (REST APIs generally use 1 minute)
+4. **Monitor the headers** to understand usage patterns
+5. **Informative messages** help users understand the limits
 
 ## API Reference
 
 ### Classes
 
-- `RateLimitService` - Serviço principal de rate limiting
-- `MemoryStorage` - Implementação em memória
-- `RedisStorage` - Implementação Redis
+- `RateLimitService` - Main rate limiting service
+- `MemoryStorage` - In-memory implementation
+- `RedisStorage` - Redis implementation
 
 ### Interfaces
 
-- `RateLimitStorage` - Interface para implementações customizadas
-- `RateLimitConfig` - Configuração de rate limit
-- `RateLimitInfo` - Informações de consumo
-- `RateLimitHeaders` - Headers de resposta
+- `RateLimitStorage` - Interface for custom implementations
+- `RateLimitConfig` - Rate limit configuration
+- `RateLimitInfo` - Usage information
+- `RateLimitHeaders` - Response headers
 
 ### Decorators
 
-- `@RateLimit(options)` - Aplica rate limit a um endpoint
+- `@RateLimit(options)` - Applies rate limiting to an endpoint
 
 ### Exceptions
 
-- `RateLimitExceededException` - Lançada quando limite é excedido
+- `RateLimitExceededException` - Thrown when the limit is exceeded
 
-[Ver exemplo completo no GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/08-ratelimit/index.ts)
+[See the full example on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/08-ratelimit/index.ts)

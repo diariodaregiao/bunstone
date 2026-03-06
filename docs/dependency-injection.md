@@ -68,4 +68,5 @@ export class GlobalModule {}
 
 Once a global module is registered in the root `AppModule`, its providers can be injected into any class in the application without further imports.
 
-> [!TIP] > `SqlModule` and `CqrsModule` are examples of global modules provided by Bunstone.
+> [!TIP]
+> `SqlModule` and `CqrsModule` are examples of global modules provided by Bunstone.

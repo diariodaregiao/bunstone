@@ -1,0 +1,122 @@
+/* Doc actions – placed in aside-outline-before slot */
+.doc-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  margin-bottom: 16px;
+}
+
+/* Base button / link */
+.doc-action-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--vp-c-default-1) 20%, transparent);
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 90%, transparent);
+  color: var(--vp-c-text-2);
+  border-radius: 6px;
+  padding: 5px 8px 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.doc-action-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 50%, transparent);
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 70%, var(--vp-c-brand-1) 10%);
+  color: var(--vp-c-text-1);
+}
+
+.doc-action-btn:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 2px;
+}
+
+.doc-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Icon */
+.doc-action-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.doc-action-btn__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Label */
+.doc-action-btn__label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+/* Badge (MD / HTML) */
+.doc-action-btn__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--vp-c-default-soft) 80%, transparent);
+  color: var(--vp-c-text-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+/* Success state */
+.doc-action-btn--success {
+  border-color: color-mix(in srgb, var(--vp-c-green-1) 40%, transparent);
+  color: var(--vp-c-green-1);
+}
+
+.doc-action-btn--success .doc-action-btn__badge {
+  background: color-mix(in srgb, var(--vp-c-green-soft) 80%, transparent);
+  color: var(--vp-c-green-1);
+}
+
+/* Error / unavailable state */
+.doc-action-btn--error,
+.doc-action-btn--unavailable {
+  border-color: color-mix(in srgb, var(--vp-c-danger-1) 30%, transparent);
+  color: var(--vp-c-danger-1);
+}
+
+.doc-action-btn--error .doc-action-btn__badge,
+.doc-action-btn--unavailable .doc-action-btn__badge {
+  background: color-mix(in srgb, var(--vp-c-danger-soft) 80%, transparent);
+  color: var(--vp-c-danger-1);
+}
+
+/* Hide in mobile (aside is hidden anyway) */
+@media (max-width: 1280px) {
+  .doc-actions {
+    display: none;
+  }
+}
