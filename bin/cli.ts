@@ -23,18 +23,6 @@ const THIN = "─".repeat(64);
 const args = Bun.argv.slice(2);
 const command = args[0];
 
-// ── Command dispatch ──────────────────────────────────────────────────────────
-if (command === "run") {
-	await runCommand(args.slice(1));
-} else if (command === "exports") {
-	await exportsCommand();
-} else if (command === "new" || (command && !args[1])) {
-	await scaffold(command === "new" ? args[1] : command);
-} else {
-	printHelp();
-	process.exit(1);
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // bunstone run [bun-flags...] <entrypoint>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -535,3 +523,25 @@ ${cyan("Examples:")}
   bunstone run --watch src/main.ts
 `);
 }
+
+async function main() {
+	if (command === "run") {
+		await runCommand(args.slice(1));
+		return;
+	}
+
+	if (command === "exports") {
+		await exportsCommand();
+		return;
+	}
+
+	if (command === "new" || (command && !args[1])) {
+		await scaffold(command === "new" ? args[1] : command);
+		return;
+	}
+
+	printHelp();
+	process.exit(1);
+}
+
+await main();
