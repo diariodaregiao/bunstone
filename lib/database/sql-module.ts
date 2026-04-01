@@ -12,6 +12,36 @@ type ConnectionOptions = {
 	provider: "postgresql" | "mysql" | "sqlite";
 };
 
+type Provider = "postgresql" | "mysql" | "sqlite";
+
+function detectProvider(url: string): Provider {
+	if (url.startsWith("mysql://") || url.startsWith("mysql2://")) {
+		return "mysql";
+	}
+	if (
+		url === ":memory:" ||
+		url.startsWith("sqlite://") ||
+		url.startsWith("sqlite:") ||
+		url.startsWith("file://") ||
+		url.startsWith("file:")
+	) {
+		return "sqlite";
+	}
+	return "postgresql";
+}
+
+function buildConnectionConfig(
+	provider: Provider,
+): Record<string, string | boolean | number> | undefined {
+	if (provider === "postgresql") {
+		return { TimeZone: "UTC" };
+	}
+	if (provider === "mysql") {
+		return { time_zone: "+00:00" };
+	}
+	return undefined;
+}
+
 @Injectable()
 export class SqlService {
 	async query<T = any>(query: string, params?: any[]): Promise<T[]> {
@@ -54,11 +84,21 @@ export class SqlModule {
 	static register(connection: ConnectionOptions): typeof SqlModule;
 	static register(connection: string): typeof SqlModule;
 	static register(connection: string | ConnectionOptions) {
+		const url =
+			typeof connection === "string"
+				? connection
+				: `${connection.provider}://${connection.username}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
+
+		const provider =
+			typeof connection === "string"
+				? detectProvider(connection)
+				: connection.provider;
+
+		const connectionConfig = buildConnectionConfig(provider);
+
 		SqlModule.sqlInstance = new SQL({
-			url:
-				typeof connection === "string"
-					? connection
-					: `${connection.provider}://${connection.username}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`,
+			url,
+			...(connectionConfig && { connection: connectionConfig }),
 		});
 
 		return SqlModule;
