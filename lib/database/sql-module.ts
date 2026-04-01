@@ -10,6 +10,12 @@ type ConnectionOptions = {
 	password: string;
 	database: string;
 	provider: "postgresql" | "mysql" | "sqlite";
+	/**
+	 * Timezone used for date/time interpretation on the database connection.
+	 * Defaults to 'UTC' to ensure consistent, offset-free date handling.
+	 * Set to 'local' to use the process timezone, or any valid tz identifier.
+	 */
+	timezone?: string;
 };
 
 type Provider = "postgresql" | "mysql" | "sqlite";
@@ -32,12 +38,15 @@ function detectProvider(url: string): Provider {
 
 function buildConnectionConfig(
 	provider: Provider,
+	timezone: string,
 ): Record<string, string | boolean | number> | undefined {
 	if (provider === "postgresql") {
-		return { TimeZone: "UTC" };
+		return { TimeZone: timezone };
 	}
 	if (provider === "mysql") {
-		return { time_zone: "+00:00" };
+		// Normalise to MySQL's expected offset format ('+00:00') or named zone
+		const tz = timezone.toLowerCase() === "utc" ? "+00:00" : timezone;
+		return { time_zone: tz };
 	}
 	return undefined;
 }
@@ -82,8 +91,8 @@ export class SqlModule {
 	private static sqlInstance: SQL;
 
 	static register(connection: ConnectionOptions): typeof SqlModule;
-	static register(connection: string): typeof SqlModule;
-	static register(connection: string | ConnectionOptions) {
+	static register(connection: string, timezone?: string): typeof SqlModule;
+	static register(connection: string | ConnectionOptions, timezone?: string) {
 		const url =
 			typeof connection === "string"
 				? connection
@@ -94,7 +103,12 @@ export class SqlModule {
 				? detectProvider(connection)
 				: connection.provider;
 
-		const connectionConfig = buildConnectionConfig(provider);
+		const tz =
+			typeof connection === "string"
+				? (timezone ?? "UTC")
+				: (connection.timezone ?? "UTC");
+
+		const connectionConfig = buildConnectionConfig(provider, tz);
 
 		SqlModule.sqlInstance = new SQL({
 			url,
