@@ -1,9 +1,9 @@
 
 import React from 'react';
 import { hydrateRoot } from 'react-dom/client';
-import * as Mod from '/home/filipi.oliveira@gdc.local/poc/diario-dip/examples/10-ssr-mvc/src/views/HooksDemo.tsx';
+import * as Mod from '../examples/10-ssr-mvc/src/views/HooksDemo';
 
-const Component = Mod['HooksDemo'] || Mod.default;
+const Component = Mod.HooksDemo;
 
 function hydrate() {
   const dataElement = document.getElementById("__BUNSTONE_DATA__");
@@ -26,10 +26,8 @@ function hydrate() {
   }
 }
 
-// Ensure DOM is fully loaded before hydrating
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', hydrate);
 } else {
   hydrate();
 }
-        

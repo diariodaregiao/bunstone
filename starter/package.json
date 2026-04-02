@@ -4,8 +4,9 @@
   "main": "src/main.ts",
   "type": "module",
   "scripts": {
-    "start": "bun run src/main.ts",
-    "dev": "bun --watch src/main.ts",
+    "start": "bun run dist/index.js",
+    "dev": "bunstone run --watch src/main.ts",
+    "build": "bunstone build src/main.ts",
     "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

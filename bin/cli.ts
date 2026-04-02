@@ -504,29 +504,132 @@ async function scaffold(projectName_?: string) {
 	}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Help
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Help ───────────────────────────────────────────────────────────────────
 
 function printHelp() {
 	console.log(`
 ${bold("bunstone")} — CLI for the Bunstone framework
 
 ${cyan("Usage:")}
-  bunstone new <project-name>          Scaffold a new project
-  bunstone run [bun-flags] <entry>     Run your app with enhanced error messages
-  bunstone exports                     List all public exports
+  bunstone new <project-name>           Scaffold a new project
+  bunstone run [bun-flags] <entry>      Run your app with enhanced error messages
+  bunstone build [entry] [options]      Build your app for production
+  bunstone exports                      List all public exports
+
+${cyan("Build Options:")}
+  --views <dir>                         Directory containing React views (default: src/views)
+  --out <dir>                           Output directory (default: dist)
+  --compile                             Compile to a standalone binary
+  --no-bundle                           Skip application bundling (only bundle views)
 
 ${cyan("Examples:")}
   bunstone new my-api
   bunstone run src/main.ts
-  bunstone run --watch src/main.ts
+  bunstone build src/main.ts
+  bunstone build --compile
 `);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// bunstone build [entry] [options]
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function buildCommand(buildArgs: string[]) {
+	console.log(`${cyan(BORDER)}`);
+	console.log(`${cyan(bold("  📦  Bunstone — Production Build"))}`);
+	console.log(`${cyan(BORDER)}\n`);
+
+	let entry = "";
+	let viewsDir = "src/views";
+	let outDir = "dist";
+	let compile = false;
+	let skipAppBundle = false;
+
+	for (let i = 0; i < buildArgs.length; i++) {
+		const arg = buildArgs[i];
+		if (arg === "--views") {
+			viewsDir = buildArgs[++i];
+		} else if (arg === "--out") {
+			outDir = buildArgs[++i];
+		} else if (arg === "--compile") {
+			compile = true;
+		} else if (arg === "--no-bundle") {
+			skipAppBundle = true;
+		} else if (!arg.startsWith("-")) {
+			entry = arg;
+		}
+	}
+
+	// Try to detect entry if not provided
+	if (!entry && !skipAppBundle) {
+		const candidates = ["src/index.ts", "index.ts", "src/main.ts", "main.ts"];
+		for (const c of candidates) {
+			if (await Bun.file(join(process.cwd(), c)).exists()) {
+				entry = c;
+				break;
+			}
+		}
+	}
+
+	if (!entry && !skipAppBundle) {
+		console.error(red("  ✖  No entrypoint found or specified."));
+		console.error(
+			gray("     Please specify an entrypoint: bunstone build src/index.ts"),
+		);
+		process.exit(1);
+	}
+
+	try {
+		// We use dynamic import for Bundler to keep CLI light if not building
+		// Since we are in the same repo, we can import from the lib
+		const { Bundler } = await import("../lib/utils/bundler");
+
+		// 1. Build views
+		const viewsDirAbs = join(process.cwd(), viewsDir);
+		const viewsStat = await Bun.file(viewsDirAbs)
+			.stat()
+			.catch(() => null);
+
+		if (viewsStat && viewsStat.isDirectory()) {
+			console.log(
+				`  ${yellow("→")} Bundling React views from ${bold(viewsDir)}...`,
+			);
+			await Bundler.buildViews(viewsDir);
+		} else {
+			console.log(
+				`  ${gray("○")} No views directory found at ${viewsDir}, skipping view bundling.`,
+			);
+		}
+
+		// 2. Build app
+		if (!skipAppBundle) {
+			console.log(
+				`  ${yellow("→")} Bundling application ${bold(entry)} to ${bold(outDir)}...`,
+			);
+			await Bundler.buildApp(entry, outDir, compile);
+		}
+
+		console.log(`\n${green("  ✅  Build completed successfully!")}`);
+		if (!skipAppBundle) {
+			console.log(
+				`     Output: ${bold(outDir + (compile ? "/app" : "/index.js"))}`,
+			);
+		}
+	} catch (error: any) {
+		console.error(`\n${red("  ✖  Build failed:")}`);
+		console.error(red(`     ${error.message}`));
+		process.exit(1);
+	}
 }
 
 async function main() {
 	if (command === "run") {
 		await runCommand(args.slice(1));
+		return;
+	}
+
+	if (command === "build") {
+		await buildCommand(args.slice(1));
 		return;
 	}
 

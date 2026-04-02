@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { hydrateRoot } from 'react-dom/client';
-import * as Mod from '/home/filipi.oliveira@gdc.local/poc/diario-dip/examples/10-ssr-mvc/src/views/Counter.tsx';
+import * as Mod from '/home/filipi.oliveira@gdc.local/poc/bunstone/examples/10-ssr-mvc/src/views/Counter.tsx';
 
 const Component = Mod['Counter'] || Mod.default;
 
@@ -26,10 +26,8 @@ function hydrate() {
   }
 }
 
-// Ensure DOM is fully loaded before hydrating
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', hydrate);
 } else {
   hydrate();
 }
-        

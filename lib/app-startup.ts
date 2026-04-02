@@ -43,6 +43,7 @@ import type { RateLimitMetadata } from "./ratelimit/ratelimit.decorator";
 import { RateLimitService } from "./ratelimit/ratelimit.service";
 import { RENDER_METADATA } from "./render";
 import type { Options, RateLimitGlobalConfig } from "./types/options";
+import { Bundler } from "./utils/bundler";
 import { cwd } from "./utils/cwd";
 import {
 	GlobalRegistry,
@@ -64,7 +65,6 @@ export class AppStartup {
 	private static destroyPromise: Promise<void> | null = null;
 	private static hasBeenDestroyed = false;
 	private static rootModule: any;
-	private static readonly viewBundles = new Map<string, string>();
 	private static globalRateLimitConfig: RateLimitGlobalConfig | undefined;
 	private static rateLimitService: RateLimitService = new RateLimitService();
 
@@ -97,7 +97,7 @@ export class AppStartup {
 			);
 
 			if (options?.viewsDir) {
-				AppStartup.autoBundle(options.viewsDir).catch((err) => {
+				Bundler.buildViews(options.viewsDir).catch((err) => {
 					AppStartup.logger.error(
 						`Failed to auto-bundle views: ${err.message}`,
 					);
@@ -237,129 +237,6 @@ export class AppStartup {
 	}
 
 	/**
-	 * Bundles a client-side component for hydration (internal).
-	 */
-	private static async bundle(entryPath: string, outputName: string) {
-		try {
-			const result = await Bun.build({
-				entrypoints: [entryPath],
-				outdir: "./public",
-				naming: outputName,
-				minify: true,
-				external: [
-					"react",
-					"react-dom",
-					"react-dom/client",
-					"react/jsx-runtime",
-					"react/jsx-dev-runtime",
-				],
-			});
-
-			if (!result.success) {
-				AppStartup.logger.error(
-					`Bundle failed for ${outputName}: ${result.logs
-						.map((l) => l.message)
-						.join("\n")}`,
-				);
-			} else {
-				AppStartup.logger.log(
-					`Bundle created successfully: public/${outputName}`,
-				);
-			}
-		} catch (error: any) {
-			AppStartup.logger.error(
-				`Error during bundling ${outputName}: ${error.message}`,
-			);
-		}
-	}
-
-	private static async autoBundle(viewsDir: string) {
-		const viewDirExists = await Bun.file(viewsDir).exists();
-		if (!viewDirExists) return;
-
-		const bunstoneDirExists = await Bun.file("./.bunstone").exists();
-		if (!bunstoneDirExists) {
-			await mkdir("./.bunstone", { recursive: true });
-		}
-
-		const getFilesRecursively = async (dir: string): Promise<string[]> => {
-			let results: string[] = [];
-			const list = await readdir(dir);
-			for (const file of list) {
-				const fullPath = join(dir, file);
-				const stat = statSync(fullPath);
-				if (stat?.isDirectory()) {
-					results = results.concat(await getFilesRecursively(fullPath));
-				} else {
-					results.push(resolve(fullPath));
-				}
-			}
-			return results;
-		};
-
-		const viewsDirAbs = resolve(viewsDir);
-		const files = await getFilesRecursively(viewsDirAbs);
-		AppStartup.logger.log(
-			`Auto-bundling views from ${viewsDirAbs} (${files.length} views found)`,
-		);
-
-		for (const absolutePath of files) {
-			const file = basename(absolutePath);
-			if (file.endsWith(".tsx") || file.endsWith(".jsx")) {
-				const componentName = basename(file, extname(file));
-				const entryPath = join(
-					cwd(),
-					".bunstone",
-					`${componentName}.client.tsx`,
-				);
-
-				const entryContent = `
-import React from 'react';
-import { hydrateRoot } from 'react-dom/client';
-import * as Mod from '${absolutePath}';
-
-const Component = Mod['${componentName}'] || Mod.default;
-
-function hydrate() {
-  const dataElement = document.getElementById("__BUNSTONE_DATA__");
-  const data = dataElement ? JSON.parse(dataElement.textContent || "{}") : {};
-
-  if (typeof document !== 'undefined' && Component) {
-    const root = document.getElementById("root");
-    if (root) {
-      try {
-        hydrateRoot(root, React.createElement(Component, data));
-        console.log('[Bunstone] Hydration successful for component: ${componentName}');
-      } catch (e) {
-        console.error('[Bunstone] Hydration failed for component: ${componentName}', e);
-      }
-    } else {
-      console.error('[Bunstone] Root element "root" not found for hydration.');
-    }
-  } else {
-    console.error('[Bunstone] Component ${componentName} not found in bundle.');
-  }
-}
-
-// Ensure DOM is fully loaded before hydrating
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', hydrate);
-} else {
-  hydrate();
-}
-        `;
-
-				await Bun.write(entryPath, entryContent);
-
-				const bundleName = `${componentName.toLowerCase()}.bundle.js`;
-				await AppStartup.bundle(entryPath, bundleName);
-				AppStartup.viewBundles.set(componentName, bundleName);
-				AppStartup.viewBundles.set(componentName.toLowerCase(), bundleName);
-			}
-		}
-	}
-
-	/**
 	 * Starts the server on the specified port.
 	 * @param port The port number to listen on.
 	 */
@@ -426,16 +303,10 @@ if (document.readyState === 'loading') {
 			}
 
 			const componentName = component.name || component.displayName;
-			const bundle =
-				result?.bundle ||
-				AppStartup.viewBundles.get(componentName) ||
-				AppStartup.viewBundles.get(componentName.toLowerCase());
+			const bundleName = `${componentName.toLowerCase()}.bundle.js`;
+			const bundle = `/public/${bundleName}`;
 
-			AppStartup.logger.log(
-				`Rendering component: ${componentName}, bundle found: ${
-					bundle || "none"
-				}`,
-			);
+			AppStartup.logger.log(`Rendering component: ${componentName}`);
 
 			if (!bundle) {
 				AppStartup.logger.warn(
