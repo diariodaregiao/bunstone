@@ -1,6 +1,3 @@
-import { statSync } from "node:fs";
-import { mkdir, readdir } from "node:fs/promises";
-import { basename, extname, join, resolve } from "node:path";
 import { cors } from "@elysiajs/cors";
 import { html } from "@elysiajs/html";
 import jwt from "@elysiajs/jwt";
@@ -9,6 +6,7 @@ import { swagger } from "@elysiajs/swagger";
 import { type Job, Worker } from "bullmq";
 import Elysia from "elysia";
 import scheduler from "node-cron";
+import { mkdir } from "node:fs/promises";
 import React from "react";
 import { renderToReadableStream } from "react-dom/server";
 import "reflect-metadata";
@@ -44,7 +42,6 @@ import { RateLimitService } from "./ratelimit/ratelimit.service";
 import { RENDER_METADATA } from "./render";
 import type { Options, RateLimitGlobalConfig } from "./types/options";
 import { Bundler } from "./utils/bundler";
-import { cwd } from "./utils/cwd";
 import {
 	GlobalRegistry,
 	resolveDependencies,
@@ -373,10 +370,28 @@ export class AppStartup {
 		AppStartup.registerTimeouts(module);
 		AppStartup.registerCronJobs(module);
 		AppStartup.registerBullMqWorkers(module);
-		AppStartup.registerCqrsHandlers(module);
 		AppStartup.registerRabbitMQConsumers(module);
 
 		const modules = Reflect.getMetadata("dip:modules", module) || [];
+
+		// Pre-register global sub-modules so their injectables (e.g. CqrsModule buses)
+		// are available in GlobalRegistry before CQRS handlers are registered
+		for (const mod of modules) {
+			const modIsGlobal = Reflect.getMetadata("dip:module:global", mod);
+			if (modIsGlobal) {
+				const modInjectables: Map<any, any> | undefined = Reflect.getMetadata(
+					"dip:injectables",
+					mod,
+				);
+				if (modInjectables) {
+					for (const [key, value] of modInjectables.entries()) {
+						GlobalRegistry.register(key, value);
+					}
+				}
+			}
+		}
+
+		AppStartup.registerCqrsHandlers(module);
 
 		for (const mod of modules) {
 			await AppStartup.registerModules(mod);
@@ -1135,9 +1150,10 @@ export class AppStartup {
 
 		if (!injectables) return;
 
-		const commandBus = injectables.get(CommandBus);
-		const queryBus = injectables.get(QueryBus);
-		const eventBus = injectables.get(EventBus);
+		const commandBus =
+			injectables.get(CommandBus) || GlobalRegistry.get(CommandBus);
+		const queryBus = injectables.get(QueryBus) || GlobalRegistry.get(QueryBus);
+		const eventBus = injectables.get(EventBus) || GlobalRegistry.get(EventBus);
 
 		const commandHandlers: any[] = [];
 		const queryHandlers: any[] = [];

@@ -22,8 +22,8 @@ import {
 	type IQueryHandler,
 	Jwt,
 	JwtModule,
-	Module,
 	map,
+	Module,
 	ofType,
 	Param,
 	Patch,
@@ -518,6 +518,40 @@ describe("Bunstone Framework Core", () => {
 
 			expect(cqrsService).toBeDefined();
 			expect(cqrsService.commandBus).toBeInstanceOf(CommandBus);
+		});
+
+		test("Handlers in sub-module without CqrsModule import should be registered via GlobalRegistry", async () => {
+			class SubModuleQuery {
+				constructor(public readonly value: string) {}
+			}
+
+			@QueryHandler(SubModuleQuery)
+			class SubModuleQueryHandler implements IQueryHandler<SubModuleQuery> {
+				async execute(query: SubModuleQuery) {
+					return `sub-result: ${query.value}`;
+				}
+			}
+
+			@Module({
+				providers: [SubModuleQueryHandler],
+			})
+			class SubFeatureModule {}
+
+			@Module({
+				imports: [CqrsModule, SubFeatureModule],
+			})
+			class SubCqrsRootModule {}
+
+			await AppStartup.create(SubCqrsRootModule);
+
+			const rootInjectables: Map<any, any> = Reflect.getMetadata(
+				"dip:injectables",
+				SubCqrsRootModule,
+			);
+			const queryBus: QueryBus = rootInjectables.get(QueryBus);
+
+			const result = await queryBus.execute(new SubModuleQuery("hello"));
+			expect(result).toBe("sub-result: hello");
 		});
 	});
 
