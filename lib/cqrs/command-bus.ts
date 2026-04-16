@@ -34,10 +34,33 @@ export class CommandBus {
 	 */
 	async execute<T extends ICommand, R = any>(command: T): Promise<R> {
 		const commandType = command.constructor;
-		const handler = this.handlers.get(commandType);
+		const handler = this.getHandler(commandType);
 		if (!handler) {
 			throw CqrsError.noCommandHandler(commandType.name);
 		}
 		return handler.execute(command);
+	}
+
+	private getHandler(commandType: any): ICommandHandler | undefined {
+		const exactHandler = this.handlers.get(commandType);
+		if (exactHandler) {
+			return exactHandler;
+		}
+
+		if (typeof commandType !== "function" || !commandType.name) {
+			return undefined;
+		}
+
+		let matchedHandler: ICommandHandler | undefined;
+		for (const [registeredType, handler] of this.handlers.entries()) {
+			if (
+				typeof registeredType === "function" &&
+				registeredType.name === commandType.name
+			) {
+				matchedHandler = handler;
+			}
+		}
+
+		return matchedHandler;
 	}
 }

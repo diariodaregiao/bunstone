@@ -34,10 +34,33 @@ export class QueryBus {
 	 */
 	async execute<T extends IQuery, R = any>(query: T): Promise<R> {
 		const queryType = query.constructor;
-		const handler = this.handlers.get(queryType);
+		const handler = this.getHandler(queryType);
 		if (!handler) {
 			throw CqrsError.noQueryHandler(queryType.name);
 		}
 		return handler.execute(query);
+	}
+
+	private getHandler(queryType: any): IQueryHandler | undefined {
+		const exactHandler = this.handlers.get(queryType);
+		if (exactHandler) {
+			return exactHandler;
+		}
+
+		if (typeof queryType !== "function" || !queryType.name) {
+			return undefined;
+		}
+
+		let matchedHandler: IQueryHandler | undefined;
+		for (const [registeredType, handler] of this.handlers.entries()) {
+			if (
+				typeof registeredType === "function" &&
+				registeredType.name === queryType.name
+			) {
+				matchedHandler = handler;
+			}
+		}
+
+		return matchedHandler;
 	}
 }

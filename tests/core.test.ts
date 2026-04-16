@@ -553,6 +553,40 @@ describe("Bunstone Framework Core", () => {
 			const result = await queryBus.execute(new SubModuleQuery("hello"));
 			expect(result).toBe("sub-result: hello");
 		});
+
+		test("QueryBus should resolve handlers when the query reference differs but the class name matches", async () => {
+			const createQueryClass = () =>
+				class DuplicateQuery {
+					constructor(public readonly value: string) {}
+				};
+
+			const RegisteredQuery = createQueryClass();
+			const RuntimeQuery = createQueryClass();
+
+			@QueryHandler(RegisteredQuery)
+			class DuplicateQueryHandler implements IQueryHandler<any> {
+				async execute(query: any) {
+					return `duplicate-result: ${query.value}`;
+				}
+			}
+
+			@Module({
+				imports: [CqrsModule],
+				providers: [DuplicateQueryHandler],
+			})
+			class DuplicateQueryModule {}
+
+			await AppStartup.create(DuplicateQueryModule);
+
+			const injectables: Map<any, any> = Reflect.getMetadata(
+				"dip:injectables",
+				DuplicateQueryModule,
+			);
+			const queryBus: QueryBus = injectables.get(QueryBus);
+
+			const result = await queryBus.execute(new RuntimeQuery("hello"));
+			expect(result).toBe("duplicate-result: hello");
+		});
 	});
 
 	describe("Sagas", () => {
