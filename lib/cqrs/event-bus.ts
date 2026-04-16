@@ -69,7 +69,7 @@ export class EventBus {
 	 */
 	publish<T extends IEvent>(event: T): void {
 		const eventType = event.constructor;
-		const handlers = this.handlers.get(eventType) || [];
+		const handlers = this.getHandlers(eventType);
 		handlers.forEach((handler) => {
 			handler.handle(event);
 		});
@@ -88,6 +88,33 @@ export class EventBus {
 		return new EventStream((callback) => {
 			this.listeners.push(callback);
 		});
+	}
+
+	private getHandlers(eventType: any): IEventHandler[] {
+		const exactHandlers = this.handlers.get(eventType);
+		if (exactHandlers) {
+			return exactHandlers;
+		}
+
+		if (typeof eventType !== "function" || !eventType.name) {
+			return [];
+		}
+
+		const matchedHandlers: IEventHandler[] = [];
+		for (const [registeredType, handlers] of this.handlers.entries()) {
+			if (
+				typeof registeredType === "function" &&
+				registeredType.name === eventType.name
+			) {
+				for (const handler of handlers) {
+					if (!matchedHandlers.includes(handler)) {
+						matchedHandlers.push(handler);
+					}
+				}
+			}
+		}
+
+		return matchedHandlers;
 	}
 }
 
