@@ -14,7 +14,7 @@ export function mapProvidersWithType(
 ): Map<any, { expression?: string; delay?: number; methodName: string }[]> {
 	const result = new Map<
 		any,
-		{ expression?: string; delay?: number; methodName: string }[]
+		{ name?: string; expression?: string; delay?: number; methodName: string }[]
 	>();
 
 	for (const provider of providers) {
@@ -30,6 +30,7 @@ export function mapProvidersWithType(
 					}
 
 					result.get(provider)?.push({
+						name: method.name,
 						expression: method.expression,
 						delay: method.delay,
 						methodName: method.methodName,
