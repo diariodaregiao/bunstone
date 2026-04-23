@@ -23,6 +23,8 @@ export class UserController {
 - `@Put(path?)`
 - `@Delete(path?)`
 - `@Patch(path?)`
+- `@Options(path?)`
+- `@Head(path?)`
 
 ## Decorators de Parâmetros
 
@@ -33,6 +35,8 @@ Extraia dados diretamente para os argumentos do seu método:
 - `@Body(schema?)`: Corpo da requisição (suporta validação com Zod).
 - `@Header(name)`: Cabeçalhos da requisição.
 - `@Request()`: O objeto completo de requisição do Elysia.
+
+Você também pode passar schemas do Zod para `@Param()` e `@Query()` para parsing e validação automáticos.
 
 ## Personalização da Resposta
 

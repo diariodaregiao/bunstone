@@ -5,7 +5,12 @@ Use o decorator de parâmetro `@FormData()` para extrair payloads multipart em u
 ## Importação
 
 ```ts
-import { FormData, type FormDataPayload } from "@bunstone";
+import {
+  Controller,
+  FormData,
+  Post,
+  type FormDataPayload,
+} from "@grupodiariodaregiao/bunstone";
 ```
 
 ## Uso

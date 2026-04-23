@@ -72,6 +72,9 @@ function createThemeConfig(prefix: string, labels: {
   guide: string;
   introduction: string;
   gettingStarted: string;
+  applicationRuntime: string;
+  cli: string;
+  logging: string;
   dependencyInjection: string;
   features: string;
   routingParams: string;
@@ -100,6 +103,18 @@ function createThemeConfig(prefix: string, labels: {
           {
             text: labels.gettingStarted,
             link: withPrefix(prefix, "/getting-started"),
+          },
+          {
+            text: labels.applicationRuntime,
+            link: withPrefix(prefix, "/application-runtime"),
+          },
+          {
+            text: labels.cli,
+            link: withPrefix(prefix, "/cli"),
+          },
+          {
+            text: labels.logging,
+            link: withPrefix(prefix, "/logging"),
           },
           {
             text: labels.dependencyInjection,
@@ -194,6 +209,9 @@ export default defineConfig({
         guide: "Guide",
         introduction: "Introduction",
         gettingStarted: "Getting Started",
+        applicationRuntime: "Application Runtime",
+        cli: "CLI",
+        logging: "Logging",
         dependencyInjection: "Dependency Injection",
         features: "Features",
         routingParams: "Routing & Params",
@@ -220,6 +238,9 @@ export default defineConfig({
         guide: "Guia",
         introduction: "Introdução",
         gettingStarted: "Primeiros Passos",
+        applicationRuntime: "Runtime da Aplicação",
+        cli: "CLI",
+        logging: "Logging",
         dependencyInjection: "Injeção de Dependência",
         features: "Recursos",
         routingParams: "Roteamento & Parâmetros",

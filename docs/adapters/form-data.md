@@ -5,7 +5,12 @@ Use the `@FormData()` parameter decorator to extract multipart payloads into a t
 ## Import
 
 ```ts
-import { FormData, type FormDataPayload } from "@bunstone";
+import {
+  Controller,
+  FormData,
+  Post,
+  type FormDataPayload,
+} from "@grupodiariodaregiao/bunstone";
 ```
 
 ## Usage

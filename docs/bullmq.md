@@ -15,8 +15,7 @@ bun add bullmq ioredis
 To use BullMQ, you need to register the `BullMqModule` in your `AppModule`.
 
 ```typescript
-import { Module } from "@grupodiariodaregiao/bunstone";
-import { BullMqModule } from "@grupodiariodaregiao/bunstone/lib/bullmq/bullmq-module";
+import { BullMqModule, Module } from "@grupodiariodaregiao/bunstone";
 
 @Module({
   imports: [
@@ -34,7 +33,7 @@ export class AppModule {}
 A processor is a class decorated with `@Processor()`. It contains methods decorated with `@Process()` that handle jobs from a specific queue.
 
 ```typescript
-import { Processor, Process } from "@grupodiariodaregiao/bunstone/lib/bullmq/decorators";
+import { Process, Processor } from "@grupodiariodaregiao/bunstone";
 import { Job } from "bullmq";
 
 @Processor('email-queue')
@@ -61,8 +60,12 @@ Don't forget to add your processor to the `providers` of a module.
 You can inject the `QueueService` into your controllers or services to add jobs to a queue.
 
 ```typescript
-import { Controller, Get, Query } from "@grupodiariodaregiao/bunstone/lib/controller";
-import { QueueService } from "@grupodiariodaregiao/bunstone/lib/bullmq/queue.service";
+import {
+  Controller,
+  Get,
+  Query,
+  QueueService,
+} from "@grupodiariodaregiao/bunstone";
 
 @Controller('/email')
 export class EmailController {
@@ -75,6 +78,14 @@ export class EmailController {
   }
 }
 ```
+
+## Full Example
+
+Explore a complete producer + processor flow:
+
+<<< @/../examples/12-bullmq/index.ts
+
+[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/12-bullmq/index.ts)
 
 ## Processor Options
 

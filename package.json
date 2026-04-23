@@ -27,10 +27,16 @@
     "dist",
     "bin",
     "lib",
+    "docs/**/*.md",
+    "examples/**/*.ts",
+    "examples/**/*.tsx",
+    "examples/package.json",
     "starter",
-    "README.md"
+    "README.md",
+    "AGENTS.md"
   ],
   "scripts": {
+    "agents:build": "bun run ./scripts/generate-agents.ts",
     "test": "bun test",
     "coverage": "bun test --coverage",
     "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun --external react --external react-dom --external elysia --external @elysiajs/* && tsc --emitDeclarationOnly --declaration --outDir dist",
@@ -41,7 +47,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format . --write",
     "benchmark": "bun run ./benchmarks/run.ts",
-    "prepublishOnly": "npm run build"
+    "prepack": "npm run build && npm run agents:build"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.11",
