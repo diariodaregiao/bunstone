@@ -29,18 +29,27 @@ export const TYPE_ONLY_EXPORTS: ReadonlySet<string> = new Set([
 	"ModuleConfig",
 	"Options",
 	"GuardContract",
+	"OnModuleInit",
+	"OnModuleDestroy",
+	"EmailConfig",
+	"RateLimitConfig",
+	"RateLimitHeaders",
+	"RateLimitInfo",
+	"RateLimitResult",
+	"RateLimitStorage",
+	"FormDataFields",
+	"LoggerOptions",
 ]);
 
 // ── Value exports (present at runtime) ────────────────────────────────────
 
 /**
- * All value names shipped in the bundle.
- * Keep in sync with `index.ts`.
+ * Common value names intended for public consumption.
+ * Keep this list aligned with the documented Bunstone API surface.
  */
 export const VALUE_EXPORTS: ReadonlyArray<string> = [
 	// adapters
 	"CacheAdapter",
-	"FormDataAdapter",
 	"UploadAdapter",
 	// email
 	"EmailModule",
@@ -59,9 +68,11 @@ export const VALUE_EXPORTS: ReadonlyArray<string> = [
 	"Delete",
 	"Head",
 	"Options",
+	"SetResponseHeader",
 	// rate limit
 	"RateLimit",
-	"RateLimitGuard",
+	"RateLimitExceededException",
+	"MemoryStorage",
 	"RedisStorage",
 	// cqrs
 	"CommandBus",
@@ -108,7 +119,6 @@ export const VALUE_EXPORTS: ReadonlyArray<string> = [
 	"ErrorFormatter",
 	// guard
 	"Guard",
-	"UseGuards",
 	// http-exceptions
 	"HttpException",
 	"BadRequestException",
@@ -121,33 +131,28 @@ export const VALUE_EXPORTS: ReadonlyArray<string> = [
 	"OkResponse",
 	"CreatedResponse",
 	"NoContentResponse",
-	// http-methods
-	"HttpMethod",
 	// http-params
 	"Body",
 	"Param",
 	"Query",
-	"Headers",
-	"Req",
-	"Res",
+	"Header",
+	"Request",
 	"FormData",
+	"FormDataPayload",
 	// injectable
 	"Injectable",
 	// jwt
 	"Jwt",
 	"JwtModule",
 	"JwtService",
-	"UseJwt",
 	// module
 	"Module",
-	// on-module
-	"OnModuleInit",
-	"OnModuleDestroy",
 	// openapi
 	"ApiTags",
 	"ApiOperation",
 	"ApiResponse",
-	"ApiBody",
+	"ApiHeader",
+	"ApiHeaders",
 	// render
 	"Render",
 	// schedule
@@ -155,8 +160,9 @@ export const VALUE_EXPORTS: ReadonlyArray<string> = [
 	"Timeout",
 	// testing
 	"Test",
-	"TestingModuleBuilder",
+	"TestingModule",
 	"TestApp",
 	// logger
+	"LogLevel",
 	"Logger",
 ];

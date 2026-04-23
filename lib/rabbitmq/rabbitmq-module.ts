@@ -13,7 +13,7 @@ import { RabbitMQConnection } from "./rabbitmq-connection";
  * @example
  * ```typescript
  * import { Module } from "@grupodiariodaregiao/bunstone";
- * import { RabbitMQModule } from "@grupodiariodaregiao/bunstone/lib/rabbitmq/rabbitmq-module";
+ * import { RabbitMQModule } from "@grupodiariodaregiao/bunstone";
  *
  * @Module({
  *   imports: [

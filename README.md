@@ -80,13 +80,20 @@ bun run docs:dev
 
 ### Guide
 
+- [Application Runtime](./docs/application-runtime.md)
+- [CLI](./docs/cli.md)
 - [Dependency Injection](./docs/dependency-injection.md)
+- [Logging](./docs/logging.md)
 - [Routing & Parameters](./docs/routing-params.md)
 - [CQRS & Sagas](./docs/cqrs.md)
 - [Guards & JWT](./docs/guards-jwt.md)
 - [Scheduling (Cron/Timeout)](./docs/scheduling.md)
 - [Adapters](./docs/adapters/form-data.md)
 - [Testing](./docs/testing.md)
+
+## 🤖 Agent Context
+
+The published package now includes `AGENTS.md`, `CLAUDE.md`, and the `docs/` and `examples/` folders. After installation, coding agents can read everything directly from `node_modules/@grupodiariodaregiao/bunstone/`.
 
 ## 📄 License
 

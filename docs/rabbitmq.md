@@ -14,8 +14,7 @@ bun add -d @types/amqplib
 Register `RabbitMQModule` once in your root `AppModule`. The module is **global** so `RabbitMQService` is injectable everywhere without re-importing the module.
 
 ```typescript
-import { Module } from "@grupodiariodaregiao/bunstone";
-import { RabbitMQModule } from "@grupodiariodaregiao/bunstone/lib/rabbitmq/rabbitmq-module";
+import { Module, RabbitMQModule } from "@grupodiariodaregiao/bunstone";
 
 @Module({
   imports: [
@@ -660,4 +659,3 @@ export class DLQController {
 <<< @/../examples/13-rabbitmq/index.ts
 
 [See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/13-rabbitmq/index.ts)
-

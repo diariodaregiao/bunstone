@@ -6,7 +6,6 @@ import {
 	Module,
 	Process,
 	Processor,
-	QueryService,
 	QueueService,
 } from "../../index";
 import { Job } from "bullmq";
@@ -67,4 +66,5 @@ class AppModule {}
 // 4. Start the app
 console.log("Starting BullMQ example app...");
 console.log("Make sure you have a Redis instance running at localhost:6379");
-AppStartup.bootstrap(AppModule);
+const app = await AppStartup.create(AppModule);
+app.listen(3000);
