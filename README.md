@@ -93,7 +93,7 @@ bun run docs:dev
 
 ## 🤖 Agent Context
 
-The published package now includes an `AGENTS.md` file plus the `docs/` and `examples/` folders. After installation, coding agents can read everything directly from `node_modules/@grupodiariodaregiao/bunstone/`.
+The published package now includes `AGENTS.md`, `CLAUDE.md`, and the `docs/` and `examples/` folders. After installation, coding agents can read everything directly from `node_modules/@grupodiariodaregiao/bunstone/`.
 
 ## 📄 License
 

@@ -33,7 +33,8 @@
     "examples/package.json",
     "starter",
     "README.md",
-    "AGENTS.md"
+    "AGENTS.md",
+    "CLAUDE.md"
   ],
   "scripts": {
     "agents:build": "bun run ./scripts/generate-agents.ts",

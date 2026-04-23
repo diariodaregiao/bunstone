@@ -26,3 +26,5 @@ A minimal starter project for building applications with the Bunstone framework.
 - `src/controllers/`: Application controllers.
 - `src/services/`: Application services (providers).
 - `src/views/`: React components for SSR rendering.
+- `AGENTS.md`: Instructions for coding agents to use Bunstone docs from `node_modules`.
+- `CLAUDE.md`: Claude-specific alias that imports `AGENTS.md`.
