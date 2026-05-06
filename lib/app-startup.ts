@@ -1,12 +1,20 @@
+import { mkdir } from "node:fs/promises";
 import { cors } from "@elysiajs/cors";
 import { html } from "@elysiajs/html";
 import jwt from "@elysiajs/jwt";
 import { staticPlugin } from "@elysiajs/static";
 import { swagger } from "@elysiajs/swagger";
+import {
+	context as otelContext,
+	metrics as otelMetrics,
+	propagation,
+	SpanKind,
+	SpanStatusCode,
+	trace,
+} from "@opentelemetry/api";
 import { type Job, Worker } from "bullmq";
 import Elysia from "elysia";
 import scheduler from "node-cron";
-import { mkdir } from "node:fs/promises";
 import React from "react";
 import { renderToReadableStream } from "react-dom/server";
 import "reflect-metadata";
@@ -617,14 +625,66 @@ export class AppStartup {
 					method.rateLimit,
 				);
 
+				// ── Capture the route-level metadata for the closure ──────────────
+				const routePattern = method.pathname;
+				const routeHttpMethod = method.httpMethod.toUpperCase();
+
 				(AppStartup.elysia as any)[httpMethod](
 					method.pathname,
-					(req: any) =>
-						AppStartup.executeControllerMethod(
+					(req: any) => {
+						// Run the controller inside the OTel context that was
+						// established by beforeHandle (if telemetry is active).
+						// This ensures SQL / CQRS / RabbitMQ spans are children
+						// of the HTTP span without any explicit context passing.
+						const savedCtx: import("@opentelemetry/api").Context | undefined =
+							req.__otel_ctx;
+						if (savedCtx) {
+							const span: import("@opentelemetry/api").Span = req.__otel_span;
+							return otelContext.with(savedCtx, async () => {
+								try {
+									const result = await AppStartup.executeControllerMethod(
+										req,
+										controller,
+										method.methodName,
+									);
+									const statusCode =
+										typeof req.set?.status === "number" ? req.set.status : 200;
+									span.setAttribute("http.response.status_code", statusCode);
+									if (statusCode >= 500) {
+										span.setStatus({ code: SpanStatusCode.ERROR });
+									}
+									return result;
+								} catch (err: any) {
+									const statusCode =
+										err instanceof HttpException
+											? err.getStatus()
+											: (err.status ?? 500);
+									span.setAttribute("http.response.status_code", statusCode);
+									span.recordException(err);
+									if (statusCode >= 500) {
+										span.setStatus({
+											code: SpanStatusCode.ERROR,
+											message: err.message,
+										});
+									}
+									throw err;
+								} finally {
+									span.end();
+									// Record HTTP duration metric
+									AppStartup.recordHttpMetric(
+										req,
+										routeHttpMethod,
+										routePattern,
+									);
+								}
+							});
+						}
+						return AppStartup.executeControllerMethod(
 							req,
 							controller,
 							method.methodName,
-						),
+						);
+					},
 					{
 						...(bodySchema && { body: z4.toJSONSchema(bodySchema) }),
 						...(querySchema && { query: z4.toJSONSchema(querySchema) }),
@@ -639,14 +699,46 @@ export class AppStartup {
 							...(parameters.length > 0 && { parameters }),
 						},
 						async beforeHandle(req: any) {
-							// Check rate limit first
+							// ── OpenTelemetry: start the HTTP span for this request ──
+							// We do this in beforeHandle so guard / rate-limit early
+							// returns are also captured as complete spans.
+							const incomingHeaders: Record<string, string> = {};
+							req.request.headers.forEach((v: string, k: string) => {
+								incomingHeaders[k] = v;
+							});
+							const parentCtx = propagation.extract(
+								otelContext.active(),
+								incomingHeaders,
+							);
+							const tracer = trace.getTracer("bunstone.http");
+							const span = tracer.startSpan(
+								`${routeHttpMethod} ${routePattern}`,
+								{
+									kind: SpanKind.SERVER,
+									attributes: {
+										"http.request.method": routeHttpMethod,
+										"http.route": routePattern,
+										"url.path": req.path ?? routePattern,
+										"url.full": req.request.url,
+										"server.address": new URL(req.request.url).hostname,
+									},
+								},
+								parentCtx,
+							);
+
+							// Store span + context on the per-request ctx object so
+							// the route handler can continue running inside it.
+							req.__otel_span = span;
+							req.__otel_ctx = trace.setSpan(parentCtx, span);
+							req.__otel_start = performance.now();
+
+							// ── Rate limit check ──
 							if (effectiveRateLimit) {
 								const result = await AppStartup.rateLimitService.process(
 									req,
 									effectiveRateLimit,
 								);
 
-								// Set rate limit headers on the response
 								if (req.set?.headers) {
 									Object.entries(result.headers).forEach(([key, value]) => {
 										if (value !== undefined) {
@@ -656,6 +748,14 @@ export class AppStartup {
 								}
 
 								if (!result.allowed) {
+									span.setAttribute("http.response.status_code", 429);
+									span.end();
+									AppStartup.recordHttpMetric(
+										req,
+										routeHttpMethod,
+										routePattern,
+										429,
+									);
 									req.set.status = 429;
 									return {
 										status: 429,
@@ -666,24 +766,75 @@ export class AppStartup {
 								}
 							}
 
-							// Then check guard
+							// ── Guard check ──
 							if (!guardInstance) return;
 							const isValid = guardInstance.validate(req);
+							const handleInvalid = () => {
+								span.setAttribute("http.response.status_code", 401);
+								span.end();
+								AppStartup.recordHttpMetric(
+									req,
+									routeHttpMethod,
+									routePattern,
+									401,
+								);
+								throw new UnauthorizedException();
+							};
 							if (isValid instanceof Promise) {
 								return isValid.then((valid) => {
-									if (!valid) {
-										throw new UnauthorizedException();
-									}
+									if (!valid) handleInvalid();
 								});
-							} else {
-								if (!isValid) {
-									throw new UnauthorizedException();
-								}
 							}
+							if (!isValid) handleInvalid();
 						},
 					},
 				);
 			}
+		}
+	}
+
+	/**
+	 * Records HTTP server duration metric via OTel Metrics API.
+	 * No-op when no MeterProvider is configured.
+	 */
+	private static recordHttpMetric(
+		req: any,
+		httpMethod: string,
+		route: string,
+		statusOverride?: number,
+	): void {
+		try {
+			const status =
+				statusOverride ??
+				(typeof req.set?.status === "number" ? req.set.status : 200);
+			const durationMs = req.__otel_start
+				? performance.now() - req.__otel_start
+				: 0;
+
+			const meter = otelMetrics.getMeter("bunstone");
+
+			meter
+				.createHistogram("http.server.request.duration", {
+					description: "Duration of HTTP server requests",
+					unit: "ms",
+				})
+				.record(durationMs, {
+					"http.request.method": httpMethod,
+					"http.route": route,
+					"http.response.status_code": status,
+				});
+
+			meter
+				.createCounter("http.server.request.count", {
+					description: "Total number of HTTP server requests",
+				})
+				.add(1, {
+					"http.request.method": httpMethod,
+					"http.route": route,
+					"http.response.status_code": status,
+				});
+		} catch {
+			// Metrics are best-effort; never let OTel failures break the app
 		}
 	}
 
@@ -836,12 +987,63 @@ export class AppStartup {
 						handler = methods.find((m) => !m.name);
 					}
 
-					if (handler) {
-						return await provider[handler.methodName](job);
+					if (!handler) {
+						AppStartup.logger.warn(
+							`No handler found for job ${job.name} in queue ${queueName}`,
+						);
+						return;
 					}
 
-					AppStartup.logger.warn(
-						`No handler found for job ${job.name} in queue ${queueName}`,
+					// ── OTel instrumentation for BullMQ job processing ──────────
+					const tracer = trace.getTracer("bunstone.bullmq");
+					const span = tracer.startSpan(
+						`bullmq.process ${queueName}/${job.name ?? "default"}`,
+						{
+							kind: SpanKind.CONSUMER,
+							attributes: {
+								"messaging.system": "bullmq",
+								"messaging.operation.type": "process",
+								"messaging.destination.name": queueName,
+								"messaging.bullmq.job.name": job.name ?? "default",
+								"messaging.bullmq.job.id": String(job.id ?? ""),
+								"messaging.bullmq.job.attempts": job.attemptsMade,
+							},
+						},
+					);
+
+					const start = performance.now();
+					return otelContext.with(
+						trace.setSpan(otelContext.active(), span),
+						async () => {
+							try {
+								const result = await provider[handler!.methodName](job);
+								span.setStatus({ code: SpanStatusCode.OK });
+								return result;
+							} catch (err: any) {
+								span.recordException(err);
+								span.setStatus({
+									code: SpanStatusCode.ERROR,
+									message: err.message,
+								});
+								throw err;
+							} finally {
+								span.end();
+								try {
+									otelMetrics
+										.getMeter("bunstone")
+										.createHistogram("messaging.bullmq.process.duration", {
+											description: "Duration of BullMQ job processing",
+											unit: "ms",
+										})
+										.record(performance.now() - start, {
+											"messaging.destination.name": queueName,
+											"messaging.bullmq.job.name": job.name ?? "default",
+										});
+								} catch {
+									// best-effort
+								}
+							}
+						},
 					);
 				},
 				{
@@ -992,14 +1194,74 @@ export class AppStartup {
 										reject: () => channel.reject(raw, false),
 									};
 
+									// ── OTel: extract W3C context from message headers ──
+									const msgHeaders: Record<string, string> = {};
+									if (raw.properties.headers) {
+										for (const [k, v] of Object.entries(
+											raw.properties.headers,
+										)) {
+											if (typeof v === "string") msgHeaders[k] = v;
+										}
+									}
+									const parentCtx = propagation.extract(
+										otelContext.active(),
+										msgHeaders,
+									);
+									const tracer = trace.getTracer("bunstone.rabbitmq");
+									const span = tracer.startSpan(
+										`rabbitmq.consume ${exchange}/${routingKey}`,
+										{
+											kind: SpanKind.CONSUMER,
+											attributes: {
+												"messaging.system": "rabbitmq",
+												"messaging.operation.type": "deliver",
+												"messaging.destination.name": exchange,
+												"messaging.rabbitmq.destination.routing_key":
+													routingKey,
+												"messaging.rabbitmq.consumer": `${providerClass.name}.${descriptor.methodName}`,
+											},
+										},
+										parentCtx,
+									);
+
+									const start = performance.now();
 									try {
-										await instance[descriptor.methodName](msg);
+										await otelContext.with(trace.setSpan(parentCtx, span), () =>
+											instance[descriptor.methodName](msg),
+										);
+										span.setStatus({ code: SpanStatusCode.OK });
 									} catch (err: any) {
 										AppStartup.logger.error(
 											`Unhandled error in RabbitMQ handler ${providerClass.name}.${descriptor.methodName}() on exchange "${exchange}" routingKey "${routingKey}": ${err.message}`,
 										);
+										span.recordException(err);
+										span.setStatus({
+											code: SpanStatusCode.ERROR,
+											message: err.message,
+										});
 										if (!noAck) {
 											channel.nack(raw, false, false);
+										}
+									} finally {
+										span.end();
+										try {
+											otelMetrics
+												.getMeter("bunstone")
+												.createHistogram(
+													"messaging.rabbitmq.consume.duration",
+													{
+														description:
+															"Duration of RabbitMQ message processing",
+														unit: "ms",
+													},
+												)
+												.record(performance.now() - start, {
+													"messaging.destination.name": exchange,
+													"messaging.rabbitmq.destination.routing_key":
+														routingKey,
+												});
+										} catch {
+											// best-effort
 										}
 									}
 								},
@@ -1112,14 +1374,69 @@ export class AppStartup {
 									continue;
 								}
 
+								// ── OTel: extract W3C context + create consume span ──
+								const msgHeaders: Record<string, string> = {};
+								if (raw.properties.headers) {
+									for (const [k, v] of Object.entries(raw.properties.headers)) {
+										if (typeof v === "string") msgHeaders[k] = v;
+									}
+								}
+								const parentCtx = propagation.extract(
+									otelContext.active(),
+									msgHeaders,
+								);
+								const spanName = `rabbitmq.consume ${queue}${handlerRoutingKey ? `/${handlerRoutingKey}` : ""}`;
+								const consumeSpan = trace
+									.getTracer("bunstone.rabbitmq")
+									.startSpan(
+										spanName,
+										{
+											kind: SpanKind.CONSUMER,
+											attributes: {
+												"messaging.system": "rabbitmq",
+												"messaging.operation.type": "deliver",
+												"messaging.destination.name": queue,
+												"messaging.rabbitmq.destination.routing_key":
+													raw.fields.routingKey,
+												"messaging.rabbitmq.consumer": `${providerName}.${descriptor.methodName}`,
+											},
+										},
+										parentCtx,
+									);
+
+								const start = performance.now();
 								try {
-									await instance[descriptor.methodName](msg);
+									await otelContext.with(
+										trace.setSpan(parentCtx, consumeSpan),
+										() => instance[descriptor.methodName](msg),
+									);
+									consumeSpan.setStatus({ code: SpanStatusCode.OK });
 								} catch (err: any) {
 									AppStartup.logger.error(
 										`Unhandled error in RabbitMQ handler ${providerName}.${descriptor.methodName}() on queue "${queue}": ${err.message}`,
 									);
+									consumeSpan.recordException(err);
+									consumeSpan.setStatus({
+										code: SpanStatusCode.ERROR,
+										message: err.message,
+									});
 									if (!handlerNoAck && !settled) {
 										settle(() => channel.nack(raw, false, false));
+									}
+								} finally {
+									consumeSpan.end();
+									try {
+										otelMetrics
+											.getMeter("bunstone")
+											.createHistogram("messaging.rabbitmq.consume.duration", {
+												description: "Duration of RabbitMQ message processing",
+												unit: "ms",
+											})
+											.record(performance.now() - start, {
+												"messaging.destination.name": queue,
+											});
+									} catch {
+										// best-effort
 									}
 								}
 							}

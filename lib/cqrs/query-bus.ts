@@ -1,3 +1,9 @@
+import {
+	context as otelContext,
+	metrics as otelMetrics,
+	SpanStatusCode,
+	trace,
+} from "@opentelemetry/api";
 import { CqrsError } from "../errors";
 import { Injectable } from "../injectable";
 import { QUERY_HANDLER_METADATA } from "./decorators/query-handler.decorator";
@@ -38,7 +44,46 @@ export class QueryBus {
 		if (!handler) {
 			throw CqrsError.noQueryHandler(queryType.name);
 		}
-		return handler.execute(query);
+
+		const queryName = queryType.name;
+		const tracer = trace.getTracer("bunstone.cqrs");
+		const span = tracer.startSpan(`query.execute ${queryName}`, {
+			attributes: {
+				"cqrs.type": "query",
+				"cqrs.query.name": queryName,
+			},
+		});
+
+		const start = performance.now();
+		return otelContext.with(
+			trace.setSpan(otelContext.active(), span),
+			async () => {
+				try {
+					const result = await handler.execute(query);
+					span.setStatus({ code: SpanStatusCode.OK });
+					return result;
+				} catch (err: any) {
+					span.recordException(err);
+					span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+					throw err;
+				} finally {
+					span.end();
+					try {
+						otelMetrics
+							.getMeter("bunstone")
+							.createHistogram("cqrs.query.duration", {
+								description: "Duration of CQRS query execution",
+								unit: "ms",
+							})
+							.record(performance.now() - start, {
+								"cqrs.query.name": queryName,
+							});
+					} catch {
+						// best-effort
+					}
+				}
+			},
+		);
 	}
 
 	private getHandler(queryType: any): IQueryHandler | undefined {

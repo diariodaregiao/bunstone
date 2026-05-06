@@ -149,6 +149,7 @@ function createThemeConfig(prefix: string, labels: {
             link: withPrefix(prefix, "/database-sql"),
           },
           { text: "OpenAPI (Swagger)", link: withPrefix(prefix, "/openapi") },
+          { text: "OpenTelemetry", link: withPrefix(prefix, "/telemetry") },
           { text: labels.testing, link: withPrefix(prefix, "/testing") },
         ],
       },

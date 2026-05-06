@@ -1,3 +1,4 @@
+import { metrics as otelMetrics, trace } from "@opentelemetry/api";
 import { Injectable } from "../injectable";
 import { EVENT_HANDLER_METADATA } from "./decorators/event-handler.decorator";
 import type { IEvent, IEventHandler } from "./interfaces/event.interface";
@@ -68,16 +69,42 @@ export class EventBus {
 	 * @param event The event instance to publish.
 	 */
 	publish<T extends IEvent>(event: T): void {
-		const eventType = event.constructor;
-		const handlers = this.getHandlers(eventType);
-		handlers.forEach((handler) => {
-			handler.handle(event);
-		});
+		const eventName = event.constructor.name;
 
-		// Notify generic listeners (Sagas)
-		this.listeners.forEach((listener) => {
-			listener(event);
-		});
+		// Record an OTel span for the event publish operation
+		const span = trace
+			.getTracer("bunstone.cqrs")
+			.startSpan(`event.publish ${eventName}`, {
+				attributes: {
+					"cqrs.type": "event",
+					"cqrs.event.name": eventName,
+				},
+			});
+
+		try {
+			const eventType = event.constructor;
+			const handlers = this.getHandlers(eventType);
+			handlers.forEach((handler) => {
+				handler.handle(event);
+			});
+
+			// Notify generic listeners (Sagas)
+			this.listeners.forEach((listener) => {
+				listener(event);
+			});
+		} finally {
+			span.end();
+			try {
+				otelMetrics
+					.getMeter("bunstone")
+					.createCounter("cqrs.event.publish.count", {
+						description: "Total number of CQRS events published",
+					})
+					.add(1, { "cqrs.event.name": eventName });
+			} catch {
+				// best-effort
+			}
+		}
 	}
 
 	/**

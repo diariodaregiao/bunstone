@@ -13,7 +13,7 @@
       "types": "./dist/*.d.ts"
     }
   },
-  "version": "0.6.1",
+  "version": "0.7.0",
   "homepage": "https://bunstone.diario.one/",
   "repository": {
     "url": "https://github.com/diariodaregiao/bunstone.git",
@@ -87,6 +87,14 @@
     "@nestjs/core": "^11.1.11",
     "@nestjs/platform-express": "^11.1.11",
     "@nestjs/platform-fastify": "^11.1.11",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/context-async-hooks": "^2.7.1",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.217.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.217.0",
+    "@opentelemetry/resources": "^2.7.1",
+    "@opentelemetry/sdk-metrics": "^2.7.1",
+    "@opentelemetry/sdk-trace-base": "^2.7.1",
+    "@opentelemetry/semantic-conventions": "^1.40.0",
     "@react-email/components": "^1.0.4",
     "@react-email/render": "^2.0.2",
     "@react-email/tailwind": "^2.0.3",
