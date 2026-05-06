@@ -67,28 +67,29 @@ export class TelemetrySdk {
 						})
 					: new AlwaysOnSampler();
 
-			const tracerProvider = new BasicTracerProvider({ resource, sampler });
-
-			if (options.consoleExport) {
-				tracerProvider.addSpanProcessor(
-					new SimpleSpanProcessor(new ConsoleSpanExporter()),
-				);
-			}
-
 			const traceEndpoint = resolveEndpoint(
 				options.traces?.otlp?.endpoint,
 				"/v1/traces",
 			);
-			tracerProvider.addSpanProcessor(
+
+			const spanProcessors = [
 				new BatchSpanProcessor(
 					new OTLPTraceExporter({
 						url: traceEndpoint,
 						headers: options.traces?.otlp?.headers,
 					}),
 				),
-			);
+				...(options.consoleExport
+					? [new SimpleSpanProcessor(new ConsoleSpanExporter())]
+					: []),
+			];
 
-			tracerProvider.register();
+			const tracerProvider = new BasicTracerProvider({
+				resource,
+				sampler,
+				spanProcessors,
+			});
+
 			TelemetrySdk.tracerProvider = tracerProvider;
 			trace.setGlobalTracerProvider(tracerProvider);
 		}
