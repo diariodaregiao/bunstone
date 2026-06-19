@@ -15,14 +15,15 @@ import "reflect-metadata";
  */
 
 export * from "./lib/adapters/cache-adapter";
-export { EmailModule, EmailService } from "./lib/email/email-module";
-export { EmailLayout } from "./lib/email/email-layout";
 export * from "./lib/adapters/form-data";
 export * from "./lib/adapters/upload-adapter";
 export * from "./lib/app-startup";
+export { BullMqModule } from "./lib/bullmq/bullmq-module";
+export * from "./lib/bullmq/decorators/process.decorator";
+export * from "./lib/bullmq/decorators/processor.decorator";
+export { QueueService } from "./lib/bullmq/queue.service";
 export * from "./lib/components/layout";
 export * from "./lib/controller";
-export * from "./lib/ratelimit";
 export * from "./lib/cqrs/command-bus";
 export * from "./lib/cqrs/cqrs-module";
 export * from "./lib/cqrs/decorators/command-handler.decorator";
@@ -36,48 +37,52 @@ export * from "./lib/cqrs/interfaces/query.interface";
 export * from "./lib/cqrs/query-bus";
 export { SqlModule, SqlService } from "./lib/database/sql-module";
 export type {
+	BunSqlClientOptions,
+	ConnectionOptions,
+	SqlConnectionDetails,
 	SqlConnectionOptions,
+	SqlModuleOptions,
 	SqlPoolOptions,
 	SqlRegisterOptions,
 } from "./lib/database/sql-module";
-export { BullMqModule } from "./lib/bullmq/bullmq-module";
-export { QueueService } from "./lib/bullmq/queue.service";
-export * from "./lib/bullmq/decorators/processor.decorator";
-export * from "./lib/bullmq/decorators/process.decorator";
-export { RabbitMQModule } from "./lib/rabbitmq/rabbitmq-module";
-export { RabbitMQService } from "./lib/rabbitmq/rabbitmq.service";
-export { RabbitMQDeadLetterService } from "./lib/rabbitmq/dead-letter.service";
-export { RabbitMQConnection } from "./lib/rabbitmq/rabbitmq-connection";
-export * from "./lib/rabbitmq/decorators/consumer.decorator";
-export * from "./lib/rabbitmq/decorators/subscribe.decorator";
-export type * from "./lib/rabbitmq/interfaces/rabbitmq-options.interface";
-export type * from "./lib/rabbitmq/interfaces/rabbitmq-message.interface";
+export { EmailLayout } from "./lib/email/email-layout";
+export { EmailModule, EmailService } from "./lib/email/email-module";
 export * from "./lib/errors";
-export { ErrorFormatter } from "./lib/utils/error-formatter";
 export * from "./lib/guard";
 export * from "./lib/http-exceptions";
 export * from "./lib/http-methods";
 export * from "./lib/http-params";
 export * from "./lib/injectable";
+export type { GuardContract } from "./lib/interfaces/guard-contract";
 export * from "./lib/jwt";
 export * from "./lib/jwt/jwt-module";
 export { JwtService } from "./lib/jwt/jwt.service";
 export * from "./lib/module";
 export * from "./lib/on-module";
 export * from "./lib/openapi";
+export { RabbitMQDeadLetterService } from "./lib/rabbitmq/dead-letter.service";
+export * from "./lib/rabbitmq/decorators/consumer.decorator";
+export * from "./lib/rabbitmq/decorators/subscribe.decorator";
+export type * from "./lib/rabbitmq/interfaces/rabbitmq-message.interface";
+export type * from "./lib/rabbitmq/interfaces/rabbitmq-options.interface";
+export { RabbitMQConnection } from "./lib/rabbitmq/rabbitmq-connection";
+export { RabbitMQModule } from "./lib/rabbitmq/rabbitmq-module";
+export { RabbitMQService } from "./lib/rabbitmq/rabbitmq.service";
+export * from "./lib/ratelimit";
 export * from "./lib/render";
-export * from "./lib/types/options";
-export * from "./lib/types/module-config";
 export * from "./lib/schedule/cron/cron";
 export * from "./lib/schedule/timeout/timeout";
+export type { OtlpExporterOptions, TelemetryOptions } from "./lib/telemetry/interfaces/telemetry-options.interface";
 export { TelemetryModule } from "./lib/telemetry/telemetry-module";
 export { TelemetrySdk } from "./lib/telemetry/telemetry.sdk";
-export type { TelemetryOptions, OtlpExporterOptions } from "./lib/telemetry/interfaces/telemetry-options.interface";
 export * from "./lib/testing/test";
-export * from "./lib/testing/testing-module";
 export * from "./lib/testing/test-app";
+export * from "./lib/testing/testing-module";
 export type { HttpRequest } from "./lib/types/http-request";
+export * from "./lib/types/module-config";
 export type { ModuleConfig } from "./lib/types/module-config";
+export * from "./lib/types/options";
 export type { Options } from "./lib/types/options";
+export { ErrorFormatter } from "./lib/utils/error-formatter";
 export * from "./lib/utils/logger";
-export type { GuardContract } from "./lib/interfaces/guard-contract";
+

@@ -244,11 +244,12 @@ export class CqrsError extends BunstoneError {
  * Codes:
  * - `BNS-DB-001` – SQL instance not initialised
  * - `BNS-DB-002` – query / transaction execution failed
+ * - `BNS-DB-003` – invalid SqlModule configuration option
  */
 export class DatabaseError extends BunstoneError {
 	constructor(
 		message: string,
-		code: "BNS-DB-001" | "BNS-DB-002" = "BNS-DB-001",
+		code: "BNS-DB-001" | "BNS-DB-002" | "BNS-DB-003" = "BNS-DB-001",
 		suggestion?: string,
 		context?: Record<string, unknown>,
 		cause?: Error,
@@ -264,6 +265,18 @@ export class DatabaseError extends BunstoneError {
 				"Call SqlModule.register(connectionStringOrOptions) inside your root AppModule imports.",
 				"Example: @Module({ imports: [SqlModule.register('postgresql://user:pass@host/db')] })",
 			].join("\n  "),
+		);
+	}
+
+	static invalidConfig(
+		invalidKeys: string[],
+		allowedKeys: readonly string[],
+	): DatabaseError {
+		return new DatabaseError(
+			`Invalid SqlModule option(s): ${invalidKeys.join(", ")}.`,
+			"BNS-DB-003",
+			`Use only supported options: ${allowedKeys.join(", ")}.`,
+			{ invalidKeys, allowedKeys },
 		);
 	}
 }

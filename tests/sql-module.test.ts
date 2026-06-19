@@ -1,7 +1,9 @@
+import type { SQL } from "bun";
 import { describe, expect, test } from "bun:test";
 import {
 	AppStartup,
 	CommandBus,
+	DatabaseError,
 	Injectable,
 	Module,
 	SqlModule,
@@ -28,7 +30,6 @@ describe("SqlModule & Global DI", () => {
 
 		await AppStartup.create(RootModule);
 
-		// Get the injectables map from the module metadata
 		const injectables: Map<any, any> = Reflect.getMetadata(
 			"dip:injectables",
 			FeatureModule,
@@ -76,19 +77,14 @@ describe("SqlModule & Global DI", () => {
 		await AppStartup.create(SqlRootModule);
 		const sqlService = new SqlService();
 
-		// Create table
 		await sqlService.query(
 			"CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)",
 		);
-
-		// Insert data using .query()
 		await sqlService.query("INSERT INTO users (name) VALUES (?)", ["Alice"]);
 
-		// Insert data using .sql tag
 		const name = "Bob";
 		await sqlService.query(`INSERT INTO users (name) VALUES (?)`, [name]);
 
-		// Select data
 		const users = await sqlService.query("SELECT * FROM users ORDER BY id ASC");
 
 		expect(users).toHaveLength(2);
@@ -135,7 +131,6 @@ describe("SqlModule & Global DI", () => {
 		await AppStartup.create(AdvancedSqlRootModule);
 		const sqlService = new SqlService();
 
-		// Table Setup
 		await sqlService.query(
 			"CREATE TABLE departments (id INTEGER PRIMARY KEY, name TEXT)",
 		);
@@ -143,7 +138,6 @@ describe("SqlModule & Global DI", () => {
 			"CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT, dept_id INTEGER)",
 		);
 
-		// Insert Data
 		await sqlService.query("INSERT INTO departments (name) VALUES (?)", [
 			"Engineering",
 		]);
@@ -164,7 +158,6 @@ describe("SqlModule & Global DI", () => {
 			["Mike", 2],
 		);
 
-		// Update
 		await sqlService.query("UPDATE employees SET name = ? WHERE name = ?", [
 			"John Doe",
 			"John",
@@ -175,7 +168,6 @@ describe("SqlModule & Global DI", () => {
 		);
 		expect(updated[0].name).toBe("John Doe");
 
-		// Join
 		const joined = await sqlService.query(
 			`
       SELECT e.name as employee, d.name as department 
@@ -189,12 +181,10 @@ describe("SqlModule & Global DI", () => {
 		expect(joined.some((r: any) => r.employee === "John Doe")).toBe(true);
 		expect(joined.some((r: any) => r.employee === "Jane")).toBe(true);
 
-		// Delete
 		await sqlService.query("DELETE FROM employees WHERE name = ?", ["Mike"]);
 		const remaining = await sqlService.query("SELECT * FROM employees");
 		expect(remaining).toHaveLength(2);
 
-		// Aggregate
 		const counts = await sqlService.query(
 			"SELECT COUNT(*) as total FROM departments",
 		);
@@ -219,27 +209,21 @@ describe("SqlModule & Global DI", () => {
 			["Apple", 1.5, "Banana", 0.5, "Cherry", 2.0, "Date", 3.0],
 		);
 
-		// IN operator
-		// Note: Standard SQLite parameter binding for IN (?) usually requires one ? per element
-		// or using the array support if the driver allows. Bun SQL supports arrays in some contexts.
-		// For raw .query strings, we might need to build the (?, ?) string if the driver doesn't auto-expand.
 		const inResults = await sqlService.query(
 			"SELECT * FROM products WHERE name IN (?, ?)",
 			["Apple", "Banana"],
 		);
 		expect(inResults).toHaveLength(2);
 
-		// LIKE operator
 		const likeResults = await sqlService.query(
 			"SELECT * FROM products WHERE name LIKE ?",
-			["%a%"], // Apple, Banana, Date
+			["%a%"],
 		);
 		expect(likeResults).toHaveLength(3);
 
-		// BETWEEN operator
 		const betweenResults = await sqlService.query(
 			"SELECT * FROM products WHERE price BETWEEN ? AND ?",
-			[1.0, 2.5], // Apple (1.5), Cherry (2.0)
+			[1.0, 2.5],
 		);
 		expect(betweenResults).toHaveLength(2);
 		expect(betweenResults.some((p: any) => p.name === "Apple")).toBe(true);
@@ -271,7 +255,6 @@ describe("SqlModule & Global DI", () => {
 			[100.0, 1, 200.0, 1, 50.0, 2],
 		);
 
-		// Subquery in WHERE
 		const subqueryResults = await sqlService.query(
 			"SELECT name FROM customers WHERE id IN (SELECT customer_id FROM orders WHERE total > ?)",
 			[150.0],
@@ -279,7 +262,6 @@ describe("SqlModule & Global DI", () => {
 		expect(subqueryResults).toHaveLength(1);
 		expect(subqueryResults[0].name).toBe("Alice");
 
-		// CASE expression
 		const caseResults = await sqlService.query(
 			`SELECT total, 
        CASE WHEN total > 150 THEN 'High' 
@@ -353,7 +335,7 @@ describe("SqlModule & Global DI", () => {
 				},
 				{
 					query: "INSERT INTO products_tx (id, name) VALUES (?, ?)",
-					params: [1, "Product 1 Duplicate"], // Should fail due to PK violation
+					params: [1, "Product 1 Duplicate"],
 				},
 			]);
 		} catch (_e) {
@@ -390,46 +372,118 @@ describe("SqlModule & Global DI", () => {
 		expect(results[2].name).toBe("Item 3");
 	});
 
-	test("should accept pool options via connection string register", async () => {
+	test("should accept pool options when registering with a connection string", async () => {
 		@Module({
 			imports: [
 				SqlModule.register("sqlite://:memory:", {
-					timezone: "UTC",
-					max: 5,
-					idleTimeout: 3600,
-					maxLifetime: 7200,
-					connectionTimeout: 15,
+					maxLifetime: 25200,
+					connectionTimeout: 30,
+					max: 10,
 				}),
 			],
 		})
-		class PoolOptionsRootModule {}
+		class PoolOptionsSqlRootModule {}
 
-		await AppStartup.create(PoolOptionsRootModule);
-		const sqlService = new SqlService();
+		await AppStartup.create(PoolOptionsSqlRootModule);
 
-		const rows = await sqlService.query("SELECT 1 as ok");
-		expect(rows[0].ok).toBe(1);
+		const sql = SqlModule.getSqlInstance() as SQL & {
+			options: Record<string, unknown>;
+		};
+
+		expect(sql.options.max).toBe(10);
+		expect(sql.options.maxLifetime).toBe(25200);
+		expect(sql.options.connectionTimeout).toBe(30);
 	});
 
-	test("should accept pool options via connection object register", async () => {
+	test("should keep timezone string overload for backward compatibility", async () => {
+		@Module({
+			imports: [SqlModule.register("sqlite://:memory:", "UTC")],
+		})
+		class TimezoneStringSqlRootModule {}
+
+		await AppStartup.create(TimezoneStringSqlRootModule);
+
+		const sql = SqlModule.getSqlInstance();
+		expect(sql).toBeDefined();
+	});
+
+	test("should accept pool options when registering with connection object", async () => {
 		@Module({
 			imports: [
 				SqlModule.register({
-					provider: "postgresql",
+					provider: "sqlite",
 					host: "localhost",
-					port: 5432,
+					port: 0,
 					username: "user",
 					password: "pass",
-					database: "test",
-					max: 3,
-					idleTimeout: 1800,
-					maxLifetime: 3600,
+					database: ":memory:",
+					max: 5,
+					idleTimeout: 15,
 				}),
 			],
 		})
-		class ObjectPoolOptionsRootModule {}
+		class ObjectPoolOptionsSqlRootModule {}
 
-		await AppStartup.create(ObjectPoolOptionsRootModule);
-		expect(SqlModule.getSqlInstance()).toBeDefined();
+		await AppStartup.create(ObjectPoolOptionsSqlRootModule);
+
+		const sql = SqlModule.getSqlInstance() as SQL & {
+			options: Record<string, unknown>;
+		};
+
+		expect(sql.options.max).toBe(5);
+		expect(sql.options.idleTimeout).toBe(15);
+	});
+
+	test("should accept supported Bun SQL options such as prepare and bigint", async () => {
+		@Module({
+			imports: [
+				SqlModule.register("sqlite://:memory:", {
+					prepare: false,
+					bigint: true,
+					onconnect: () => {},
+				}),
+			],
+		})
+		class SupportedBunOptionsSqlRootModule {}
+
+		await AppStartup.create(SupportedBunOptionsSqlRootModule);
+
+		const sql = SqlModule.getSqlInstance() as SQL & {
+			options: Record<string, unknown>;
+		};
+
+		expect(sql.options.prepare).toBe(false);
+		expect(sql.options.bigint).toBe(true);
+		expect(typeof sql.options.onconnect).toBe("function");
+	});
+
+	test("should reject invalid options at runtime when using connection string", () => {
+		expect(() =>
+			SqlModule.register("sqlite://:memory:", {
+				foo: "bar",
+			} as never),
+		).toThrow(DatabaseError);
+
+		try {
+			SqlModule.register("sqlite://:memory:", { foo: "bar" } as never);
+		} catch (error) {
+			expect(error).toBeInstanceOf(DatabaseError);
+			expect((error as DatabaseError).code).toBe("BNS-DB-003");
+			expect((error as DatabaseError).message).toContain("foo");
+		}
+	});
+
+	test("should reject invalid options at runtime when using connection object", () => {
+		expect(() =>
+			SqlModule.register({
+				provider: "sqlite",
+				host: "localhost",
+				port: 0,
+				username: "user",
+				password: "pass",
+				database: ":memory:",
+				invalidOption: true,
+			} as never),
+		).toThrow(DatabaseError);
 	});
 });
