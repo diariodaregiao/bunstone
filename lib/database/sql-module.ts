@@ -9,22 +9,116 @@ import { DatabaseError } from "../errors";
 import { Injectable } from "../injectable";
 import { Module } from "../module";
 
-type ConnectionOptions = {
+type Provider = "postgresql" | "mysql" | "sqlite";
+
+type BunSqlPoolOptions = Pick<
+	SQL.PostgresOrMySQLOptions,
+	| "max"
+	| "maxLifetime"
+	| "connectionTimeout"
+	| "idleTimeout"
+	| "connection"
+	| "tls"
+	| "prepare"
+	| "bigint"
+	| "onconnect"
+	| "onclose"
+	| "path"
+>;
+
+type BunSqliteClientOptions = Pick<
+	SQL.SQLiteOptions,
+	"readonly" | "create" | "safeIntegers" | "strict"
+>;
+
+/** Options forwarded by Bunstone to the underlying Bun.SQL client. */
+export type BunSqlClientOptions = Partial<
+	BunSqlPoolOptions & BunSqliteClientOptions
+>;
+
+/**
+ * Options accepted by {@link SqlModule.register}.
+ * Only Bunstone-supported settings are allowed.
+ */
+export type SqlModuleOptions = BunSqlClientOptions & {
+	/**
+	 * Timezone used for date/time interpretation on the database connection.
+	 * Mapped to driver `connection` settings when not provided explicitly.
+	 * Defaults to `UTC`.
+	 */
+	timezone?: string;
+};
+
+export type SqlConnectionDetails = {
 	host: string;
 	port: number;
 	username: string;
 	password: string;
 	database: string;
-	provider: "postgresql" | "mysql" | "sqlite";
-	/**
-	 * Timezone used for date/time interpretation on the database connection.
-	 * Defaults to 'UTC' to ensure consistent, offset-free date handling.
-	 * Set to 'local' to use the process timezone, or any valid tz identifier.
-	 */
-	timezone?: string;
+	provider: Provider;
 };
 
-type Provider = "postgresql" | "mysql" | "sqlite";
+export type ConnectionOptions = SqlConnectionDetails & SqlModuleOptions;
+
+type SqlClientInitOptions = Omit<
+	SqlModuleOptions,
+	"url" | "filename" | "timezone"
+>;
+
+const SQL_MODULE_OPTION_KEYS = [
+	"timezone",
+	"max",
+	"maxLifetime",
+	"connectionTimeout",
+	"idleTimeout",
+	"connection",
+	"tls",
+	"prepare",
+	"bigint",
+	"onconnect",
+	"onclose",
+	"path",
+	"readonly",
+	"create",
+	"safeIntegers",
+	"strict",
+] as const satisfies readonly (keyof SqlModuleOptions)[];
+
+const SQL_CONNECTION_DETAIL_KEYS = [
+	"host",
+	"port",
+	"username",
+	"password",
+	"database",
+	"provider",
+] as const satisfies readonly (keyof SqlConnectionDetails)[];
+
+function assertOnlyAllowedKeys(
+	source: Record<string, unknown>,
+	allowedKeys: readonly string[],
+): void {
+	const invalidKeys = Object.keys(source).filter(
+		(key) => !allowedKeys.includes(key),
+	);
+
+	if (invalidKeys.length > 0) {
+		throw DatabaseError.invalidConfig(invalidKeys, allowedKeys);
+	}
+}
+
+function pickSqlModuleOptions(
+	source: Record<string, unknown>,
+): SqlModuleOptions {
+	assertOnlyAllowedKeys(source, SQL_MODULE_OPTION_KEYS);
+
+	const picked = {} as SqlModuleOptions;
+	for (const key of SQL_MODULE_OPTION_KEYS) {
+		if (key in source) {
+			(picked as Record<string, unknown>)[key] = source[key];
+		}
+	}
+	return picked;
+}
 
 function detectProvider(url: string): Provider {
 	if (url.startsWith("mysql://") || url.startsWith("mysql2://")) {
@@ -45,7 +139,7 @@ function detectProvider(url: string): Provider {
 function buildConnectionConfig(
 	provider: Provider,
 	timezone: string,
-): Record<string, string | boolean | number> | undefined {
+): NonNullable<SQL.PostgresOrMySQLOptions["connection"]> | undefined {
 	if (provider === "postgresql") {
 		return { TimeZone: timezone };
 	}
@@ -55,6 +149,97 @@ function buildConnectionConfig(
 		return { time_zone: tz };
 	}
 	return undefined;
+}
+
+function normalizeRegisterOptions(
+	options?: SqlModuleOptions | string,
+): SqlModuleOptions {
+	if (typeof options === "string") {
+		return { timezone: options };
+	}
+	if (!options) {
+		return {};
+	}
+
+	return pickSqlModuleOptions(options as Record<string, unknown>);
+}
+
+function buildSqlClientOptions(
+	provider: Provider,
+	timezone: string,
+	options: SqlModuleOptions,
+): SqlClientInitOptions {
+	const { timezone: _timezone, connection: userConnection, ...rest } = options;
+	const driverConnectionConfig = buildConnectionConfig(provider, timezone);
+	const connection = {
+		...driverConnectionConfig,
+		...userConnection,
+	};
+
+	return {
+		...rest,
+		...(Object.keys(connection).length > 0 && { connection }),
+	};
+}
+
+function resolveConnectionUrl(connection: string | ConnectionOptions): string {
+	if (typeof connection === "string") {
+		return connection;
+	}
+
+	return `${connection.provider}://${connection.username}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
+}
+
+function resolveProvider(connection: string | ConnectionOptions): Provider {
+	return typeof connection === "string"
+		? detectProvider(connection)
+		: connection.provider;
+}
+
+function resolveTimezone(
+	connection: string | ConnectionOptions,
+	options: SqlModuleOptions,
+): string {
+	if (options.timezone) {
+		return options.timezone;
+	}
+
+	if (typeof connection === "object" && connection.timezone) {
+		return connection.timezone;
+	}
+
+	return "UTC";
+}
+
+function resolveRegisterOptions(
+	connection: string | ConnectionOptions,
+	options?: SqlModuleOptions | string,
+): SqlModuleOptions {
+	const normalized = normalizeRegisterOptions(options);
+
+	if (typeof connection !== "object") {
+		return normalized;
+	}
+
+	assertOnlyAllowedKeys(
+		connection as Record<string, unknown>,
+		[...SQL_CONNECTION_DETAIL_KEYS, ...SQL_MODULE_OPTION_KEYS],
+	);
+
+	const {
+		host: _host,
+		port: _port,
+		username: _username,
+		password: _password,
+		database: _database,
+		provider: _provider,
+		...connectionSqlOptions
+	} = connection;
+
+	return {
+		...pickSqlModuleOptions(connectionSqlOptions as Record<string, unknown>),
+		...normalized,
+	};
 }
 
 @Injectable()
@@ -176,31 +361,30 @@ export class SqlModule {
 	private static provider: Provider | undefined;
 
 	static register(connection: ConnectionOptions): typeof SqlModule;
-	static register(connection: string, timezone?: string): typeof SqlModule;
-	static register(connection: string | ConnectionOptions, timezone?: string) {
-		const url =
-			typeof connection === "string"
-				? connection
-				: `${connection.provider}://${connection.username}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
-
-		const provider =
-			typeof connection === "string"
-				? detectProvider(connection)
-				: connection.provider;
+	static register(
+		connection: string,
+		options?: SqlModuleOptions | string,
+	): typeof SqlModule;
+	static register(
+		connection: string | ConnectionOptions,
+		options?: SqlModuleOptions | string,
+	) {
+		const resolvedOptions = resolveRegisterOptions(connection, options);
+		const url = resolveConnectionUrl(connection);
+		const provider = resolveProvider(connection);
+		const timezone = resolveTimezone(connection, resolvedOptions);
+		const sqlOptions = buildSqlClientOptions(
+			provider,
+			timezone,
+			resolvedOptions,
+		);
 
 		SqlModule.provider = provider;
 
-		const tz =
-			typeof connection === "string"
-				? (timezone ?? "UTC")
-				: (connection.timezone ?? "UTC");
-
-		const connectionConfig = buildConnectionConfig(provider, tz);
-
 		SqlModule.sqlInstance = new SQL({
 			url,
-			...(connectionConfig && { connection: connectionConfig }),
-		});
+			...sqlOptions,
+		} as SQL.Options);
 
 		return SqlModule;
 	}
