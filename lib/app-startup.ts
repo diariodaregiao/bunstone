@@ -950,12 +950,20 @@ export class AppStartup {
 	}
 
 	private static async invokeScheduledHandler(
-		provider: Record<string, (...args: unknown[]) => unknown>,
+		provider: Record<string, unknown>,
 		methodName: string,
 		kind: "cron" | "timeout",
 	): Promise<void> {
+		const handler = provider[methodName];
+		if (typeof handler !== "function") {
+			AppStartup.logger.error(
+				`${kind === "cron" ? "Cron" : "Timeout"} job "${methodName}" is not a method on the provider`,
+			);
+			return;
+		}
+
 		try {
-			const result = provider[methodName]();
+			const result = handler.call(provider);
 			await Promise.resolve(result);
 		} catch (err) {
 			AppStartup.logger.error(
