@@ -906,7 +906,11 @@ export class AppStartup {
 					`Scheduling timeout for method: ${timeout.methodName} with delay: ${timeout.delay}ms`,
 				);
 				setTimeout(() => {
-					provider[timeout.methodName]();
+					void AppStartup.invokeScheduledHandler(
+						provider,
+						timeout.methodName,
+						"timeout",
+					);
 				}, timeout.delay);
 			}
 		}
@@ -935,9 +939,29 @@ export class AppStartup {
 			for (const cron of crons) {
 				AppStartup.logger.log(`Scheduling cron for method: ${cron.methodName}`);
 				scheduler.schedule(cron.expression, () => {
-					provider[cron.methodName]();
+					void AppStartup.invokeScheduledHandler(
+						provider,
+						cron.methodName,
+						"cron",
+					);
 				});
 			}
+		}
+	}
+
+	private static async invokeScheduledHandler(
+		provider: Record<string, (...args: unknown[]) => unknown>,
+		methodName: string,
+		kind: "cron" | "timeout",
+	): Promise<void> {
+		try {
+			const result = provider[methodName]();
+			await Promise.resolve(result);
+		} catch (err) {
+			AppStartup.logger.error(
+				`${kind === "cron" ? "Cron" : "Timeout"} job "${methodName}" failed`,
+				err,
+			);
 		}
 	}
 

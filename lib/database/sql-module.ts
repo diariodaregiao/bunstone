@@ -9,7 +9,24 @@ import { DatabaseError } from "../errors";
 import { Injectable } from "../injectable";
 import { Module } from "../module";
 
-type ConnectionOptions = {
+export type SqlPoolOptions = {
+	/** Maximum connections in the pool. Bun default: 10 */
+	max?: number;
+	/**
+	 * Seconds before closing idle pool connections. Bun default: 0 (no limit).
+	 * For MariaDB/MySQL, set below the server `wait_timeout` (often 28800 = 8h).
+	 */
+	idleTimeout?: number;
+	/**
+	 * Max connection lifetime in seconds. Bun default: 0 (no limit).
+	 * Forces periodic reconnection before the server drops stale sockets.
+	 */
+	maxLifetime?: number;
+	/** Seconds to wait when opening a new connection. Bun default: 30 */
+	connectionTimeout?: number;
+};
+
+export type SqlConnectionOptions = SqlPoolOptions & {
 	host: string;
 	port: number;
 	username: string;
@@ -24,7 +41,16 @@ type ConnectionOptions = {
 	timezone?: string;
 };
 
+export type SqlRegisterOptions = SqlPoolOptions & {
+	timezone?: string;
+};
+
 type Provider = "postgresql" | "mysql" | "sqlite";
+
+const CONNECTION_CLOSED_CODES = new Set([
+	"ERR_MYSQL_CONNECTION_CLOSED",
+	"ERR_POSTGRES_CONNECTION_CLOSED",
+]);
 
 function detectProvider(url: string): Provider {
 	if (url.startsWith("mysql://") || url.startsWith("mysql2://")) {
@@ -57,9 +83,65 @@ function buildConnectionConfig(
 	return undefined;
 }
 
+function pickPoolOptions(
+	source: SqlPoolOptions | undefined,
+): SqlPoolOptions | undefined {
+	if (!source) {
+		return undefined;
+	}
+
+	const pool: SqlPoolOptions = {};
+	if (source.max !== undefined) pool.max = source.max;
+	if (source.idleTimeout !== undefined) pool.idleTimeout = source.idleTimeout;
+	if (source.maxLifetime !== undefined) pool.maxLifetime = source.maxLifetime;
+	if (source.connectionTimeout !== undefined) {
+		pool.connectionTimeout = source.connectionTimeout;
+	}
+
+	return Object.keys(pool).length > 0 ? pool : undefined;
+}
+
+function isConnectionClosedError(err: unknown): boolean {
+	return (
+		typeof err === "object" &&
+		err !== null &&
+		"code" in err &&
+		CONNECTION_CLOSED_CODES.has(String((err as { code: unknown }).code))
+	);
+}
+
+async function withConnectionRetry<T>(fn: () => Promise<T>): Promise<T> {
+	try {
+		return await fn();
+	} catch (err) {
+		if (!isConnectionClosedError(err)) {
+			throw err;
+		}
+	}
+
+	return await fn();
+}
+
 @Injectable()
 export class SqlService {
 	async query<T = any>(query: string, params?: any[]): Promise<T[]> {
+		return withConnectionRetry(() => this.executeQuery<T>(query, params));
+	}
+
+	async transaction(
+		queries: Array<{ query: string; params?: any[] }>,
+	): Promise<void> {
+		return withConnectionRetry(() => this.executeTransaction(queries));
+	}
+
+	async bulkInsert<T = any>(table: string, values: T[]): Promise<void> {
+		return withConnectionRetry(() => this.executeBulkInsert(table, values));
+	}
+
+	private async executeQuery<T>(
+		query: string,
+		params?: any[],
+	): Promise<T[]> {
 		const sql = this.getSqlInstance();
 		const tracer = trace.getTracer("bunstone.db");
 		const operation = detectOperation(query);
@@ -91,7 +173,7 @@ export class SqlService {
 		);
 	}
 
-	async transaction(
+	private async executeTransaction(
 		queries: Array<{ query: string; params?: any[] }>,
 	): Promise<void> {
 		const sql = this.getSqlInstance();
@@ -127,7 +209,7 @@ export class SqlService {
 		);
 	}
 
-	async bulkInsert<T = any>(table: string, values: T[]): Promise<void> {
+	private async executeBulkInsert<T>(table: string, values: T[]): Promise<void> {
 		const sql = this.getSqlInstance();
 		const tracer = trace.getTracer("bunstone.db");
 		const span = tracer.startSpan("db.INSERT", {
@@ -175,9 +257,16 @@ export class SqlModule {
 	private static sqlInstance: SQL;
 	private static provider: Provider | undefined;
 
-	static register(connection: ConnectionOptions): typeof SqlModule;
+	static register(connection: SqlConnectionOptions): typeof SqlModule;
 	static register(connection: string, timezone?: string): typeof SqlModule;
-	static register(connection: string | ConnectionOptions, timezone?: string) {
+	static register(
+		connection: string,
+		options: SqlRegisterOptions,
+	): typeof SqlModule;
+	static register(
+		connection: string | SqlConnectionOptions,
+		second?: string | SqlRegisterOptions,
+	) {
 		const url =
 			typeof connection === "string"
 				? connection
@@ -190,15 +279,27 @@ export class SqlModule {
 
 		SqlModule.provider = provider;
 
-		const tz =
-			typeof connection === "string"
-				? (timezone ?? "UTC")
-				: (connection.timezone ?? "UTC");
+		let timezone = "UTC";
+		let poolOptions: SqlPoolOptions | undefined;
 
-		const connectionConfig = buildConnectionConfig(provider, tz);
+		if (typeof connection === "string") {
+			if (typeof second === "string") {
+				timezone = second;
+			} else if (second) {
+				timezone = second.timezone ?? "UTC";
+				poolOptions = pickPoolOptions(second);
+			}
+		} else {
+			timezone = connection.timezone ?? "UTC";
+			poolOptions = pickPoolOptions(connection);
+		}
+
+		const connectionConfig = buildConnectionConfig(provider, timezone);
+		const pool = poolOptions ?? {};
 
 		SqlModule.sqlInstance = new SQL({
 			url,
+			...pool,
 			...(connectionConfig && { connection: connectionConfig }),
 		});
 

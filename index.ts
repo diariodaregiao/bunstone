@@ -35,6 +35,11 @@ export * from "./lib/cqrs/interfaces/event.interface";
 export * from "./lib/cqrs/interfaces/query.interface";
 export * from "./lib/cqrs/query-bus";
 export { SqlModule, SqlService } from "./lib/database/sql-module";
+export type {
+	SqlConnectionOptions,
+	SqlPoolOptions,
+	SqlRegisterOptions,
+} from "./lib/database/sql-module";
 export { BullMqModule } from "./lib/bullmq/bullmq-module";
 export { QueueService } from "./lib/bullmq/queue.service";
 export * from "./lib/bullmq/decorators/processor.decorator";

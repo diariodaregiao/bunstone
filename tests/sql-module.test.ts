@@ -389,4 +389,47 @@ describe("SqlModule & Global DI", () => {
 		expect(results[1].name).toBe("Item 2");
 		expect(results[2].name).toBe("Item 3");
 	});
+
+	test("should accept pool options via connection string register", async () => {
+		@Module({
+			imports: [
+				SqlModule.register("sqlite://:memory:", {
+					timezone: "UTC",
+					max: 5,
+					idleTimeout: 3600,
+					maxLifetime: 7200,
+					connectionTimeout: 15,
+				}),
+			],
+		})
+		class PoolOptionsRootModule {}
+
+		await AppStartup.create(PoolOptionsRootModule);
+		const sqlService = new SqlService();
+
+		const rows = await sqlService.query("SELECT 1 as ok");
+		expect(rows[0].ok).toBe(1);
+	});
+
+	test("should accept pool options via connection object register", async () => {
+		@Module({
+			imports: [
+				SqlModule.register({
+					provider: "postgresql",
+					host: "localhost",
+					port: 5432,
+					username: "user",
+					password: "pass",
+					database: "test",
+					max: 3,
+					idleTimeout: 1800,
+					maxLifetime: 3600,
+				}),
+			],
+		})
+		class ObjectPoolOptionsRootModule {}
+
+		await AppStartup.create(ObjectPoolOptionsRootModule);
+		expect(SqlModule.getSqlInstance()).toBeDefined();
+	});
 });
