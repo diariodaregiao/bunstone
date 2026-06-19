@@ -18,10 +18,10 @@ export * from "./lib/adapters/cache-adapter";
 export * from "./lib/adapters/form-data";
 export * from "./lib/adapters/upload-adapter";
 export * from "./lib/app-startup";
-export { BullMqModule } from "./lib/bullmq/bullmq-module";
+export { BullMqModule, BullMqModule } from "./lib/bullmq/bullmq-module";
 export * from "./lib/bullmq/decorators/process.decorator";
 export * from "./lib/bullmq/decorators/processor.decorator";
-export { QueueService } from "./lib/bullmq/queue.service";
+export { QueueService, QueueService } from "./lib/bullmq/queue.service";
 export * from "./lib/components/layout";
 export * from "./lib/controller";
 export * from "./lib/cqrs/command-bus";
@@ -37,13 +37,10 @@ export * from "./lib/cqrs/interfaces/query.interface";
 export * from "./lib/cqrs/query-bus";
 export { SqlModule, SqlService } from "./lib/database/sql-module";
 export type {
-	BunSqlClientOptions,
-	ConnectionOptions,
-	SqlConnectionDetails,
-	SqlModuleOptions,
+	SqlConnectionOptions,
+	SqlPoolOptions,
+	SqlRegisterOptions
 } from "./lib/database/sql-module";
-export { EmailLayout } from "./lib/email/email-layout";
-export { EmailModule, EmailService } from "./lib/email/email-module";
 export * from "./lib/errors";
 export * from "./lib/guard";
 export * from "./lib/http-exceptions";
@@ -57,14 +54,14 @@ export { JwtService } from "./lib/jwt/jwt.service";
 export * from "./lib/module";
 export * from "./lib/on-module";
 export * from "./lib/openapi";
-export { RabbitMQDeadLetterService } from "./lib/rabbitmq/dead-letter.service";
+export { RabbitMQDeadLetterService, RabbitMQDeadLetterService } from "./lib/rabbitmq/dead-letter.service";
 export * from "./lib/rabbitmq/decorators/consumer.decorator";
 export * from "./lib/rabbitmq/decorators/subscribe.decorator";
 export type * from "./lib/rabbitmq/interfaces/rabbitmq-message.interface";
 export type * from "./lib/rabbitmq/interfaces/rabbitmq-options.interface";
-export { RabbitMQConnection } from "./lib/rabbitmq/rabbitmq-connection";
-export { RabbitMQModule } from "./lib/rabbitmq/rabbitmq-module";
-export { RabbitMQService } from "./lib/rabbitmq/rabbitmq.service";
+export { RabbitMQConnection, RabbitMQConnection } from "./lib/rabbitmq/rabbitmq-connection";
+export { RabbitMQModule, RabbitMQModule } from "./lib/rabbitmq/rabbitmq-module";
+export { RabbitMQService, RabbitMQService } from "./lib/rabbitmq/rabbitmq.service";
 export * from "./lib/ratelimit";
 export * from "./lib/render";
 export * from "./lib/schedule/cron/cron";
