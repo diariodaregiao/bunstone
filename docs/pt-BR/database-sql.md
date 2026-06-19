@@ -43,6 +43,68 @@ OU usando uma string de conexão:
 export class AppModule {}
 ```
 
+### Opções de conexão
+
+Você pode passar um segundo argumento com configurações de pool e do client. O Bunstone repassa apenas as opções suportadas para o [Bun.SQL](https://bun.sh/docs/api/sql):
+
+```typescript
+@Module({
+  imports: [
+    SqlModule.register("mysql://user:pass@host:3306/db", {
+      maxLifetime: 25200,
+      connectionTimeout: 30,
+      max: 10,
+      timezone: "UTC",
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+As mesmas opções podem ser usadas no registro via objeto:
+
+```typescript
+SqlModule.register({
+  provider: "postgresql",
+  host: "localhost",
+  port: 5432,
+  username: "user",
+  password: "password",
+  database: "my_db",
+  max: 20,
+  idleTimeout: 30,
+});
+```
+
+Por compatibilidade, o segundo argumento ainda pode ser uma string de timezone:
+
+```typescript
+SqlModule.register("mysql://user:pass@host/db", "UTC");
+```
+
+#### Opções suportadas (`SqlModuleOptions`)
+
+| Opção | Descrição |
+|---|---|
+| `timezone` | Helper do Bunstone para datas/horas. Padrão: `UTC`. Mapeado para `connection` do driver. |
+| `max` | Máximo de conexões no pool |
+| `maxLifetime` | Tempo máximo de vida da conexão em segundos |
+| `connectionTimeout` | Timeout ao estabelecer conexão (segundos) |
+| `idleTimeout` | Fecha conexões ociosas após N segundos |
+| `connection` | Configurações runtime do driver (ex.: `TimeZone` no PostgreSQL) |
+| `tls` | Configuração TLS/SSL |
+| `prepare` | Habilita prepared statements automáticos |
+| `bigint` | Retorna inteiros fora do range como `BigInt` |
+| `onconnect` | Callback ao concluir tentativa de conexão |
+| `onclose` | Callback ao fechar conexão |
+| `path` | Caminho do Unix domain socket |
+| `readonly` | Modo somente leitura (SQLite) |
+| `create` | Comportamento de criação do arquivo (SQLite) |
+| `safeIntegers` | Tratamento seguro de inteiros (SQLite) |
+| `strict` | Modo strict (SQLite) |
+
+Somente as opções listadas acima são aceitas. Chaves inválidas são rejeitadas pelo TypeScript e também lançam `DatabaseError` (`BNS-DB-003`) em runtime.
+
 ## Uso
 
 Depois de registrado, o `SqlService` fica disponível globalmente. Você pode injetá-lo em qualquer controller ou provider sem precisar importar o `SqlModule` nos módulos subsequentes.
