@@ -1,11 +1,13 @@
+import type { SQL } from "bun";
 import { describe, expect, test } from "bun:test";
 import {
-	AppStartup,
-	CommandBus,
-	Injectable,
-	Module,
-	SqlModule,
-	SqlService,
+    AppStartup,
+    CommandBus,
+    DatabaseError,
+    Injectable,
+    Module,
+    SqlModule,
+    SqlService,
 } from "../index";
 import { CqrsModule } from "../lib/cqrs/cqrs-module";
 
@@ -388,5 +390,120 @@ describe("SqlModule & Global DI", () => {
 		expect(results[0].name).toBe("Item 1");
 		expect(results[1].name).toBe("Item 2");
 		expect(results[2].name).toBe("Item 3");
+	});
+
+	test("should accept pool options when registering with a connection string", async () => {
+		@Module({
+			imports: [
+				SqlModule.register("sqlite://:memory:", {
+					maxLifetime: 25200,
+					connectionTimeout: 30,
+					max: 10,
+				}),
+			],
+		})
+		class PoolOptionsSqlRootModule {}
+
+		await AppStartup.create(PoolOptionsSqlRootModule);
+
+		const sql = SqlModule.getSqlInstance() as SQL & {
+			options: Record<string, unknown>;
+		};
+
+		expect(sql.options.max).toBe(10);
+		expect(sql.options.maxLifetime).toBe(25200);
+		expect(sql.options.connectionTimeout).toBe(30);
+	});
+
+	test("should keep timezone string overload for backward compatibility", async () => {
+		@Module({
+			imports: [SqlModule.register("sqlite://:memory:", "UTC")],
+		})
+		class TimezoneStringSqlRootModule {}
+
+		await AppStartup.create(TimezoneStringSqlRootModule);
+
+		const sql = SqlModule.getSqlInstance();
+		expect(sql).toBeDefined();
+	});
+
+	test("should accept pool options when registering with connection object", async () => {
+		@Module({
+			imports: [
+				SqlModule.register({
+					provider: "sqlite",
+					host: "localhost",
+					port: 0,
+					username: "user",
+					password: "pass",
+					database: ":memory:",
+					max: 5,
+					idleTimeout: 15,
+				}),
+			],
+		})
+		class ObjectPoolOptionsSqlRootModule {}
+
+		await AppStartup.create(ObjectPoolOptionsSqlRootModule);
+
+		const sql = SqlModule.getSqlInstance() as SQL & {
+			options: Record<string, unknown>;
+		};
+
+		expect(sql.options.max).toBe(5);
+		expect(sql.options.idleTimeout).toBe(15);
+	});
+
+	test("should accept supported Bun SQL options such as prepare and bigint", async () => {
+		@Module({
+			imports: [
+				SqlModule.register("sqlite://:memory:", {
+					prepare: false,
+					bigint: true,
+					onconnect: () => {},
+				}),
+			],
+		})
+		class SupportedBunOptionsSqlRootModule {}
+
+		await AppStartup.create(SupportedBunOptionsSqlRootModule);
+
+		const sql = SqlModule.getSqlInstance() as SQL & {
+			options: Record<string, unknown>;
+		};
+
+		expect(sql.options.prepare).toBe(false);
+		expect(sql.options.bigint).toBe(true);
+		expect(typeof sql.options.onconnect).toBe("function");
+	});
+
+	test("should reject invalid options at runtime when using connection string", () => {
+		expect(() =>
+			SqlModule.register("sqlite://:memory:", {
+				foo: "bar",
+			} as never),
+		).toThrow(DatabaseError);
+
+		try {
+			SqlModule.register("sqlite://:memory:", { foo: "bar" } as never);
+		} catch (error) {
+			expect(error).toBeInstanceOf(DatabaseError);
+			expect((error as DatabaseError).code).toBe("BNS-DB-003");
+			expect((error as DatabaseError).message).toContain("foo");
+		}
+	});
+
+	test("should reject invalid options at runtime when using connection object", () => {
+		expect(() =>
+			SqlModule.register({
+				provider: "sqlite",
+				host: "localhost",
+				port: 0,
+				username: "user",
+				password: "pass",
+				database: ":memory:",
+				invalidOption: true,
+			} as never),
+		).toThrow(DatabaseError);
 	});
 });
