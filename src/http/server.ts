@@ -11,8 +11,10 @@ import {
 	getSetHeaders,
 	joinPaths,
 } from "./routing";
+import { getSseOptions } from "./sse";
 import { StaticFiles, type StaticOptions } from "./static";
 import { type BunRequest, type BunServer, createContext } from "./types";
+import { buildWebSocketHandler, type WebSocketHandler } from "./websocket";
 
 export interface HttpServerOptions {
 	port?: number;
@@ -42,6 +44,7 @@ export class HttpServer {
 		container: Container,
 		controllers: Constructor[],
 		private readonly options: HttpServerOptions = {},
+		private readonly gateways: Map<string, WebSocketHandler> = new Map(),
 	) {
 		this.cors = options.cors
 			? new Cors(options.cors === true ? {} : options.cors)
@@ -75,6 +78,7 @@ export class HttpServer {
 					cors: this.cors,
 					rateLimit: getRateLimit(controller, route.handlerName),
 					rateLimitStorage: this.rateLimitStorage,
+					sse: getSseOptions(controller, route.handlerName),
 				});
 				const methods = map[path] ?? {};
 				methods[route.method] = handler;
@@ -95,6 +99,7 @@ export class HttpServer {
 			port: port ?? this.options.port ?? 3000,
 			hostname: this.options.hostname,
 			routes: this.routes,
+			websocket: buildWebSocketHandler(this.gateways),
 			fetch: (req, server) => this.fallback(req as BunRequest, server),
 		});
 		return this.server;
@@ -103,9 +108,15 @@ export class HttpServer {
 	private async fallback(
 		req: BunRequest,
 		server: BunServer,
-	): Promise<Response> {
+	): Promise<Response | undefined> {
 		const ctx = createContext(req, server);
 
+		if (this.gateways.has(ctx.url.pathname)) {
+			if (server.upgrade(req, { data: { path: ctx.url.pathname } })) {
+				return undefined;
+			}
+			return new Response("WebSocket upgrade failed", { status: 426 });
+		}
 		if (this.cors?.isPreflight(ctx)) {
 			return this.cors.preflightResponse(ctx);
 		}

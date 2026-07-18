@@ -1,6 +1,7 @@
 import { wireCqrs } from "@/cqrs/cqrs-module";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
+import { collectGateways } from "@/http/websocket";
 import { RabbitConnection } from "@/messaging/connection";
 import { wireRabbit } from "@/messaging/rabbitmq-module";
 import { Scheduler } from "@/scheduling/scheduler";
@@ -43,7 +44,13 @@ export class Application {
 		await runLifecycle(instances, "onModuleInit");
 		wireCqrs(container, instances);
 		await wireRabbit(container, instances);
-		const httpServer = new HttpServer(container, controllers, options);
+		const gateways = collectGateways(instances);
+		const httpServer = new HttpServer(
+			container,
+			controllers,
+			options,
+			gateways,
+		);
 		await runLifecycle(instances, "onApplicationBootstrap");
 
 		const disposables = new DisposableRegistry();

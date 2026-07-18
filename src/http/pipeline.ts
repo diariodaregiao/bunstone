@@ -10,6 +10,7 @@ import { ForbiddenException, InternalServerErrorException } from "./exceptions";
 import type { GuardContract } from "./guard";
 import { extractArgs } from "./params";
 import { serialize } from "./serialize";
+import { type SseMessage, type SseOptions, sseResponse } from "./sse";
 import {
 	type BunRequest,
 	type BunServer,
@@ -27,6 +28,7 @@ export interface RouteHandlerConfig {
 	cors?: Cors;
 	rateLimit?: RateLimitConfig;
 	rateLimitStorage?: RateLimitStorage;
+	sse?: SseOptions;
 }
 
 type Handler = (...args: unknown[]) => unknown;
@@ -42,6 +44,7 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 		cors,
 		rateLimit,
 		rateLimitStorage,
+		sse,
 	} = config;
 	const prototype = controller.prototype;
 	const setHeaderEntries = Object.entries(setHeaders);
@@ -76,6 +79,13 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 				}
 				const args = await extractArgs(ctx, prototype, handlerName);
 				const result = await handler.apply(instance, args);
+
+				if (sse) {
+					return sseResponse(result as AsyncIterable<SseMessage>, {
+						signal: req.signal,
+						heartbeatMs: sse.heartbeatMs,
+					});
+				}
 				return serialize(result, ctx);
 			} catch (error) {
 				return errorToResponse(error, ctx);

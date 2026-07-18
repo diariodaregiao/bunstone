@@ -43,10 +43,28 @@ export {
 	SetHeader,
 } from "./routing";
 export { HttpServer, type HttpServerOptions } from "./server";
+export {
+	formatEvent,
+	getSseOptions,
+	Sse,
+	type SseMessage,
+	type SseOptions,
+	sseResponse,
+} from "./sse";
 export { StaticFiles, type StaticOptions } from "./static";
 export {
 	type BunRequest,
+	type BunServer,
 	createContext,
 	type HttpMethod,
 	type RequestContext,
+	type WebSocketData,
 } from "./types";
+export {
+	buildWebSocketHandler,
+	collectGateways,
+	getGatewayPath,
+	type Socket,
+	WebSocketGateway,
+	type WebSocketHandler,
+} from "./websocket";

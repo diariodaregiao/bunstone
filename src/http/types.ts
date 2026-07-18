@@ -1,6 +1,10 @@
 import type { Server } from "bun";
 
-export type BunServer = Server<undefined>;
+export interface WebSocketData {
+	path: string;
+}
+
+export type BunServer = Server<WebSocketData>;
 
 export type BunRequest = Request & { params: Record<string, string> };
 
