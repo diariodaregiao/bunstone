@@ -1,5 +1,6 @@
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
+import { Scheduler } from "@/scheduling/scheduler";
 import { Logger } from "@/utils/logger";
 import type { Container } from "./container";
 import { DisposableRegistry } from "./disposable";
@@ -40,10 +41,15 @@ export class Application {
 		const httpServer = new HttpServer(container, controllers, options);
 		await runLifecycle(instances, "onApplicationBootstrap");
 
+		const disposables = new DisposableRegistry();
+		const scheduler = new Scheduler();
+		scheduler.start(instances);
+		disposables.add(() => scheduler.stopAll(), "scheduler");
+
 		return new Application(
 			container,
 			httpServer,
-			new DisposableRegistry(),
+			disposables,
 			instances,
 			options,
 		);
