@@ -33,6 +33,15 @@ export {
 	type Provider,
 	type Token,
 } from "@/core";
+export {
+	createSqlClient,
+	SQL_CLIENT,
+	type SqlConnectionOptions,
+	SqlModule,
+	type SqlModuleInput,
+	SqlService,
+	type TransactionClient,
+} from "@/database";
 export * from "@/errors";
 export {
 	BadRequestException,
