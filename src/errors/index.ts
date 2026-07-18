@@ -95,6 +95,35 @@ export class DependencyResolutionError extends BunstoneError {
 			cause,
 		);
 	}
+
+	/** A circular dependency was detected while resolving the container. */
+	static circular(resolutionStack: string): DependencyResolutionError {
+		return new DependencyResolutionError(
+			`Circular dependency detected: [${resolutionStack}].`,
+			"BNS-DI-002",
+			[
+				"Break the cycle: extract the shared logic into a third provider both can depend on,",
+				"or restructure so the dependency only flows one way.",
+			].join("\n  "),
+			{ resolutionStack },
+		);
+	}
+
+	/** No provider is registered for the requested token. */
+	static notRegistered(
+		tokenName: string,
+		resolutionStack: string,
+	): DependencyResolutionError {
+		return new DependencyResolutionError(
+			`No provider registered for \`${tokenName}\` in chain [${resolutionStack}].`,
+			"BNS-DI-003",
+			[
+				`Add \`${tokenName}\` to the \`providers\` array of a @Module(),`,
+				"or register it on the application container before resolving.",
+			].join("\n  "),
+			{ tokenName, resolutionStack },
+		);
+	}
 }
 
 // ─── Module ───────────────────────────────────────────────────────────────────

@@ -20,7 +20,8 @@
 				"noStaticOnlyClass": "off"
 			},
 			"correctness": {
-				"noUnusedImports": "error"
+				"noUnusedImports": "error",
+				"useHookAtTopLevel": "off"
 			},
 			"style": {
 				"useImportType": "off"
