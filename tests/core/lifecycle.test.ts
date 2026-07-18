@@ -1,8 +1,8 @@
 import "reflect-metadata";
 import { describe, expect, it } from "bun:test";
-import { DisposableRegistry } from "../../src/core/disposable";
-import type { OnModuleDestroy, OnModuleInit } from "../../src/core/lifecycle";
-import { runLifecycle } from "../../src/core/lifecycle";
+import { DisposableRegistry } from "@/core/disposable";
+import type { OnModuleDestroy, OnModuleInit } from "@/core/lifecycle";
+import { runLifecycle } from "@/core/lifecycle";
 
 describe("runLifecycle", () => {
 	it("awaits async hooks in order", async () => {

@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { describe, expect, it } from "bun:test";
-import { Container } from "../../src/core/container";
-import { Inject, Injectable, InjectionToken } from "../../src/core/injectable";
+import { Container } from "@/core/container";
+import { Inject, Injectable, InjectionToken } from "@/core/injectable";
 
 describe("Container", () => {
 	it("constructs a class and injects its dependencies", () => {

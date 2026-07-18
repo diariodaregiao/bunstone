@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { DependencyResolutionError } from "../errors";
+import { DependencyResolutionError } from "@/errors";
 import {
 	type Constructor,
 	INJECT_TOKENS_METADATA,
@@ -7,14 +7,6 @@ import {
 	tokenName,
 } from "./injectable";
 
-/**
- * A provider tells the container how to produce the value for a token.
- *
- * - `Class` — shorthand for `{ provide: Class, useClass: Class }`
- * - `{ provide, useValue }` — a ready-made value
- * - `{ provide, useClass }` — construct a (possibly different) class
- * - `{ provide, useFactory, inject }` — call a factory with resolved deps
- */
 export type Provider<T = any> =
 	| Constructor<T>
 	| { provide: Token<T>; useValue: T }
@@ -34,36 +26,25 @@ type NormalizedProvider =
 			inject: Token[];
 	  };
 
-/**
- * A dependency-injection container.
- *
- * Instance-based (no global state), singleton-scoped, with cycle detection.
- * Every {@link Application} owns exactly one, so multiple apps in the same
- * process — including tests — never share state.
- */
 export class Container {
 	private readonly providers = new Map<Token, NormalizedProvider>();
 	private readonly instances = new Map<Token, unknown>();
 	private readonly resolving: Token[] = [];
 
-	/** Registers a provider. Later registrations for the same token win. */
 	register(provider: Provider): void {
 		const normalized = normalize(provider);
 		this.providers.set(normalized.provide, normalized);
 	}
 
-	/** Registers an already-built value and caches it as the singleton. */
 	registerValue<T>(token: Token<T>, value: T): void {
 		this.providers.set(token, { provide: token, useValue: value });
 		this.instances.set(token, value);
 	}
 
-	/** True when a provider or instance exists for `token`. */
 	has(token: Token): boolean {
 		return this.providers.has(token) || this.instances.has(token);
 	}
 
-	/** Resolves the singleton for `token`, constructing it on first access. */
 	resolve<T>(token: Token<T>): T {
 		const cached = this.instances.get(token);
 		if (cached !== undefined || this.instances.has(token)) {
@@ -92,14 +73,12 @@ export class Container {
 		}
 	}
 
-	/** Eagerly resolves every registered provider (forces singleton creation). */
 	instantiateAll(): void {
 		for (const token of this.providers.keys()) {
 			this.resolve(token);
 		}
 	}
 
-	/** All distinct instances created so far, in creation order. */
 	getInstances(): unknown[] {
 		return [...new Set(this.instances.values())];
 	}

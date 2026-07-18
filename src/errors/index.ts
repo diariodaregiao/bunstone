@@ -1,14 +1,3 @@
-// ─── Base ────────────────────────────────────────────────────────────────────
-
-/**
- * Base class for all Bunstone framework errors.
- *
- * Every error carries:
- * - `code` – a stable, searchable error identifier (e.g. `BNS-DI-001`)
- * - `suggestion` – a human-readable hint on how to fix the problem
- * - `context` – structured data that adds traceability
- * - `cause` – the underlying error that triggered this one (if any)
- */
 export abstract class BunstoneError extends Error {
 	public readonly code: string;
 	public readonly suggestion?: string;
@@ -32,16 +21,6 @@ export abstract class BunstoneError extends Error {
 	}
 }
 
-// ─── Dependency Injection ─────────────────────────────────────────────────────
-
-/**
- * Thrown when a dependency cannot be resolved during DI container setup.
- *
- * Codes:
- * - `BNS-DI-001` – type is `undefined` (often due to `import type` on a class)
- * - `BNS-DI-002` – type resolves to `Object` (emitDecoratorMetadata + circular dep)
- * - `BNS-DI-003` – generic resolution failure
- */
 export class DependencyResolutionError extends BunstoneError {
 	constructor(
 		message: string,
@@ -53,7 +32,6 @@ export class DependencyResolutionError extends BunstoneError {
 		super(message, code, suggestion, context, cause);
 	}
 
-	/** Type resolved to `undefined` – most often caused by `import type` on an injected class. */
 	static undefinedType(resolutionStack: string): DependencyResolutionError {
 		return new DependencyResolutionError(
 			`Cannot resolve dependency: type is \`undefined\` in chain [${resolutionStack}].`,
@@ -67,7 +45,6 @@ export class DependencyResolutionError extends BunstoneError {
 		);
 	}
 
-	/** Type resolved to the base `Object` class – decorator metadata is misconfigured. */
 	static objectType(resolutionStack: string): DependencyResolutionError {
 		return new DependencyResolutionError(
 			`Cannot resolve dependency: type resolved to \`Object\` in chain [${resolutionStack}].`,
@@ -81,7 +58,6 @@ export class DependencyResolutionError extends BunstoneError {
 		);
 	}
 
-	/** Generic DI failure with a custom message. */
 	static generic(
 		message: string,
 		context?: Record<string, unknown>,
@@ -96,7 +72,6 @@ export class DependencyResolutionError extends BunstoneError {
 		);
 	}
 
-	/** A circular dependency was detected while resolving the container. */
 	static circular(resolutionStack: string): DependencyResolutionError {
 		return new DependencyResolutionError(
 			`Circular dependency detected: [${resolutionStack}].`,
@@ -109,7 +84,6 @@ export class DependencyResolutionError extends BunstoneError {
 		);
 	}
 
-	/** No provider is registered for the requested token. */
 	static notRegistered(
 		tokenName: string,
 		resolutionStack: string,
@@ -126,15 +100,6 @@ export class DependencyResolutionError extends BunstoneError {
 	}
 }
 
-// ─── Module ───────────────────────────────────────────────────────────────────
-
-/**
- * Thrown when a module fails to initialise (provider wiring, metadata errors, etc.).
- *
- * Codes:
- * - `BNS-MOD-001` – generic module init failure
- * - `BNS-MOD-002` – unsupported HTTP method registered on a controller
- */
 export class ModuleInitializationError extends BunstoneError {
 	constructor(
 		message: string,
@@ -173,16 +138,6 @@ export class ModuleInitializationError extends BunstoneError {
 	}
 }
 
-// ─── Configuration ────────────────────────────────────────────────────────────
-
-/**
- * Thrown when the application is misconfigured at startup or at the time a feature
- * is first used.
- *
- * Codes:
- * - `BNS-CFG-001` – missing or invalid configuration
- * - `BNS-CFG-002` – feature used before the required module was registered
- */
 export class ConfigurationError extends BunstoneError {
 	constructor(
 		message: string,
@@ -207,16 +162,6 @@ export class ConfigurationError extends BunstoneError {
 	}
 }
 
-// ─── CQRS ─────────────────────────────────────────────────────────────────────
-
-/**
- * Thrown by the CQRS buses when a handler is not found.
- *
- * Codes:
- * - `BNS-CQRS-001` – no handler registered for a command
- * - `BNS-CQRS-002` – no handler registered for a query
- * - `BNS-CQRS-003` – no handler registered for an event
- */
 export class CqrsError extends BunstoneError {
 	constructor(
 		message: string,
@@ -265,16 +210,6 @@ export class CqrsError extends BunstoneError {
 	}
 }
 
-// ─── Database ─────────────────────────────────────────────────────────────────
-
-/**
- * Thrown when database operations fail.
- *
- * Codes:
- * - `BNS-DB-001` – SQL instance not initialised
- * - `BNS-DB-002` – query / transaction execution failed
- * - `BNS-DB-003` – invalid SqlModule configuration option
- */
 export class DatabaseError extends BunstoneError {
 	constructor(
 		message: string,
@@ -310,15 +245,6 @@ export class DatabaseError extends BunstoneError {
 	}
 }
 
-// ─── BullMQ ───────────────────────────────────────────────────────────────────
-
-/**
- * Thrown when BullMQ operations fail.
- *
- * Codes:
- * - `BNS-MQ-001` – Redis options not configured
- * - `BNS-MQ-002` – queue not found or could not be created
- */
 export class BullMQError extends BunstoneError {
 	constructor(
 		message: string,
@@ -355,16 +281,6 @@ export class BullMQError extends BunstoneError {
 	}
 }
 
-// ─── RabbitMQ ─────────────────────────────────────────────────────────────────
-
-/**
- * Thrown when RabbitMQ operations fail.
- *
- * Codes:
- * - `BNS-RMQ-001` – module not configured
- * - `BNS-RMQ-002` – connection failed
- * - `BNS-RMQ-003` – topology assertion failed (exchange/queue)
- */
 export class RabbitMQError extends BunstoneError {
 	constructor(
 		message: string,
@@ -420,15 +336,6 @@ export class RabbitMQError extends BunstoneError {
 	}
 }
 
-// ─── Scheduling ───────────────────────────────────────────────────────────────
-
-/**
- * Thrown when a scheduling decorator receives invalid arguments.
- *
- * Codes:
- * - `BNS-SCHED-001` – invalid or missing cron expression
- * - `BNS-SCHED-002` – invalid timeout delay
- */
 export class ScheduleError extends BunstoneError {
 	constructor(
 		message: string,
@@ -467,14 +374,6 @@ export class ScheduleError extends BunstoneError {
 	}
 }
 
-// ─── Testing ──────────────────────────────────────────────────────────────────
-
-/**
- * Thrown by the testing utilities when setup is incorrect.
- *
- * Codes:
- * - `BNS-TEST-001` – provider not found in the testing module
- */
 export class TestingError extends BunstoneError {
 	constructor(
 		message: string,
@@ -500,15 +399,6 @@ export class TestingError extends BunstoneError {
 	}
 }
 
-// ─── Rate Limit ───────────────────────────────────────────────────────────────
-
-/**
- * Thrown when rate-limit storage operations fail unexpectedly.
- *
- * Codes:
- * - `BNS-RL-001` – Redis transaction failed
- * - `BNS-RL-002` – Invalid response from Redis
- */
 export class RateLimitError extends BunstoneError {
 	constructor(
 		message: string,
@@ -545,15 +435,6 @@ export class RateLimitError extends BunstoneError {
 	}
 }
 
-// ─── Upload / S3 ──────────────────────────────────────────────────────────────
-
-/**
- * Thrown when file upload operations fail.
- *
- * Codes:
- * - `BNS-S3-001` – invalid or empty S3 object path
- * - `BNS-S3-002` – upload operation failed
- */
 export class UploadError extends BunstoneError {
 	constructor(
 		message: string,
@@ -590,15 +471,6 @@ export class UploadError extends BunstoneError {
 	}
 }
 
-// ─── Email ────────────────────────────────────────────────────────────────────
-
-/**
- * Thrown when email sending operations fail.
- *
- * Codes:
- * - `BNS-EMAIL-001` – EmailModule not configured
- * - `BNS-EMAIL-002` – send failed
- */
 export class EmailError extends BunstoneError {
 	constructor(
 		message: string,
@@ -635,16 +507,6 @@ export class EmailError extends BunstoneError {
 	}
 }
 
-// ─── HTTP Params ──────────────────────────────────────────────────────────────
-
-/**
- * Thrown when HTTP parameter extraction fails at a framework-internal level
- * (as opposed to validation failures, which use HttpException).
- *
- * Codes:
- * - `BNS-HTTP-001` – FormData not available on this request
- * - `BNS-HTTP-002` – could not read multipart form data
- */
 export class HttpParamError extends BunstoneError {
 	constructor(
 		message: string,
@@ -681,14 +543,6 @@ export class HttpParamError extends BunstoneError {
 	}
 }
 
-// ─── Guard ────────────────────────────────────────────────────────────────────
-
-/**
- * Thrown when a guard is misconfigured.
- *
- * Codes:
- * - `BNS-GRD-001` – generic guard configuration error
- */
 export class GuardError extends BunstoneError {
 	constructor(
 		message: string,
@@ -701,15 +555,6 @@ export class GuardError extends BunstoneError {
 	}
 }
 
-// ─── Adapter ──────────────────────────────────────────────────────────────────
-
-/**
- * Thrown when a built-in adapter (cache, upload, etc.) encounters an error.
- *
- * Codes:
- * - `BNS-ADP-001` – invalid data stored in cache
- * - `BNS-ADP-002` – adapter operation failed
- */
 export class AdapterError extends BunstoneError {
 	constructor(
 		message: string,
@@ -722,19 +567,6 @@ export class AdapterError extends BunstoneError {
 	}
 }
 
-// ─── Import ───────────────────────────────────────────────────────────────────
-
-/**
- * Represents an import-time error detected by the `bunstone run` CLI.
- *
- * Bun raises a raw `SyntaxError: Export named 'X' not found` that gives no
- * guidance on the problem.  This error carries structured context so the CLI
- * can print a rich, actionable crash report.
- *
- * Codes:
- * - `BNS-IMP-001` – name is a type-only export (must use `import type`)
- * - `BNS-IMP-002` – name does not exist at all in the package (typo / wrong name)
- */
 export class ImportError extends BunstoneError {
 	constructor(
 		message: string,
@@ -746,10 +578,6 @@ export class ImportError extends BunstoneError {
 		super(message, code, suggestion, context, cause);
 	}
 
-	/**
-	 * The user imported a type-only name as a value.
-	 * e.g. `import { RabbitMessage }` instead of `import type { RabbitMessage }`.
-	 */
 	static typeOnlyImport(
 		name: string,
 		pkg: string,
@@ -779,9 +607,6 @@ export class ImportError extends BunstoneError {
 		);
 	}
 
-	/**
-	 * The user imported a name that does not exist in the package at all.
-	 */
 	static unknownExport(
 		name: string,
 		pkg: string,

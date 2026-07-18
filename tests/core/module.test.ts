@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { describe, expect, it } from "bun:test";
-import { Injectable } from "../../src/core/injectable";
-import { compileModules, Module } from "../../src/core/module";
+import { Injectable } from "@/core/injectable";
+import { compileModules, Module } from "@/core/module";
 
 describe("compileModules", () => {
 	it("registers providers and controllers from the graph", () => {

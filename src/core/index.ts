@@ -1,3 +1,7 @@
+export {
+	Application,
+	type ApplicationOptions,
+} from "./application";
 export { Container, type Provider } from "./container";
 export { DisposableRegistry, type Disposer } from "./disposable";
 export {
