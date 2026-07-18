@@ -76,6 +76,8 @@ export {
 	Ctx,
 	Delete,
 	ForbiddenException,
+	FormData,
+	type FormDataPayload,
 	Get,
 	type GuardContract,
 	Head,
@@ -138,6 +140,14 @@ export {
 	TelemetrySdk,
 	TelemetryService,
 } from "@/observability";
+export {
+	getRateLimit,
+	MemoryStorage,
+	RateLimit,
+	type RateLimitConfig,
+	type RateLimitResult,
+	type RateLimitStorage,
+} from "@/ratelimit";
 export {
 	Cron,
 	getSchedules,

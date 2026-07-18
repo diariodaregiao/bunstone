@@ -12,6 +12,12 @@ export enum ParamSource {
 	REQ = "req",
 	CONTEXT = "context",
 	STATE = "state",
+	FORM_DATA = "form-data",
+}
+
+export interface FormDataPayload {
+	fields: Record<string, string>;
+	files: File[];
 }
 
 interface ParamMetadata {
@@ -94,6 +100,30 @@ export function State(key?: string): ParameterDecorator {
 	};
 }
 
+export function FormData(): ParameterDecorator {
+	return (target, propertyKey, index) => {
+		addParam(target, propertyKey as string, {
+			index,
+			source: ParamSource.FORM_DATA,
+		});
+	};
+}
+
+async function readMultipart(ctx: RequestContext): Promise<FormDataPayload> {
+	const fields: Record<string, string> = {};
+	const files: File[] = [];
+	try {
+		const form = await ctx.req.formData();
+		for (const [key, value] of form.entries()) {
+			if (value instanceof File) files.push(value);
+			else fields[key] = String(value);
+		}
+	} catch {
+		throw new BadRequestException("Expected multipart form data.");
+	}
+	return { fields, files };
+}
+
 async function readBody(ctx: RequestContext): Promise<unknown> {
 	if (ctx.bodyRead) return ctx.body;
 	ctx.bodyRead = true;
@@ -170,6 +200,9 @@ export async function extractArgs(
 				break;
 			case ParamSource.STATE:
 				value = meta.key ? ctx.state[meta.key] : ctx.state;
+				break;
+			case ParamSource.FORM_DATA:
+				value = await readMultipart(ctx);
 				break;
 		}
 

@@ -1,6 +1,9 @@
 import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
 import { instrumentRequest } from "@/observability/instrumentation";
+import type { RateLimitConfig } from "@/ratelimit/decorator";
+import { enforceRateLimit } from "@/ratelimit/enforce";
+import type { RateLimitStorage } from "@/ratelimit/storage";
 import type { Cors } from "./cors";
 import { errorToResponse } from "./errors";
 import { ForbiddenException, InternalServerErrorException } from "./exceptions";
@@ -22,6 +25,8 @@ export interface RouteHandlerConfig {
 	guards: Constructor<GuardContract>[];
 	setHeaders: Record<string, string>;
 	cors?: Cors;
+	rateLimit?: RateLimitConfig;
+	rateLimitStorage?: RateLimitStorage;
 }
 
 type Handler = (...args: unknown[]) => unknown;
@@ -35,6 +40,8 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 		guards,
 		setHeaders,
 		cors,
+		rateLimit,
+		rateLimitStorage,
 	} = config;
 	const prototype = controller.prototype;
 	const setHeaderEntries = Object.entries(setHeaders);
@@ -46,6 +53,10 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 			if (cors) applyCors(ctx, cors);
 
 			try {
+				if (rateLimit && rateLimitStorage) {
+					await enforceRateLimit(ctx, rateLimit, rateLimitStorage);
+				}
+
 				for (const GuardClass of guards) {
 					const guard = container.resolve(GuardClass);
 					if (!(await guard.canActivate(ctx))) {

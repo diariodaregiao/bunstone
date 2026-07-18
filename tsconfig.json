@@ -39,6 +39,7 @@
     "src/http/**/*",
     "src/cqrs/**/*",
     "src/messaging/**/*",
+    "src/ratelimit/**/*",
     "src/auth/**/*",
     "src/database/**/*",
     "src/observability/**/*",

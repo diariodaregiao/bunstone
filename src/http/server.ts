@@ -1,5 +1,7 @@
 import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
+import { getRateLimit } from "@/ratelimit/decorator";
+import { MemoryStorage, type RateLimitStorage } from "@/ratelimit/storage";
 import { Cors, type CorsOptions } from "./cors";
 import { getControllerGuards, getRouteGuards } from "./guard";
 import { createRouteHandler } from "./pipeline";
@@ -19,6 +21,8 @@ export interface HttpServerOptions {
 	cors?: CorsOptions | boolean;
 
 	static?: StaticOptions;
+
+	rateLimitStorage?: RateLimitStorage;
 }
 
 type RouteHandler = (
@@ -32,6 +36,7 @@ export class HttpServer {
 	private readonly routes: RoutesMap;
 	private readonly cors?: Cors;
 	private readonly staticFiles?: StaticFiles;
+	private readonly rateLimitStorage: RateLimitStorage;
 
 	constructor(
 		container: Container,
@@ -44,6 +49,7 @@ export class HttpServer {
 		this.staticFiles = options.static
 			? new StaticFiles(options.static)
 			: undefined;
+		this.rateLimitStorage = options.rateLimitStorage ?? new MemoryStorage();
 		this.routes = this.buildRoutes(container, controllers);
 	}
 
@@ -67,6 +73,8 @@ export class HttpServer {
 					],
 					setHeaders: getSetHeaders(controller, route.handlerName),
 					cors: this.cors,
+					rateLimit: getRateLimit(controller, route.handlerName),
+					rateLimitStorage: this.rateLimitStorage,
 				});
 				const methods = map[path] ?? {};
 				methods[route.method] = handler;
@@ -115,6 +123,7 @@ export class HttpServer {
 	async stop(): Promise<void> {
 		await this.server?.stop(true);
 		this.server = undefined;
+		this.rateLimitStorage.close();
 	}
 
 	get raw(): BunServer | undefined {

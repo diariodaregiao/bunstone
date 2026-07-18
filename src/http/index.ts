@@ -19,6 +19,8 @@ export {
 export {
 	Body,
 	Ctx,
+	FormData,
+	type FormDataPayload,
 	Header,
 	Param,
 	ParamSource,
