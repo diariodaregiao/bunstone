@@ -56,6 +56,7 @@
     "@types/autocannon": "^7.12.7",
     "@types/bun": "latest",
     "@types/nodemailer": "^7.0.5",
+    "amqplib": "^0.10.4",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "autocannon": "^8.0.0",
@@ -68,7 +69,7 @@
     "react": ">=19",
     "react-dom": ">=19",
     "typescript": "^5",
-    "amqplib": ""
+    "amqplib": "^0.10.4"
   },
   "peerDependenciesMeta": {
     "amqplib": {

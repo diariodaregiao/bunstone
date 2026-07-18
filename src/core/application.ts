@@ -1,6 +1,8 @@
 import { wireCqrs } from "@/cqrs/cqrs-module";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
+import { RabbitConnection } from "@/messaging/connection";
+import { wireRabbit } from "@/messaging/rabbitmq-module";
 import { Scheduler } from "@/scheduling/scheduler";
 import { Logger } from "@/utils/logger";
 import type { Container } from "./container";
@@ -40,6 +42,7 @@ export class Application {
 
 		await runLifecycle(instances, "onModuleInit");
 		wireCqrs(container, instances);
+		await wireRabbit(container, instances);
 		const httpServer = new HttpServer(container, controllers, options);
 		await runLifecycle(instances, "onApplicationBootstrap");
 
@@ -47,6 +50,12 @@ export class Application {
 		const scheduler = new Scheduler();
 		scheduler.start(instances);
 		disposables.add(() => scheduler.stopAll(), "scheduler");
+		if (container.has(RabbitConnection)) {
+			disposables.add(
+				() => container.resolve(RabbitConnection).close(),
+				"rabbit",
+			);
+		}
 
 		return new Application(
 			container,

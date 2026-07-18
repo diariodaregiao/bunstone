@@ -38,6 +38,7 @@
     "src/core/**/*",
     "src/http/**/*",
     "src/cqrs/**/*",
+    "src/messaging/**/*",
     "src/auth/**/*",
     "src/database/**/*",
     "src/observability/**/*",
