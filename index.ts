@@ -34,6 +34,28 @@ export {
 	type Token,
 } from "@/core";
 export {
+	AggregateRoot,
+	CommandBus,
+	CommandHandler,
+	CqrsModule,
+	EVENT_STORE,
+	EventBus,
+	EventHandler,
+	type EventInput,
+	type EventRecord,
+	EventSourcedRepository,
+	EventSourcingModule,
+	type EventStore,
+	type ICommandHandler,
+	type IEventHandler,
+	type IQueryHandler,
+	QueryBus,
+	QueryHandler,
+	type Snapshot,
+	SqlEventStore,
+	wireCqrs,
+} from "@/cqrs";
+export {
 	createSqlClient,
 	SQL_CLIENT,
 	type SqlConnectionOptions,

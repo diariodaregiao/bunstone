@@ -1,111 +1,21 @@
-import {
-	context as otelContext,
-	metrics as otelMetrics,
-	SpanStatusCode,
-	trace,
-} from "@opentelemetry/api";
-import { CqrsError } from "../errors";
-import { Injectable } from "../injectable";
-import { QUERY_HANDLER_METADATA } from "./decorators/query-handler.decorator";
-import type { IQuery, IQueryHandler } from "./interfaces/query.interface";
+import type { Constructor } from "@/core/injectable";
+import { Injectable } from "@/core/injectable";
+import { CqrsError } from "@/errors";
+import type { IQueryHandler } from "./interfaces";
 
-/**
- * Bus for dispatching queries to their respective handlers.
- */
 @Injectable()
 export class QueryBus {
-	private handlers = new Map<any, IQueryHandler>();
+	private readonly handlers = new Map<Constructor, IQueryHandler>();
 
-	/**
-	 * Registers a list of query handlers.
-	 * @param handlers Array of query handler instances.
-	 */
-	register(handlers: IQueryHandler[]) {
-		handlers.forEach((handler) => {
-			const query = Reflect.getMetadata(
-				QUERY_HANDLER_METADATA,
-				handler.constructor,
-			);
-			if (query) {
-				this.handlers.set(query, handler);
-			}
-		});
+	register(query: Constructor, handler: IQueryHandler): void {
+		this.handlers.set(query, handler);
 	}
 
-	/**
-	 * Executes a query and returns the result.
-	 * @param query The query instance to execute.
-	 * @returns The result of the query execution.
-	 * @throws CqrsError if no handler is found for the query.
-	 */
-	async execute<T extends IQuery, R = any>(query: T): Promise<R> {
-		const queryType = query.constructor;
-		const handler = this.getHandler(queryType);
+	async execute<TResult = unknown>(query: object): Promise<TResult> {
+		const handler = this.handlers.get(query.constructor as Constructor);
 		if (!handler) {
-			throw CqrsError.noQueryHandler(queryType.name);
+			throw CqrsError.noQueryHandler(query.constructor.name);
 		}
-
-		const queryName = queryType.name;
-		const tracer = trace.getTracer("bunstone.cqrs");
-		const span = tracer.startSpan(`query.execute ${queryName}`, {
-			attributes: {
-				"cqrs.type": "query",
-				"cqrs.query.name": queryName,
-			},
-		});
-
-		const start = performance.now();
-		return otelContext.with(
-			trace.setSpan(otelContext.active(), span),
-			async () => {
-				try {
-					const result = await handler.execute(query);
-					span.setStatus({ code: SpanStatusCode.OK });
-					return result;
-				} catch (err: any) {
-					span.recordException(err);
-					span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
-					throw err;
-				} finally {
-					span.end();
-					try {
-						otelMetrics
-							.getMeter("bunstone")
-							.createHistogram("cqrs.query.duration", {
-								description: "Duration of CQRS query execution",
-								unit: "ms",
-							})
-							.record(performance.now() - start, {
-								"cqrs.query.name": queryName,
-							});
-					} catch {
-						// best-effort
-					}
-				}
-			},
-		);
-	}
-
-	private getHandler(queryType: any): IQueryHandler | undefined {
-		const exactHandler = this.handlers.get(queryType);
-		if (exactHandler) {
-			return exactHandler;
-		}
-
-		if (typeof queryType !== "function" || !queryType.name) {
-			return undefined;
-		}
-
-		let matchedHandler: IQueryHandler | undefined;
-		for (const [registeredType, handler] of this.handlers.entries()) {
-			if (
-				typeof registeredType === "function" &&
-				registeredType.name === queryType.name
-			) {
-				matchedHandler = handler;
-			}
-		}
-
-		return matchedHandler;
+		return (await handler.execute(query)) as TResult;
 	}
 }

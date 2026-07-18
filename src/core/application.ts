@@ -1,3 +1,4 @@
+import { wireCqrs } from "@/cqrs/cqrs-module";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
 import { Scheduler } from "@/scheduling/scheduler";
@@ -38,6 +39,7 @@ export class Application {
 		const instances = container.getInstances();
 
 		await runLifecycle(instances, "onModuleInit");
+		wireCqrs(container, instances);
 		const httpServer = new HttpServer(container, controllers, options);
 		await runLifecycle(instances, "onApplicationBootstrap");
 

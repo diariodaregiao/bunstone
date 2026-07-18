@@ -210,6 +210,34 @@ export class CqrsError extends BunstoneError {
 	}
 }
 
+export class EventStoreError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-ES-001" = "BNS-ES-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static versionConflict(
+		streamId: string,
+		expected: number,
+		actual: number,
+	): EventStoreError {
+		return new EventStoreError(
+			`Concurrency conflict on stream "${streamId}": expected version ${expected} but found ${actual}.`,
+			"BNS-ES-001",
+			[
+				"Another writer appended events to this stream first.",
+				"Reload the aggregate and retry the operation.",
+			].join("\n  "),
+			{ streamId, expected, actual },
+		);
+	}
+}
+
 export class DatabaseError extends BunstoneError {
 	constructor(
 		message: string,
