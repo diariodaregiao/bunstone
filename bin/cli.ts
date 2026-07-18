@@ -10,7 +10,7 @@ import { join } from "node:path";
 import {
 	TYPE_ONLY_EXPORTS,
 	VALUE_EXPORTS,
-} from "../lib/utils/known-exports";
+} from "../src/utils/known-exports";
 
 // ── Tiny ANSI helpers (no external dep) ──────────────────────────────────────
 const R = "\x1b[0m";
@@ -353,7 +353,7 @@ async function buildCommand(buildArgs: string[]) {
 	try {
 		// We use dynamic import for Bundler to keep CLI light if not building
 		// Since we are in the same repo, we can import from the lib
-		const { Bundler } = await import("../lib/utils/bundler");
+		const { Bundler } = await import("../src/utils/bundler");
 
 		// 1. Build views
 		const viewsDirAbs = join(process.cwd(), viewsDir);

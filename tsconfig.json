@@ -34,6 +34,6 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["lib/**/*", "index.ts"],
-  "exclude": ["node_modules", "tests"]
+  "include": ["src/**/*", "index.ts", "bin/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

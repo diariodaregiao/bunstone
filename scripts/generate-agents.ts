@@ -3,7 +3,7 @@ import { join, relative } from "node:path";
 import {
 	TYPE_ONLY_EXPORTS,
 	VALUE_EXPORTS,
-} from "../lib/utils/known-exports";
+} from "../src/utils/known-exports";
 
 const projectRoot = join(import.meta.dir, "..");
 const docsRoot = join(projectRoot, "docs");
