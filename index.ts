@@ -81,3 +81,11 @@ export {
 	UnprocessableEntityException,
 	UseGuards,
 } from "@/http";
+export {
+	instrumentRequest,
+	TELEMETRY_OPTIONS,
+	TelemetryModule,
+	type TelemetryOptions,
+	TelemetrySdk,
+	TelemetryService,
+} from "@/observability";

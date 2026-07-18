@@ -39,6 +39,7 @@
     "src/http/**/*",
     "src/auth/**/*",
     "src/database/**/*",
+    "src/observability/**/*",
     "src/errors/**/*",
     "src/utils/logger.ts",
     "src/utils/is-zod-schema.ts",

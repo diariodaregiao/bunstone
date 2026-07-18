@@ -1,5 +1,6 @@
 import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
+import { instrumentRequest } from "@/observability/instrumentation";
 import type { Cors } from "./cors";
 import { errorToResponse } from "./errors";
 import { ForbiddenException, InternalServerErrorException } from "./exceptions";
@@ -17,6 +18,7 @@ export interface RouteHandlerConfig {
 	container: Container;
 	controller: Constructor;
 	handlerName: string;
+	route: string;
 	guards: Constructor<GuardContract>[];
 	setHeaders: Record<string, string>;
 	cors?: Cors;
@@ -25,38 +27,49 @@ export interface RouteHandlerConfig {
 type Handler = (...args: unknown[]) => unknown;
 
 export function createRouteHandler(config: RouteHandlerConfig) {
-	const { container, controller, handlerName, guards, setHeaders, cors } =
-		config;
+	const {
+		container,
+		controller,
+		handlerName,
+		route,
+		guards,
+		setHeaders,
+		cors,
+	} = config;
 	const prototype = controller.prototype;
 	const setHeaderEntries = Object.entries(setHeaders);
 
-	return async (req: BunRequest, server: BunServer): Promise<Response> => {
-		const ctx = createContext(req, server);
-		applyStaticHeaders(ctx, setHeaderEntries);
-		if (cors) applyCors(ctx, cors);
+	return (req: BunRequest, server: BunServer): Promise<Response> =>
+		instrumentRequest(req.method, route, async () => {
+			const ctx = createContext(req, server);
+			applyStaticHeaders(ctx, setHeaderEntries);
+			if (cors) applyCors(ctx, cors);
 
-		try {
-			for (const GuardClass of guards) {
-				const guard = container.resolve(GuardClass);
-				if (!(await guard.canActivate(ctx))) {
-					throw new ForbiddenException();
+			try {
+				for (const GuardClass of guards) {
+					const guard = container.resolve(GuardClass);
+					if (!(await guard.canActivate(ctx))) {
+						throw new ForbiddenException();
+					}
 				}
-			}
 
-			const instance = container.resolve(controller) as Record<string, Handler>;
-			const handler = instance[handlerName];
-			if (typeof handler !== "function") {
-				throw new InternalServerErrorException(
-					`Handler "${handlerName}" is not a function.`,
-				);
+				const instance = container.resolve(controller) as Record<
+					string,
+					Handler
+				>;
+				const handler = instance[handlerName];
+				if (typeof handler !== "function") {
+					throw new InternalServerErrorException(
+						`Handler "${handlerName}" is not a function.`,
+					);
+				}
+				const args = await extractArgs(ctx, prototype, handlerName);
+				const result = await handler.apply(instance, args);
+				return serialize(result, ctx);
+			} catch (error) {
+				return errorToResponse(error, ctx);
 			}
-			const args = await extractArgs(ctx, prototype, handlerName);
-			const result = await handler.apply(instance, args);
-			return serialize(result, ctx);
-		} catch (error) {
-			return errorToResponse(error, ctx);
-		}
-	};
+		});
 }
 
 function applyStaticHeaders(

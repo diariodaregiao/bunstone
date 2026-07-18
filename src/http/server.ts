@@ -60,6 +60,7 @@ export class HttpServer {
 					container,
 					controller,
 					handlerName: route.handlerName,
+					route: path,
 					guards: [
 						...getControllerGuards(controller),
 						...getRouteGuards(controller, route.handlerName),

@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api";
 import { colors } from "./colors";
 
 export enum LogLevel {
@@ -33,7 +34,17 @@ export class Logger {
 		return now.toISOString();
 	}
 
+	private traceContext(): { trace_id: string; span_id: string } | undefined {
+		const span = trace.getActiveSpan();
+		if (!span) return undefined;
+		const spanContext = span.spanContext();
+		if (!spanContext.traceId) return undefined;
+		return { trace_id: spanContext.traceId, span_id: spanContext.spanId };
+	}
+
 	private formatMessage(level: string, color: string, ...args: any[]): void {
+		const traceContext = this.traceContext();
+
 		if (!this.pretty) {
 			console.log(
 				JSON.stringify({
@@ -43,6 +54,7 @@ export class Logger {
 					message: args
 						.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a)))
 						.join(" "),
+					...traceContext,
 				}),
 			);
 			return;
@@ -56,6 +68,10 @@ export class Logger {
 
 		message += `${color}[${level}]${colors.reset} `;
 		message += `${colors.cyan}[${this.name}]${colors.reset} `;
+
+		if (traceContext) {
+			message += `${colors.gray}[trace:${traceContext.trace_id.slice(0, 8)}]${colors.reset} `;
+		}
 
 		console.log(message, ...args);
 	}
