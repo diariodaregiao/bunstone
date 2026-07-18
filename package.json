@@ -27,6 +27,7 @@
     "dist",
     "bin",
     "src",
+    "tsconfig.json",
     "docs/**/*.md",
     "README.md",
     "AGENTS.md",
@@ -74,7 +75,8 @@
     "zod": "^4.3.2"
   },
   "publishConfig": {
-    "registry": "https://registry.npmjs.org/"
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "packageManager": "bun@1.1.0"
 }

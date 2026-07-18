@@ -114,7 +114,7 @@ async function runBun(argv: string[]): Promise<void> {
 }
 
 async function listExports(): Promise<void> {
-	const api = await import("../index");
+	const api = await import("../dist/index.js").catch(() => import("../index"));
 	console.log(Object.keys(api).sort().join("\n"));
 }
 
