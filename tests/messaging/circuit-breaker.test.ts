@@ -3,7 +3,12 @@ import { CircuitBreaker, CircuitOpenError } from "@/messaging/circuit-breaker";
 
 function fakeClock(start = 0) {
 	let time = start;
-	return { now: () => time, advance: (ms: number) => (time += ms) };
+	return {
+		now: () => time,
+		advance: (ms: number) => {
+			time += ms;
+		},
+	};
 }
 
 const fail = () => Promise.reject(new Error("nope"));

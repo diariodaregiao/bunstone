@@ -4,7 +4,6 @@ import * as api from "../index";
 
 const root = join(import.meta.dir, "..");
 const docsDir = join(root, "docs");
-const examplesDir = join(root, "examples");
 
 const DOC_ORDER = [
 	"index.md",
@@ -36,15 +35,9 @@ async function listMarkdown(dir: string): Promise<string[]> {
 	return [...ordered, ...rest];
 }
 
-async function listExamples(): Promise<string[]> {
-	const entries = await readdir(examplesDir).catch(() => [] as string[]);
-	return entries.filter((file) => file.endsWith(".ts")).sort();
-}
-
 async function main(): Promise<void> {
 	const exportNames = Object.keys(api).sort();
 	const docFiles = await listMarkdown(docsDir);
-	const exampleFiles = await listExamples();
 
 	const llms = [
 		"# Bunstone",
@@ -53,9 +46,6 @@ async function main(): Promise<void> {
 		"",
 		"## Docs",
 		...docFiles.map((file) => `- docs/${file}`),
-		"",
-		"## Examples",
-		...exampleFiles.map((file) => `- examples/${file}`),
 		"",
 		`## Public exports (${exportNames.length})`,
 		exportNames.join(", "),
@@ -86,16 +76,11 @@ async function main(): Promise<void> {
 		parts.push("", `## docs/${file}`, "", content.trim());
 	}
 
-	for (const file of exampleFiles) {
-		const content = await readFile(join(examplesDir, file), "utf8");
-		parts.push("", `## examples/${file}`, "", "```ts", content.trim(), "```");
-	}
-
 	await writeFile(join(root, "AGENTS.md"), `${parts.join("\n")}\n`);
 	await writeFile(join(root, "CLAUDE.md"), "@AGENTS.md\n");
 
 	console.log(
-		`Generated AGENTS.md (${docFiles.length} docs, ${exampleFiles.length} examples), llms.txt, CLAUDE.md`,
+		`Generated AGENTS.md (${docFiles.length} docs), llms.txt, CLAUDE.md`,
 	);
 }
 

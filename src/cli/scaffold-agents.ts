@@ -15,7 +15,6 @@ from \`node_modules\` before writing Bunstone code:
 - **Full reference (single file, everything embedded):** \`node_modules/${PACKAGE}/AGENTS.md\`
 - **Machine-readable index:** \`node_modules/${PACKAGE}/llms.txt\`
 - **Guides (one per feature):** \`node_modules/${PACKAGE}/docs/\`
-- **Runnable examples:** \`node_modules/${PACKAGE}/examples/\`
 - **List every public export:** run \`bunx bunstone exports\`
 
 ## Project conventions
