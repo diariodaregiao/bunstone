@@ -87,6 +87,7 @@ export {
 	type HttpServerOptions,
 	InternalServerErrorException,
 	NotFoundException,
+	type OpenApiServeOptions,
 	Options,
 	Param,
 	Patch,
@@ -149,6 +150,16 @@ export {
 	TelemetryService,
 } from "@/observability";
 export {
+	ApiOperation,
+	type ApiOperationInfo,
+	ApiResponse,
+	type ApiResponseInfo,
+	ApiTags,
+	buildOpenApiDocument,
+	type OpenApiInfo,
+	swaggerUiHtml,
+} from "@/openapi";
+export {
 	getRateLimit,
 	MemoryStorage,
 	RateLimit,
@@ -165,3 +176,10 @@ export {
 	type ScheduleType,
 	Timeout,
 } from "@/scheduling";
+export {
+	Test,
+	TestApp,
+	TestingModule,
+	TestingModuleBuilder,
+	type TestRequestOptions,
+} from "@/testing";

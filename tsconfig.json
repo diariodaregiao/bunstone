@@ -40,6 +40,9 @@
     "src/cqrs/**/*",
     "src/messaging/**/*",
     "src/ratelimit/**/*",
+    "src/testing/**/*",
+    "src/openapi/**/*",
+    "src/cli/**/*",
     "src/auth/**/*",
     "src/database/**/*",
     "src/observability/**/*",
@@ -47,8 +50,9 @@
     "src/errors/**/*",
     "src/utils/logger.ts",
     "src/utils/is-zod-schema.ts",
+    "bin/**/*",
     "index.ts",
     "tests/**/*"
   ],
-  "exclude": ["node_modules", "dist", "bin"]
+  "exclude": ["node_modules", "dist"]
 }

@@ -1,5 +1,7 @@
 import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
+import { buildOpenApiDocument, type OpenApiInfo } from "@/openapi/builder";
+import { swaggerUiHtml } from "@/openapi/ui";
 import { getRateLimit } from "@/ratelimit/decorator";
 import { MemoryStorage, type RateLimitStorage } from "@/ratelimit/storage";
 import { Cors, type CorsOptions } from "./cors";
@@ -25,13 +27,22 @@ export interface HttpServerOptions {
 	static?: StaticOptions;
 
 	rateLimitStorage?: RateLimitStorage;
+
+	openapi?: OpenApiServeOptions;
 }
 
-type RouteHandler = (
+export interface OpenApiServeOptions {
+	info: OpenApiInfo;
+	path?: string;
+	uiPath?: string;
+	ui?: boolean;
+}
+
+export type RouteHandler = (
 	req: BunRequest,
 	server: BunServer,
 ) => Response | Promise<Response>;
-type RoutesMap = Record<string, Record<string, RouteHandler>>;
+export type RoutesMap = Record<string, Record<string, RouteHandler>>;
 
 export class HttpServer {
 	private server?: BunServer;
@@ -54,6 +65,27 @@ export class HttpServer {
 			: undefined;
 		this.rateLimitStorage = options.rateLimitStorage ?? new MemoryStorage();
 		this.routes = this.buildRoutes(container, controllers);
+		if (options.openapi) this.addOpenApiRoutes(controllers, options.openapi);
+	}
+
+	private addOpenApiRoutes(
+		controllers: Constructor[],
+		options: OpenApiServeOptions,
+	): void {
+		const document = buildOpenApiDocument(controllers, options.info);
+		const specPath = options.path ?? "/openapi.json";
+		this.routes[specPath] = { GET: () => Response.json(document) };
+
+		if (options.ui) {
+			const uiPath = options.uiPath ?? "/docs";
+			const html = swaggerUiHtml(specPath);
+			this.routes[uiPath] = {
+				GET: () =>
+					new Response(html, {
+						headers: { "content-type": "text/html; charset=utf-8" },
+					}),
+			};
+		}
 	}
 
 	private buildRoutes(
@@ -92,6 +124,10 @@ export class HttpServer {
 		return Object.entries(this.routes).flatMap(([path, methods]) =>
 			Object.keys(methods).map((method) => `${method} ${path}`),
 		);
+	}
+
+	getRoutesMap(): RoutesMap {
+		return this.routes;
 	}
 
 	listen(port?: number): BunServer {

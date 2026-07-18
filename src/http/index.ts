@@ -42,7 +42,13 @@ export {
 	type RouteDefinition,
 	SetHeader,
 } from "./routing";
-export { HttpServer, type HttpServerOptions } from "./server";
+export {
+	HttpServer,
+	type HttpServerOptions,
+	type OpenApiServeOptions,
+	type RouteHandler,
+	type RoutesMap,
+} from "./server";
 export {
 	formatEvent,
 	getSseOptions,
