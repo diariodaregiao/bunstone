@@ -6,6 +6,7 @@ import { getRateLimit } from "@/ratelimit/decorator";
 import { MemoryStorage, type RateLimitStorage } from "@/ratelimit/storage";
 import { Cors, type CorsOptions } from "./cors";
 import { getControllerGuards, getRouteGuards } from "./guard";
+import { type HealthOptions, resolveHealth } from "./health";
 import { createRouteHandler } from "./pipeline";
 import {
 	getControllerPath,
@@ -29,6 +30,8 @@ export interface HttpServerOptions {
 	rateLimitStorage?: RateLimitStorage;
 
 	openapi?: OpenApiServeOptions;
+
+	health?: boolean | HealthOptions;
 }
 
 export interface OpenApiServeOptions {
@@ -56,6 +59,8 @@ export class HttpServer {
 		controllers: Constructor[],
 		private readonly options: HttpServerOptions = {},
 		private readonly gateways: Map<string, WebSocketHandler> = new Map(),
+		private readonly isReady: () => Promise<boolean> = () =>
+			Promise.resolve(true),
 	) {
 		this.cors = options.cors
 			? new Cors(options.cors === true ? {} : options.cors)
@@ -66,6 +71,22 @@ export class HttpServer {
 		this.rateLimitStorage = options.rateLimitStorage ?? new MemoryStorage();
 		this.routes = this.buildRoutes(container, controllers);
 		if (options.openapi) this.addOpenApiRoutes(controllers, options.openapi);
+		this.addHealthRoutes();
+	}
+
+	private addHealthRoutes(): void {
+		const health = resolveHealth(this.options.health);
+		if (!health) return;
+
+		this.routes[health.path] = {
+			GET: () => Response.json({ status: "ok" }),
+		};
+		this.routes[health.readyPath] = {
+			GET: async () =>
+				(await this.isReady())
+					? Response.json({ status: "ready" })
+					: Response.json({ status: "not_ready" }, { status: 503 }),
+		};
 	}
 
 	private addOpenApiRoutes(
@@ -167,10 +188,19 @@ export class HttpServer {
 		);
 	}
 
-	async stop(): Promise<void> {
-		await this.server?.stop(true);
+	async stop(timeoutMs = 10_000): Promise<void> {
+		const server = this.server;
 		this.server = undefined;
 		this.rateLimitStorage.close();
+		if (!server) return;
+
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const forced = new Promise<void>((resolve) => {
+			timer = setTimeout(() => resolve(server.stop(true)), timeoutMs);
+			timer.unref?.();
+		});
+		await Promise.race([server.stop(false), forced]);
+		if (timer) clearTimeout(timer);
 	}
 
 	get raw(): BunServer | undefined {

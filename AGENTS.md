@@ -8,7 +8,7 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (118)
+## Public exports (121)
 
 - `AdapterError`
 - `AggregateRoot`
@@ -20,6 +20,9 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `Body`
 - `BullMQError`
 - `BunstoneError`
+- `CACHE_CLIENT`
+- `CacheModule`
+- `CacheService`
 - `CircuitBreaker`
 - `CircuitOpenError`
 - `CommandBus`
@@ -952,6 +955,62 @@ await this.sql.transaction(async (tx) => {
 ```
 
 If the callback throws, the whole transaction is rolled back.
+
+## docs/cache.md
+
+# Cache
+
+`CacheModule` provides a Redis-backed cache using **Bun's native Redis client**
+(works with Redis and Valkey). Register it once, then inject `CacheService`.
+
+## Setup
+
+```ts
+import { CacheModule, Module } from "@grupodiariodaregiao/bunstone";
+
+@Module({
+  imports: [CacheModule.register({ url: "redis://localhost:6379" })],
+})
+export class AppModule {}
+```
+
+If `url` is omitted, the client reads `REDIS_URL` / `VALKEY_URL`, falling back to
+`redis://localhost:6379`. The connection is closed automatically on shutdown.
+
+## Usage
+
+`CacheService` serializes values as JSON.
+
+```ts
+import { CacheService, Injectable } from "@grupodiariodaregiao/bunstone";
+
+@Injectable()
+export class UsersService {
+  constructor(private readonly cache: CacheService) {}
+
+  async getUser(id: string) {
+    return this.cache.getOrSet(
+      `user:${id}`,
+      () => this.loadFromDb(id),
+      { ttlSeconds: 60 },
+    );
+  }
+
+  private loadFromDb(id: string) {
+    return { id, name: "Ada" };
+  }
+}
+```
+
+## API
+
+- `get<T>(key)` — returns the parsed value or `null`.
+- `set(key, value, { ttlSeconds? })` — stores a JSON value, optionally with a TTL.
+- `has(key)` — `true` if the key exists.
+- `delete(key)` — removes a key.
+- `getOrSet<T>(key, factory, { ttlSeconds? })` — returns the cached value, or
+  computes it with `factory`, caches it, and returns it.
+- `client` — the underlying Bun `RedisClient` for advanced commands.
 
 ## docs/cqrs.md
 
@@ -1909,3 +1968,59 @@ Lists every public export from the package, one per line. Useful for confirming 
 ```bash
 bunx bunstone exports
 ```
+
+## docs/deployment.md
+
+# Deployment: health checks & graceful shutdown
+
+## Health & readiness endpoints
+
+Enable built-in `/health` (liveness) and `/ready` (readiness) endpoints — useful
+for Kubernetes probes and load balancers.
+
+```ts
+const app = await Application.create(AppModule, { health: true });
+app.listen(3000);
+```
+
+- `GET /health` → always `200 { "status": "ok" }` while the process is up.
+- `GET /ready` → `200 { "status": "ready" }` when the app is listening and not
+  shutting down; `503 { "status": "not_ready" }` otherwise.
+
+Add custom readiness checks (e.g. a dependency must be reachable). `/ready`
+returns `503` if any check returns `false`:
+
+```ts
+await Application.create(AppModule, {
+  health: {
+    path: "/health",
+    readyPath: "/ready",
+    checks: [async () => sql.isConnected()],
+  },
+});
+```
+
+## Graceful shutdown
+
+On `SIGINT`/`SIGTERM` (or `app.close()`), Bunstone shuts down cleanly:
+
+1. `/ready` starts returning `503` so orchestrators stop routing new traffic.
+2. In-flight HTTP requests are **drained** (allowed to finish).
+3. `onModuleDestroy` hooks run; schedulers, queue consumers, the SQL pool and
+   other resources are released.
+
+```ts
+await Application.create(AppModule, {
+  health: true,
+  shutdownGraceMs: 3000,     // wait before draining, so probes notice /ready=503
+  shutdownTimeoutMs: 10000,  // force-close if draining exceeds this
+});
+```
+
+- `shutdownGraceMs` — delay between marking the app not-ready and draining
+  (gives the orchestrator time to stop sending traffic). Default `0`.
+- `shutdownTimeoutMs` — maximum drain time before connections are force-closed
+  (long-lived WebSocket connections are closed at this point). Default `10000`.
+
+For zero-downtime rolling deploys, set `shutdownGraceMs` to a couple of seconds
+and configure your orchestrator's `preStop` / termination grace period to match.

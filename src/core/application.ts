@@ -1,4 +1,5 @@
 import { wireCqrs } from "@/cqrs/cqrs-module";
+import { resolveHealth, runChecks } from "@/http/health";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
 import { collectGateways } from "@/http/websocket";
@@ -16,6 +17,15 @@ export interface ApplicationOptions extends HttpServerOptions {
 	gracefulShutdown?: boolean;
 
 	logStartup?: boolean;
+
+	shutdownGraceMs?: number;
+
+	shutdownTimeoutMs?: number;
+}
+
+interface ReadinessState {
+	listening: boolean;
+	draining: boolean;
 }
 
 const SHUTDOWN_SIGNALS: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
@@ -31,6 +41,7 @@ export class Application {
 		private readonly disposables: DisposableRegistry,
 		private readonly instances: readonly unknown[],
 		private readonly options: ApplicationOptions,
+		private readonly readiness: ReadinessState,
 	) {}
 
 	static async create(
@@ -45,11 +56,20 @@ export class Application {
 		wireCqrs(container, instances);
 		await wireRabbit(container, instances);
 		const gateways = collectGateways(instances);
+
+		const readiness: ReadinessState = { listening: false, draining: false };
+		const health = resolveHealth(options.health);
+		const isReady = async () =>
+			readiness.listening &&
+			!readiness.draining &&
+			(health ? await runChecks(health.checks) : true);
+
 		const httpServer = new HttpServer(
 			container,
 			controllers,
 			options,
 			gateways,
+			isReady,
 		);
 		await runLifecycle(instances, "onApplicationBootstrap");
 
@@ -70,6 +90,7 @@ export class Application {
 			disposables,
 			instances,
 			options,
+			readiness,
 		);
 	}
 
@@ -79,7 +100,7 @@ export class Application {
 
 	listen(port?: number): this {
 		const server = this.httpServer.listen(port);
-		this.disposables.add(() => this.httpServer.stop(), "http-server");
+		this.readiness.listening = true;
 
 		if (this.options.gracefulShutdown !== false) this.installSignals();
 		if (this.options.logStartup !== false) {
@@ -97,7 +118,13 @@ export class Application {
 	async close(): Promise<void> {
 		if (this.closed) return;
 		this.closed = true;
+		this.readiness.draining = true;
 		this.removeSignals();
+
+		if (this.options.shutdownGraceMs) {
+			await Bun.sleep(this.options.shutdownGraceMs);
+		}
+		await this.httpServer.stop(this.options.shutdownTimeoutMs);
 		await runLifecycle(this.instances, "onModuleDestroy", true);
 		await this.disposables.disposeAll();
 	}

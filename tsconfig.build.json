@@ -12,6 +12,7 @@
     "src/auth/**/*",
     "src/database/**/*",
     "src/observability/**/*",
+    "src/cache/**/*",
     "src/scheduling/**/*",
     "src/errors/**/*",
     "src/utils/logger.ts",

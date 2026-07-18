@@ -40,6 +40,7 @@ beforeAll(async () => {
 	app = await Application.create(AppModule, {
 		gracefulShutdown: false,
 		logStartup: false,
+		shutdownTimeoutMs: 200,
 	});
 	app.listen(0);
 	const port = app.getServer()?.port;
@@ -75,5 +76,8 @@ describe("WebSocket gateway", () => {
 		expect(await echoed).toEqual({ echo: { n: 5 }, at: "tick" });
 
 		ws.close();
+		await new Promise((resolve) =>
+			ws.addEventListener("close", resolve, { once: true }),
+		);
 	});
 });

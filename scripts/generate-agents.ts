@@ -14,6 +14,7 @@ const DOC_ORDER = [
 	"controllers.md",
 	"guards-jwt.md",
 	"database.md",
+	"cache.md",
 	"cqrs.md",
 	"event-sourcing.md",
 	"messaging.md",
@@ -24,6 +25,7 @@ const DOC_ORDER = [
 	"testing.md",
 	"openapi.md",
 	"cli.md",
+	"deployment.md",
 ];
 
 async function listMarkdown(dir: string): Promise<string[]> {

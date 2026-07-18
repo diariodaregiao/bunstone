@@ -17,6 +17,12 @@ export {
 	UseGuards,
 } from "./guard";
 export {
+	type HealthCheck,
+	type HealthOptions,
+	resolveHealth,
+	runChecks,
+} from "./health";
+export {
 	Body,
 	Ctx,
 	FormData,

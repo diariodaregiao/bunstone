@@ -11,6 +11,13 @@ export {
 	type SignOverrides,
 } from "@/auth";
 export {
+	CACHE_CLIENT,
+	CacheModule,
+	type CacheOptions,
+	CacheService,
+	type CacheSetOptions,
+} from "@/cache";
+export {
 	Application,
 	type ApplicationOptions,
 	type CompiledModules,
@@ -82,6 +89,8 @@ export {
 	type GuardContract,
 	Head,
 	Header,
+	type HealthCheck,
+	type HealthOptions,
 	HttpException,
 	type HttpMethod,
 	type HttpServerOptions,

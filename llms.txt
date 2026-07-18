@@ -10,6 +10,7 @@ Decorator-based framework for Bun (native Bun.serve, Bun.SQL, Bun.cron).
 - docs/controllers.md
 - docs/guards-jwt.md
 - docs/database.md
+- docs/cache.md
 - docs/cqrs.md
 - docs/event-sourcing.md
 - docs/messaging.md
@@ -20,9 +21,10 @@ Decorator-based framework for Bun (native Bun.serve, Bun.SQL, Bun.cron).
 - docs/testing.md
 - docs/openapi.md
 - docs/cli.md
+- docs/deployment.md
 
 ## Examples
 
-## Public exports (118)
-AdapterError, AggregateRoot, ApiOperation, ApiResponse, ApiTags, Application, BadRequestException, Body, BullMQError, BunstoneError, CircuitBreaker, CircuitOpenError, CommandBus, CommandHandler, ConfigurationError, ConflictException, Container, Controller, Cors, CqrsError, CqrsModule, Cron, Ctx, DEFAULT_RETRY, DatabaseError, Delete, DependencyResolutionError, DisposableRegistry, EVENT_STORE, EmailError, EventBus, EventHandler, EventSourcedRepository, EventSourcingModule, EventStoreError, ForbiddenException, FormData, Get, GuardError, Head, Header, HttpException, HttpParamError, ImportError, Inject, Injectable, InjectionToken, InternalServerErrorException, Interval, JWT_OPTIONS, Jwt, JwtGuard, JwtModule, JwtPayload, JwtService, MemoryStorage, Module, ModuleInitializationError, NotFoundException, Options, Param, Patch, Post, Put, Query, QueryBus, QueryHandler, RABBIT_OPTIONS, RabbitConnection, RabbitConsumer, RabbitMQError, RabbitMQModule, RabbitMQService, RabbitSubscribe, RateLimit, RateLimitError, Req, SQL_CLIENT, ScheduleError, Scheduler, SetHeader, SqlEventStore, SqlModule, SqlService, Sse, State, StaticFiles, TELEMETRY_OPTIONS, TelemetryModule, TelemetrySdk, TelemetryService, Test, TestApp, TestingError, TestingModule, TestingModuleBuilder, Timeout, TooManyRequestsException, UnauthorizedException, UnprocessableEntityException, UploadError, UseGuards, WebSocketGateway, backoffDelay, buildOpenApiDocument, compileModules, createSqlClient, getRateLimit, getSchedules, getSubscriptions, instrumentRequest, isInjectable, isRabbitConsumer, shouldRetry, sseResponse, swaggerUiHtml, wireCqrs, wireRabbit
+## Public exports (121)
+AdapterError, AggregateRoot, ApiOperation, ApiResponse, ApiTags, Application, BadRequestException, Body, BullMQError, BunstoneError, CACHE_CLIENT, CacheModule, CacheService, CircuitBreaker, CircuitOpenError, CommandBus, CommandHandler, ConfigurationError, ConflictException, Container, Controller, Cors, CqrsError, CqrsModule, Cron, Ctx, DEFAULT_RETRY, DatabaseError, Delete, DependencyResolutionError, DisposableRegistry, EVENT_STORE, EmailError, EventBus, EventHandler, EventSourcedRepository, EventSourcingModule, EventStoreError, ForbiddenException, FormData, Get, GuardError, Head, Header, HttpException, HttpParamError, ImportError, Inject, Injectable, InjectionToken, InternalServerErrorException, Interval, JWT_OPTIONS, Jwt, JwtGuard, JwtModule, JwtPayload, JwtService, MemoryStorage, Module, ModuleInitializationError, NotFoundException, Options, Param, Patch, Post, Put, Query, QueryBus, QueryHandler, RABBIT_OPTIONS, RabbitConnection, RabbitConsumer, RabbitMQError, RabbitMQModule, RabbitMQService, RabbitSubscribe, RateLimit, RateLimitError, Req, SQL_CLIENT, ScheduleError, Scheduler, SetHeader, SqlEventStore, SqlModule, SqlService, Sse, State, StaticFiles, TELEMETRY_OPTIONS, TelemetryModule, TelemetrySdk, TelemetryService, Test, TestApp, TestingError, TestingModule, TestingModuleBuilder, Timeout, TooManyRequestsException, UnauthorizedException, UnprocessableEntityException, UploadError, UseGuards, WebSocketGateway, backoffDelay, buildOpenApiDocument, compileModules, createSqlClient, getRateLimit, getSchedules, getSubscriptions, instrumentRequest, isInjectable, isRabbitConsumer, shouldRetry, sseResponse, swaggerUiHtml, wireCqrs, wireRabbit
 
