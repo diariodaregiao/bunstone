@@ -5,3 +5,4 @@ export {
 	toKebabCase,
 	toPascalCase,
 } from "./generate";
+export { projectAgentsMd } from "./scaffold-agents";

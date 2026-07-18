@@ -1,43 +1,59 @@
 # Scheduling
 
-Bunstone supports decorator-based scheduling for background tasks.
+Bunstone runs periodic and delayed tasks with decorators on your providers. The scheduler starts jobs when the app boots and stops them on shutdown. Decorate methods on any `@Injectable` provider registered in a module's `providers`.
 
-## @Timeout()
+## @Cron
 
-Executes a method once after a specified delay (in milliseconds).
+Runs a method on a cron schedule using native `Bun.cron`. Expressions are **5-field** (minute, hour, day-of-month, month, day-of-week) and evaluated in **UTC**.
 
-```typescript
+```ts
+import { Injectable, Cron } from "@grupodiariodaregiao/bunstone";
+
 @Injectable()
-export class TaskService {
-  @Timeout(5000)
-  runOnce() {
-    console.log("Executed after 5 seconds");
+export class ReportService {
+  @Cron("*/5 * * * *")
+  everyFiveMinutes() {
+    console.log("running report");
   }
 }
 ```
 
-## @Cron()
+An invalid cron expression throws at startup.
 
-Executes a method repeatedly based on a cron expression.
+## @Interval
 
-```typescript
-import { Cron } from "@grupodiariodaregiao/bunstone";
+Runs a method repeatedly every `ms` milliseconds.
+
+```ts
+import { Injectable, Interval } from "@grupodiariodaregiao/bunstone";
 
 @Injectable()
-export class CleanupService {
-  @Cron("0 0 * * *") // Every day at midnight
-  handleCleanup() {
-    console.log("Cleaning up database...");
+export class HealthCheck {
+  @Interval(30_000)
+  ping() {
+    console.log("still alive");
   }
 }
 ```
 
-> **Note**: Scheduling decorators work on any `@Injectable` class that is registered as a `provider` in a `@Module`.
+## @Timeout
 
-## Practical Example
+Runs a method once, `ms` milliseconds after startup.
 
-Explore more scheduling options and configurations:
+```ts
+import { Injectable, Timeout } from "@grupodiariodaregiao/bunstone";
 
-<<< @/../examples/06-scheduling/index.ts
+@Injectable()
+export class Warmup {
+  @Timeout(5_000)
+  prime() {
+    console.log("warming caches");
+  }
+}
+```
 
-[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/06-scheduling/index.ts)
+## Behavior
+
+- **Stop on shutdown** — all cron jobs, intervals, and timeouts are cleared when the application closes.
+- **Overlap guard** — a job will not start again while its previous run is still in progress; overlapping ticks are skipped.
+- **Error isolation** — if a job throws, the error is logged and the failure does not affect other scheduled jobs.

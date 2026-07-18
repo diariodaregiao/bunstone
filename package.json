@@ -13,7 +13,7 @@
       "types": "./dist/*.d.ts"
     }
   },
-  "version": "0.7.2",
+  "version": "1.0.0",
   "homepage": "https://bunstone.diario.one/",
   "repository": {
     "url": "https://github.com/diariodaregiao/bunstone.git",
@@ -29,18 +29,18 @@
     "src",
     "docs/**/*.md",
     "examples/**/*.ts",
-    "examples/package.json",
-    "starter",
     "README.md",
     "AGENTS.md",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "llms.txt",
+    "MIGRATION.md"
   ],
   "scripts": {
     "agents:build": "bun run ./scripts/generate-agents.ts",
     "test": "bun test",
     "coverage": "bun test --coverage",
     "typecheck": "tsc --noEmit",
-    "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun --packages external && tsc -p tsconfig.build.json --emitDeclarationOnly --declaration --outDir dist && tsc-alias -p tsconfig.build.json --outDir dist",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
@@ -53,28 +53,15 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.11",
+    "@types/amqplib": "^0.10.8",
     "@types/autocannon": "^7.12.7",
     "@types/bun": "latest",
-    "@types/nodemailer": "^7.0.5",
-    "amqplib": "^0.10.4",
-    "@types/react": "^19.2.8",
-    "@types/react-dom": "^19.2.3",
     "autocannon": "^8.0.0",
     "bun-types": "1.3.11",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "vitepress": "^1.6.4"
+    "tsc-alias": "^1.9.1"
   },
   "peerDependencies": {
-    "react": ">=19",
-    "react-dom": ">=19",
-    "typescript": "^5",
-    "amqplib": "^0.10.4"
-  },
-  "peerDependenciesMeta": {
-    "amqplib": {
-      "optional": true
-    }
+    "typescript": "^5"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
@@ -85,16 +72,9 @@
     "@opentelemetry/sdk-metrics": "^2.7.1",
     "@opentelemetry/sdk-trace-base": "^2.7.1",
     "@opentelemetry/semantic-conventions": "^1.40.0",
-    "@react-email/components": "^1.0.4",
-    "@react-email/render": "^2.0.2",
-    "@react-email/tailwind": "^2.0.3",
-    "@types/amqplib": "^0.10.8",
-    "bullmq": "^5.40.2",
+    "amqplib": "^0.10.4",
     "jose": "^6.2.3",
-    "node-cron": "^4.2.1",
-    "nodemailer": "^7.0.12",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
     "zod": "^4.3.2"
   },
   "publishConfig": {

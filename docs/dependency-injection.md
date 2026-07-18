@@ -1,72 +1,102 @@
 # Dependency Injection
 
-Bunstone uses a powerful Dependency Injection (DI) system that manages the lifecycle of your classes and their dependencies.
+Bunstone resolves classes and their dependencies through a container. Providers are constructed once and cached, so every consumer shares the same singleton instance within an application.
 
 ## @Injectable()
 
-To make a class injectable, use the `@Injectable()` decorator.
+Mark a class as injectable so it can be constructed by the container and receive dependencies.
 
-```typescript
+```ts
 import { Injectable } from "@grupodiariodaregiao/bunstone";
 
 @Injectable()
-export class DatabaseService {
-  query(sql: string) {
-    return `Executing: ${sql}`;
+export class GreetService {
+  greet(name: string) {
+    return `hello ${name}`;
   }
 }
 ```
 
-## Constructor Injection
+## Constructor injection
 
-Dependencies are automatically resolved and injected via the constructor.
+Declare dependencies as constructor parameters. Their types are read from decorator metadata and resolved automatically.
 
-```typescript
+```ts
+import { Injectable } from "@grupodiariodaregiao/bunstone";
+
 @Injectable()
-export class UserService {
-  constructor(private readonly db: DatabaseService) {}
+export class UsersService {
+  constructor(private readonly greet: GreetService) {}
 
-  findAll() {
-    return this.db.query("SELECT * FROM users");
+  welcome(name: string) {
+    return this.greet.greet(name);
   }
 }
 ```
 
-## Singleton Behavior
+## Injection tokens
 
-By default, all providers are singletons within their module tree. If multiple modules import the same module, they will share the same instances of exported providers.
+Non-class dependencies (config objects, interfaces, primitives) are keyed by an `InjectionToken`. Use `@Inject(TOKEN)` to point a parameter at the token.
 
-## Module Merging
+```ts
+import { Inject, Injectable, InjectionToken } from "@grupodiariodaregiao/bunstone";
 
-When you import a module into another, Bunstone merges the `injectables` to ensure that shared services (like a `CommandBus` or a `DatabaseConnection`) remain singletons across the entire application.
+interface AppConfig {
+  apiUrl: string;
+}
 
-```typescript
+export const APP_CONFIG = new InjectionToken<AppConfig>("AppConfig");
+
+@Injectable()
+export class ApiClient {
+  constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
+
+  base() {
+    return this.config.apiUrl;
+  }
+}
+```
+
+## Provider forms
+
+Providers are declared in a module's `providers` array. A bare class is shorthand for `{ provide: Class, useClass: Class }`. The other forms bind a token to a value, a class, or a factory.
+
+```ts
 @Module({
-  providers: [SharedService],
-  exports: [SharedService],
-})
-export class SharedModule {}
-
-@Module({
-  imports: [SharedModule],
-  controllers: [AppController],
+  providers: [
+    GreetService,
+    { provide: APP_CONFIG, useValue: { apiUrl: "https://api.example.com" } },
+    { provide: GreetService, useClass: GreetService },
+    {
+      provide: ApiClient,
+      useFactory: (config: AppConfig) => new ApiClient(config),
+      inject: [APP_CONFIG],
+    },
+  ],
 })
 export class AppModule {}
 ```
 
-## Global Modules
+The `inject` array lists the tokens that are resolved and passed, in order, to `useFactory`.
 
-Sometimes you may want a provider to be available everywhere without importing its module into every other module. You can achieve this by setting the `global` property to `true` in the `@Module` decorator.
+## Singletons
 
-```typescript
-@Module({
-  providers: [GlobalService],
-  global: true,
-})
-export class GlobalModule {}
+Each token resolves to a single instance for the life of the application. Two services that depend on the same provider receive the exact same object.
+
+```ts
+container.resolve(A).shared === container.resolve(B).shared; // true
 ```
 
-Once a global module is registered in the root `AppModule`, its providers can be injected into any class in the application without further imports.
+## Cycle detection
 
-> [!TIP]
-> `SqlModule` and `CqrsModule` are examples of global modules provided by Bunstone.
+If two providers depend on each other, the container throws a clear circular-dependency error instead of overflowing the stack.
+
+```ts
+const A = new InjectionToken("A");
+const B = new InjectionToken("B");
+
+container.register({ provide: A, useFactory: (b) => ({ b }), inject: [B] });
+container.register({ provide: B, useFactory: (a) => ({ a }), inject: [A] });
+
+container.resolve(A); // throws: Circular dependency
+```

@@ -1,54 +1,65 @@
 # Getting Started
 
-Bunstone is a decorator-based framework for Bun, inspired by NestJS. It provides a structured way to build scalable and maintainable APIs.
+This guide walks through creating a Bunstone application from scratch.
 
-## Installation
+## Scaffold a project
 
-You can scaffold a new project using our CLI:
-
-```bash
-bunx @grupodiariodaregiao/bunstone new my-app
-# or shorthand
-bunx @grupodiariodaregiao/bunstone my-app
-```
-
-### Alternatively: Use the Starter Template
-
-You can also start by cloning the repository and using the `starter` directory:
+The fastest way to start is the CLI:
 
 ```bash
-git clone https://github.com/diariodaregiao/bunstone.git
-cp -r bunstone/starter my-app
-rm -rf bunstone
+bunx bunstone new my-app
 cd my-app
-rm -rf .git
 bun install
 ```
 
-## Basic Setup
+Or add Bunstone to an existing Bun project:
 
-Bunstone projects follow a modular structure. Here's a basic setup:
-
-### `src/main.ts`
-
-```typescript
-import "reflect-metadata";
-import { AppStartup } from "@grupodiariodaregiao/bunstone";
-import { AppModule } from "./app.module";
-
-async function bootstrap() {
-  const app = await AppStartup.create(AppModule);
-  app.listen(3000);
-}
-
-bootstrap();
+```bash
+bun add @grupodiariodaregiao/bunstone reflect-metadata
 ```
 
-### `src/app.module.ts`
+Make sure decorators are enabled in `tsconfig.json`:
 
-```typescript
+```json
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}
+```
+
+## Project structure
+
+A typical Bunstone project looks like this:
+
+```
+src/
+  main.ts
+  app.module.ts
+  app.controller.ts
+```
+
+## The entry point
+
+`reflect-metadata` must be imported once, before anything else, so decorator metadata is available. Bootstrapping is asynchronous: `Application.create` builds the DI graph and runs the init hooks, and `listen` starts the server.
+
+```ts
+import "reflect-metadata";
+import { Application } from "@grupodiariodaregiao/bunstone";
+import { AppModule } from "./app.module";
+
+const app = await Application.create(AppModule);
+app.listen(3000);
+```
+
+## The root module
+
+Every application has one root module. It declares the controllers to expose and the providers to register.
+
+```ts
 import { Module } from "@grupodiariodaregiao/bunstone";
-import { AppController } from "./controllers/app.controller";
+import { AppController } from "./app.controller";
 
 @Module({
   controllers: [AppController],
@@ -56,18 +67,32 @@ import { AppController } from "./controllers/app.controller";
 export class AppModule {}
 ```
 
-## Running the App
+## A controller
 
-```bash
-bun dev
+Controllers turn classes into route handlers. The return value is serialized automatically (objects become JSON).
+
+```ts
+import { Controller, Get, Param } from "@grupodiariodaregiao/bunstone";
+
+@Controller("users")
+export class AppController {
+  @Get()
+  list() {
+    return [{ id: "1", name: "Ada" }];
+  }
+
+  @Get(":id")
+  findOne(@Param("id") id: string) {
+    return { id };
+  }
+}
 ```
 
-Your app will be running at `http://localhost:3000`.
+With the module and controller above, `GET /users` and `GET /users/:id` are live.
 
-## Full Example
+## Next steps
 
-Check out a complete standalone example of a basic application:
-
-<<< @/../examples/01-basic-app/index.ts
-
-[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/01-basic-app/index.ts)
+- [Dependency Injection](./dependency-injection.md)
+- [Modules](./modules.md)
+- [Controllers](./controllers.md)
+- [Guards & JWT](./guards-jwt.md)

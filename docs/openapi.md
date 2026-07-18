@@ -1,129 +1,101 @@
 # OpenAPI (Swagger)
 
-Bunstone provides built-in support for OpenAPI (Swagger) documentation using decorators, similar to NestJS.
+Bunstone can generate an OpenAPI 3.1 document from your controllers and serve it, optionally alongside a Swagger UI page. Enrich the document with decorators.
 
-## Installation
+## Enabling
 
-OpenAPI support is built-in, but you need to enable it in your `AppStartup`.
+Pass the `openapi` option to `Application.create`. The document is served at `/openapi.json`; set `ui: true` to also serve Swagger UI at `/docs`.
 
-## Configuration
+```ts
+import "reflect-metadata";
+import { Application } from "@grupodiariodaregiao/bunstone";
+import { AppModule } from "./app.module";
 
-Enable Swagger in your `AppStartup.create` options:
-
-```typescript
-await AppStartup.create(AppModule, {
-  swagger: {
-    path: "/docs", // default is /swagger
-    documentation: {
-      info: {
-        title: "My API",
-        version: "1.0.0",
-        description: "API Documentation",
-      },
-    },
+const app = await Application.create(AppModule, {
+  openapi: {
+    info: { title: "My API", version: "1.0.0" },
+    ui: true,
   },
-}).listen(3000);
+});
+
+app.listen(3000);
 ```
 
-## Basic Auth Protection
+### Options
 
-You can optionally protect the Swagger documentation page with HTTP Basic Authentication by providing `auth` credentials:
-
-```typescript
-await AppStartup.create(AppModule, {
-  swagger: {
-    path: "/docs",
-    auth: {
-      username: "admin",
-      password: "secret",
-    },
-    documentation: {
-      info: {
-        title: "My API",
-        version: "1.0.0",
-      },
-    },
-  },
-}).listen(3000);
+```ts
+interface OpenApiServeOptions {
+  info: { title: string; version: string; description?: string };
+  ui?: boolean;      // serve Swagger UI (default: off)
+  path?: string;     // spec path (default: "/openapi.json")
+  uiPath?: string;   // UI path (default: "/docs")
+}
 ```
-
-When `auth` is set, any request to the documentation path (and its sub-paths such as `/docs/json`) will require a valid `Authorization: Basic <base64(username:password)>` header. Unauthenticated requests receive a `401 Unauthorized` response with a `WWW-Authenticate` challenge, which causes browsers to display a native login dialog. For security, you should only expose this endpoint over HTTPS (or behind a reverse proxy that terminates HTTPS), as Basic Auth credentials are otherwise sent in clear text and can be intercepted.
 
 ## Decorators
 
-### @ApiTags()
+Annotate controllers and handlers to describe operations.
 
-Adds tags to a controller or a specific method.
+```ts
+import { z } from "zod";
+import { Controller, Get, Post, Body, Param, Query } from "@grupodiariodaregiao/bunstone";
+import { ApiTags, ApiOperation, ApiResponse } from "@grupodiariodaregiao/bunstone";
 
-```typescript
+const CreateUser = z.object({ name: z.string().min(2), age: z.number() });
+
 @ApiTags("Users")
 @Controller("users")
-export class UserController {
-  @ApiTags("Profile")
-  @Get("profile")
-  getProfile() {}
+export class UsersController {
+  @Get(":id")
+  @ApiOperation({ summary: "Get a user" })
+  @ApiResponse({ status: 200, description: "found" })
+  @ApiResponse({ status: 404, description: "missing" })
+  one(@Param("id") id: string, @Query("expand") expand?: string) {
+    return { id, expand };
+  }
+
+  @Post()
+  @ApiOperation({ summary: "Create a user" })
+  create(@Body(CreateUser) body: z.infer<typeof CreateUser>) {
+    return body;
+  }
 }
 ```
 
-### @ApiOperation()
+- `@ApiTags(...tags)` — tags for a controller or a specific method; both are merged into the operation.
+- `@ApiOperation({ summary, description })` — describes the endpoint.
+- `@ApiResponse({ status, description })` — documents a response; repeat it for multiple statuses.
 
-Defines the summary and description for an endpoint.
+## Schemas from Zod
 
-```typescript
-@ApiOperation({ summary: 'Create a user', description: 'This endpoint creates a new user in the database' })
-@Post()
-create() {}
-```
+When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically, and `@Query("name")` parameters appear as query parameters.
 
-### @ApiResponse()
+For the controller above, the generated document includes:
 
-Defines the possible responses for an endpoint.
-
-```typescript
-@ApiResponse({ status: 200, description: 'User found' })
-@ApiResponse({ status: 404, description: 'User not found' })
-@Get(':id')
-findOne() {}
-```
-
-### @ApiHeader() / @ApiHeaders()
-
-Defines custom headers for an endpoint or controller.
-
-```typescript
-@ApiHeader({ name: "X-Custom-Header", description: "A custom header" })
-@Controller("users")
-export class UserController {
-  @ApiHeaders([
-    { name: "X-Token", description: "Auth token", required: true },
-    { name: "X-Version", description: "API Version" },
-  ])
-  @Get()
-  findAll() {}
+```json
+{
+  "openapi": "3.1.0",
+  "paths": {
+    "/users/{id}": {
+      "get": {
+        "summary": "Get a user",
+        "tags": ["Users"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "expand", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "found" }, "404": { "description": "missing" } }
+      }
+    },
+    "/users": {
+      "post": {
+        "summary": "Create a user",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "age": { "type": "number" } }, "required": ["name", "age"] } } }
+        }
+      }
+    }
+  }
 }
 ```
-
-## DTOs and Schemas
-
-Bunstone uses **Zod** for validation. When you use `@Body(Schema)`, `@Query(Schema)`, or `@Param(Schema)`, the schema is automatically registered in the OpenAPI documentation.
-
-```typescript
-const CreateUserSchema = z.object({
-  name: z.string(),
-  email: z.string().email()
-});
-
-@Post()
-@ApiOperation({ summary: 'Create user' })
-create(@Body(CreateUserSchema) body: any) {
-  return body;
-}
-```
-
-## Practical Example
-
-Explore a complete OpenAPI configuration and usage:
-
-<<< @/../examples/08-openapi/index.ts
-
-[See it on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/08-openapi/index.ts)

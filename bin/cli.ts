@@ -2,6 +2,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { type GenerateKind, generate } from "../src/cli/generate";
+import { projectAgentsMd } from "../src/cli/scaffold-agents";
 
 const [command, ...args] = process.argv.slice(2);
 
@@ -37,11 +38,15 @@ async function scaffold(name?: string): Promise<void> {
 				name,
 				type: "module",
 				scripts: { dev: "bun run --watch src/main.ts" },
-				dependencies: { "@grupodiariodaregiao/bunstone": "^1.0.0" },
+				dependencies: {
+					"@grupodiariodaregiao/bunstone": "^1.0.0",
+					"reflect-metadata": "^0.2.2",
+				},
 			},
 			null,
 			2,
 		),
+		"AGENTS.md": projectAgentsMd(),
 		"src/main.ts": `import "reflect-metadata";
 import { Application } from "@grupodiariodaregiao/bunstone";
 import { AppModule } from "./app.module";
