@@ -9,14 +9,21 @@ import { Module } from "@/core/module";
 const URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
 async function redisReachable(): Promise<boolean> {
+	const client = new RedisClient(URL);
 	try {
-		const client = new RedisClient(URL);
-		await client.set("bunstone:probe", "1");
-		await client.del("bunstone:probe");
-		client.close();
+		await Promise.race([
+			client
+				.set("bunstone:probe", "1")
+				.then(() => client.del("bunstone:probe")),
+			new Promise((_, reject) =>
+				setTimeout(() => reject(new Error("timeout")), 1500),
+			),
+		]);
 		return true;
 	} catch {
 		return false;
+	} finally {
+		client.close();
 	}
 }
 
