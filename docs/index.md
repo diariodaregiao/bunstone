@@ -1,35 +1,64 @@
----
-layout: home
+# Bunstone
 
-hero:
-  name: Bunstone
-  text: Decorator-based framework for Bun
-  tagline: Build scalable and maintainable APIs with Elysia and Bun
-  actions:
-    - theme: brand
-      text: Get Started
-      link: /getting-started
-    - theme: alt
-      text: View on GitHub
-      link: https://github.com/diariodaregiao/bunstone
+Bunstone is a decorator-based framework for [Bun](https://bun.sh), inspired by NestJS but deliberately smaller. It is **Bun-native**: the HTTP layer is built directly on `Bun.serve` and the standard `Request`/`Response` objects. There is no Elysia, no Express, and no other server framework underneath.
 
-features:
-  - title: Dependency Injection
-    details: Powerful and recursive DI container for managing your services and controllers.
-  - title: CQRS & Sagas
-    details: Built-in support for Command, Query, and Event buses with reactive Sagas.
-  - title: Decorator-based
-    details: Clean and expressive syntax using TypeScript decorators, inspired by NestJS.
-  - title: Fast & Lightweight
-    details: Built on top of Bun and Elysia for maximum performance.
-  - title: MVC & SSR
-    details: Native React support for Server-Side Rendering with @Render decorator.
-  - title: Professional Emails
-    details: Send emails using React components and Tailwind CSS with automatic inline styling.
-  - title: BullMQ
-    details: Effortless background job processing with BullMQ integration.
-  - title: RabbitMQ
-    details: Full AMQP message broker integration with exchanges, queues, routing keys, dead letters and auto-reconnect.
-  - title: Integrated Testing
-    details: Optimized tools for integration and E2E testing with provider mocking and headless application support.
----
+## Features
+
+- **Dependency injection** — a recursive DI container with constructor injection, injection tokens, and singleton providers.
+- **Decorator-based routing** — `@Controller`, `@Get`, `@Post`, and friends map classes and methods to routes.
+- **Zod validation** — pass a Zod schema to `@Body`, `@Query`, or `@Param` for automatic parsing and validation.
+- **Modules** — group controllers and providers with `@Module`, compose them with `imports`, and share them with `exports` or `global`.
+- **Lifecycle hooks** — `OnModuleInit`, `OnApplicationBootstrap`, and `OnModuleDestroy`.
+- **Guards** — `@UseGuards` with DI-injected guard classes.
+- **JWT auth** — a ready-made `JwtModule`, `JwtService`, `@Jwt()` guard, and `@JwtPayload()` parameter.
+- **Graceful shutdown** — `app.close()` runs destroy hooks and disposers; `SIGINT`/`SIGTERM` are handled automatically.
+
+## Installation
+
+```bash
+bun add @grupodiariodaregiao/bunstone reflect-metadata
+```
+
+Enable decorator metadata in your `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}
+```
+
+## Hello world
+
+```ts
+import "reflect-metadata";
+import { Application, Controller, Get, Module } from "@grupodiariodaregiao/bunstone";
+
+@Controller()
+class AppController {
+  @Get()
+  hello() {
+    return { message: "Hello from Bunstone!" };
+  }
+}
+
+@Module({
+  controllers: [AppController],
+})
+class AppModule {}
+
+const app = await Application.create(AppModule);
+app.listen(3000);
+```
+
+Run it with Bun and open `http://localhost:3000`.
+
+## Next steps
+
+- [Getting Started](./getting-started.md)
+- [Dependency Injection](./dependency-injection.md)
+- [Modules](./modules.md)
+- [Controllers](./controllers.md)
+- [Guards & JWT](./guards-jwt.md)

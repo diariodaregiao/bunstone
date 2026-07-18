@@ -1,88 +1,194 @@
 import "reflect-metadata";
 
-/**
- * CONVENÇÃO DE EXPORTS:
- * Toda nova implementação adicionada em lib/ DEVE ser exportada neste arquivo
- * para que consumidores da biblioteca possam utilizá-la.
- *
- * Regras:
- *  - Classes, serviços e módulos: export { NomeDaClasse } from "./lib/..."
- *  - Decorators e utilitários: export * from "./lib/..."
- *  - Interfaces e tipos públicos: export type * from "./lib/..." (ou export type { ... })
- *  - Constantes públicas (ex: symbols de metadata): export { CONSTANTE } from "./lib/..."
- *
- * Nunca deixe uma nova feature da lib sem a respectiva entrada aqui.
- */
-
-export * from "./lib/adapters/cache-adapter";
-export * from "./lib/adapters/form-data";
-export * from "./lib/adapters/upload-adapter";
-export * from "./lib/app-startup";
-export { BullMqModule } from "./lib/bullmq/bullmq-module";
-export * from "./lib/bullmq/decorators/process.decorator";
-export * from "./lib/bullmq/decorators/processor.decorator";
-export { QueueService } from "./lib/bullmq/queue.service";
-export * from "./lib/components/layout";
-export * from "./lib/controller";
-export * from "./lib/cqrs/command-bus";
-export * from "./lib/cqrs/cqrs-module";
-export * from "./lib/cqrs/decorators/command-handler.decorator";
-export * from "./lib/cqrs/decorators/event-handler.decorator";
-export * from "./lib/cqrs/decorators/query-handler.decorator";
-export * from "./lib/cqrs/decorators/saga.decorator";
-export * from "./lib/cqrs/event-bus";
-export * from "./lib/cqrs/interfaces/command.interface";
-export * from "./lib/cqrs/interfaces/event.interface";
-export * from "./lib/cqrs/interfaces/query.interface";
-export * from "./lib/cqrs/query-bus";
-export { SqlModule, SqlService } from "./lib/database/sql-module";
-export type {
-	BunSqlClientOptions,
-	ConnectionOptions,
-	SqlConnectionDetails,
-	SqlConnectionOptions,
-	SqlModuleOptions,
-	SqlPoolOptions,
-	SqlRegisterOptions,
-} from "./lib/database/sql-module";
-export { EmailLayout } from "./lib/email/email-layout";
-export { EmailModule, EmailService } from "./lib/email/email-module";
-export * from "./lib/errors";
-export * from "./lib/guard";
-export * from "./lib/http-exceptions";
-export * from "./lib/http-methods";
-export * from "./lib/http-params";
-export * from "./lib/injectable";
-export type { GuardContract } from "./lib/interfaces/guard-contract";
-export * from "./lib/jwt";
-export * from "./lib/jwt/jwt-module";
-export { JwtService } from "./lib/jwt/jwt.service";
-export * from "./lib/module";
-export * from "./lib/on-module";
-export * from "./lib/openapi";
-export { RabbitMQDeadLetterService } from "./lib/rabbitmq/dead-letter.service";
-export * from "./lib/rabbitmq/decorators/consumer.decorator";
-export * from "./lib/rabbitmq/decorators/subscribe.decorator";
-export type * from "./lib/rabbitmq/interfaces/rabbitmq-message.interface";
-export type * from "./lib/rabbitmq/interfaces/rabbitmq-options.interface";
-export { RabbitMQConnection } from "./lib/rabbitmq/rabbitmq-connection";
-export { RabbitMQModule } from "./lib/rabbitmq/rabbitmq-module";
-export { RabbitMQService } from "./lib/rabbitmq/rabbitmq.service";
-export * from "./lib/ratelimit";
-export * from "./lib/render";
-export * from "./lib/schedule/cron/cron";
-export * from "./lib/schedule/timeout/timeout";
-export type { OtlpExporterOptions, TelemetryOptions } from "./lib/telemetry/interfaces/telemetry-options.interface";
-export { TelemetryModule } from "./lib/telemetry/telemetry-module";
-export { TelemetrySdk } from "./lib/telemetry/telemetry.sdk";
-export * from "./lib/testing/test";
-export * from "./lib/testing/test-app";
-export * from "./lib/testing/testing-module";
-export type { HttpRequest } from "./lib/types/http-request";
-export * from "./lib/types/module-config";
-export type { ModuleConfig } from "./lib/types/module-config";
-export * from "./lib/types/options";
-export type { Options } from "./lib/types/options";
-export { ErrorFormatter } from "./lib/utils/error-formatter";
-export * from "./lib/utils/logger";
-
+export {
+	JWT_OPTIONS,
+	Jwt,
+	JwtGuard,
+	JwtModule,
+	type JwtOptions,
+	JwtPayload,
+	JwtService,
+	type SignOverrides,
+} from "@/auth";
+export {
+	CACHE_CLIENT,
+	CacheModule,
+	type CacheOptions,
+	CacheService,
+	type CacheSetOptions,
+} from "@/cache";
+export {
+	Application,
+	type ApplicationOptions,
+	type CompiledModules,
+	type Constructor,
+	Container,
+	compileModules,
+	DisposableRegistry,
+	type Disposer,
+	type DynamicModule,
+	Inject,
+	Injectable,
+	InjectionToken,
+	isInjectable,
+	Module,
+	type ModuleImport,
+	type ModuleMetadata,
+	type OnApplicationBootstrap,
+	type OnModuleDestroy,
+	type OnModuleInit,
+	type Provider,
+	type Token,
+} from "@/core";
+export {
+	AggregateRoot,
+	CommandBus,
+	CommandHandler,
+	CqrsModule,
+	EVENT_STORE,
+	EventBus,
+	EventHandler,
+	type EventInput,
+	type EventRecord,
+	EventSourcedRepository,
+	EventSourcingModule,
+	type EventStore,
+	type ICommandHandler,
+	type IEventHandler,
+	type IQueryHandler,
+	QueryBus,
+	QueryHandler,
+	type Snapshot,
+	SqlEventStore,
+	wireCqrs,
+} from "@/cqrs";
+export {
+	createSqlClient,
+	SQL_CLIENT,
+	type SqlConnectionOptions,
+	SqlModule,
+	type SqlModuleInput,
+	SqlService,
+	type TransactionClient,
+} from "@/database";
+export * from "@/errors";
+export {
+	BadRequestException,
+	Body,
+	type BunRequest,
+	ConflictException,
+	Controller,
+	Cors,
+	type CorsOptions,
+	Ctx,
+	Delete,
+	ForbiddenException,
+	FormData,
+	type FormDataPayload,
+	Get,
+	type GuardContract,
+	Head,
+	Header,
+	type HealthCheck,
+	type HealthOptions,
+	HttpException,
+	type HttpMethod,
+	type HttpServerOptions,
+	InternalServerErrorException,
+	NotFoundException,
+	type OpenApiServeOptions,
+	Options,
+	Param,
+	Patch,
+	Post,
+	Put,
+	Query,
+	Req,
+	type RequestContext,
+	type RouteDefinition,
+	SetHeader,
+	type Socket,
+	Sse,
+	type SseMessage,
+	type SseOptions,
+	State,
+	StaticFiles,
+	type StaticOptions,
+	sseResponse,
+	TooManyRequestsException,
+	UnauthorizedException,
+	UnprocessableEntityException,
+	UseGuards,
+	type WebSocketData,
+	WebSocketGateway,
+	type WebSocketHandler,
+} from "@/http";
+export {
+	backoffDelay,
+	CircuitBreaker,
+	type CircuitBreakerOptions,
+	CircuitOpenError,
+	type CircuitState,
+	DEFAULT_RETRY,
+	getSubscriptions,
+	isRabbitConsumer,
+	RABBIT_OPTIONS,
+	type RabbitBinding,
+	RabbitConnection,
+	type RabbitConnectionOptions,
+	RabbitConsumer,
+	type RabbitExchangeConfig,
+	type RabbitMessage,
+	RabbitMQModule,
+	type RabbitMQModuleOptions,
+	RabbitMQService,
+	type RabbitQueueConfig,
+	type RabbitReconnectOptions,
+	RabbitSubscribe,
+	type RetryOptions,
+	type SubscribeConfig,
+	shouldRetry,
+	wireRabbit,
+} from "@/messaging";
+export {
+	instrumentRequest,
+	TELEMETRY_OPTIONS,
+	TelemetryModule,
+	type TelemetryOptions,
+	TelemetrySdk,
+	TelemetryService,
+} from "@/observability";
+export {
+	ApiOperation,
+	type ApiOperationInfo,
+	ApiResponse,
+	type ApiResponseInfo,
+	ApiTags,
+	buildOpenApiDocument,
+	type OpenApiInfo,
+	swaggerUiHtml,
+} from "@/openapi";
+export {
+	getRateLimit,
+	MemoryStorage,
+	RateLimit,
+	type RateLimitConfig,
+	type RateLimitResult,
+	type RateLimitStorage,
+} from "@/ratelimit";
+export {
+	Cron,
+	getSchedules,
+	Interval,
+	type ScheduleEntry,
+	Scheduler,
+	type ScheduleType,
+	Timeout,
+} from "@/scheduling";
+export {
+	Test,
+	TestApp,
+	TestingModule,
+	TestingModuleBuilder,
+	type TestRequestOptions,
+} from "@/testing";

@@ -1,88 +1,54 @@
 # CLI
 
-Bunstone ships with a CLI focused on scaffolding, local development diagnostics, and production builds.
+Bunstone ships a CLI for scaffolding projects, running and building apps, generating boilerplate, and inspecting the public API. Invoke it with `bunx`:
+
+```bash
+bunx bunstone <command>
+```
 
 ## Commands
 
-### `bunstone new <project-name>`
+### `bunstone new <name>`
 
-Creates a new project from the bundled starter and runs `bun install`.
-
-```bash
-bunx @grupodiariodaregiao/bunstone new my-app
-```
-
-You can also use the shorthand:
+Scaffolds a new project with `src/main.ts`, `src/app.module.ts`, and `src/app.controller.ts`.
 
 ```bash
-bunx @grupodiariodaregiao/bunstone my-app
+bunx bunstone new my-app
+cd my-app && bun install && bun run dev
 ```
 
-### `bunstone run [bun-flags] <entrypoint>`
+### `bunstone run <entry>`
 
-Runs a Bun entrypoint and enhances import error messages with Bunstone export hints.
+Runs an entrypoint with Bun. Extra Bun flags are forwarded.
 
 ```bash
-bunstone run src/main.ts
-bunstone run --watch src/main.ts
+bunx bunstone run src/main.ts
+bunx bunstone run --watch src/main.ts
 ```
 
-Use this when you want Bun's normal runtime plus better diagnostics for invalid Bunstone imports.
+### `bunstone build [entry]`
 
-### `bunstone build [entry] [options]`
-
-Bundles the app entrypoint and, when available, bundles React views for SSR hydration.
+Bundles the app to `dist/` (targeting Bun, minified). Defaults to `src/main.ts` when no entry is given.
 
 ```bash
-bunstone build src/main.ts
+bunx bunstone build
+bunx bunstone build src/main.ts
 ```
 
-#### Build options
+### `bunstone generate <kind> <name>` (alias `g`)
 
-- `--views <dir>`: directory containing React views. Default: `src/views`
-- `--out <dir>`: build output directory. Default: `dist`
-- `--compile`: compile to a standalone binary
-- `--no-bundle`: skip the app bundle and only generate view bundles
-
-Examples:
+Generates a `controller`, `service`, or `module` from a template. The file name is derived in kebab-case and the class in PascalCase.
 
 ```bash
-bunstone build src/main.ts --out build
-bunstone build --compile
-bunstone build --views src/views --no-bundle
+bunx bunstone generate controller users   # → users.controller.ts (UsersController)
+bunx bunstone g service users             # → users.service.ts (UsersService)
+bunx bunstone g module users              # → users.module.ts (UsersModule)
 ```
-
-If no entrypoint is provided, the CLI tries these files in order:
-
-- `src/index.ts`
-- `index.ts`
-- `src/main.ts`
-- `main.ts`
 
 ### `bunstone exports`
 
-Prints public runtime exports and type-only exports from the package.
+Lists every public export from the package, one per line. Useful for confirming the exact name of a decorator, class, or type.
 
 ```bash
-bunstone exports
-```
-
-Useful when:
-
-- checking the correct name of a decorator or module
-- confirming whether a symbol must be imported with `import type`
-- debugging `Export named 'X' not found` errors
-
-## Recommended Workflow
-
-```bash
-bunx @grupodiariodaregiao/bunstone new my-app
-cd my-app
-bunstone run --watch src/main.ts
-```
-
-For production builds:
-
-```bash
-bunstone build src/main.ts --out dist
+bunx bunstone exports
 ```

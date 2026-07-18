@@ -1,100 +1,67 @@
-# Bunstone Framework
+# Bunstone
 
-Bunstone is a high-performance, decorator-based web framework for [Bun](https://bun.sh), inspired by NestJS and built on top of [ElysiaJS](https://elysiajs.com). It brings powerful Dependency Injection, CQRS, Sagas, and modular architecture to the Bun ecosystem.
+A decorator-based framework for [Bun](https://bun.sh) — the power of NestJS
+without the complexity. Bunstone is **Bun-native**: HTTP runs directly on
+`Bun.serve`, SQL on `Bun.SQL`, scheduling on `Bun.cron`. No Elysia, no Express.
 
-## 🚀 Quick Start
+Built for microservices and monoliths: dependency injection, HTTP with Zod
+validation, guards & JWT, CQRS + event sourcing, RabbitMQ (DLQ, retries, circuit
+breaker), scheduling, SSE & WebSocket, rate limiting, OpenTelemetry, OpenAPI, and
+a first-class testing module.
 
-Scaffold a new project in seconds:
+## Install
 
 ```bash
-bunx @grupodiariodaregiao/bunstone my-app
-cd my-app
-bun dev
+bunx bunstone new my-app
+cd my-app && bun install && bun run dev
 ```
 
-## 🏗️ Core Concepts
+Or add it to an existing project:
 
-### Modular Architecture
-
-Organize your application into modules using the `@Module` decorator.
-
-```typescript
-@Module({
-  imports: [UserModule, AuthModule],
-  controllers: [AppController],
-  providers: [AppService],
-})
-export class AppModule {}
+```bash
+bun add @grupodiariodaregiao/bunstone reflect-metadata
 ```
 
-### Dependency Injection
+## Hello world
 
-Bunstone features a recursive DI container that handles singletons and nested dependencies automatically.
+```ts
+import "reflect-metadata";
+import { Application, Controller, Get, Module } from "@grupodiariodaregiao/bunstone";
 
-```typescript
-@Injectable()
-export class AppService {
-  getHello() {
-    return "Hello World!";
+@Controller()
+class AppController {
+  @Get()
+  hello() {
+    return { message: "Hello from Bunstone!" };
   }
 }
 
-@Controller()
-export class AppController {
-  constructor(private readonly appService: AppService) {}
-}
+@Module({ controllers: [AppController] })
+class AppModule {}
+
+const app = await Application.create(AppModule);
+app.listen(3000);
 ```
 
-## 🛠️ Features
+## Documentation
 
-- **CQRS**: Built-in Command, Query, and Event buses.
-- **Sagas**: Reactive event-to-command streams.
-- **Guards & JWT**: Easy route protection and JWT integration.
-- **Zod Validation**: Automatic request body/param validation.
-- **Scheduling**: Decorator-based Cron jobs and Timeouts.
-- **Adapters**: Built-in support for Form-Data, File Uploads, and Caching.
-- **Testing**: Dedicated testing module for integration and E2E tests with mocking capabilities.
+The full documentation ships inside the package (under `node_modules`) so coding
+agents and developers can read it locally:
 
-## 📚 Examples
+- Guides: [`docs/`](./docs) — DI, modules, controllers, guards/JWT, database,
+  CQRS, event sourcing, messaging, scheduling, realtime (SSE/WebSocket), rate
+  limiting, observability, testing, OpenAPI, CLI.
+- Full single-file reference: [`AGENTS.md`](./AGENTS.md)
+- Machine-readable index: [`llms.txt`](./llms.txt)
+- List every public export: `bunx bunstone exports`
 
-We have a set of examples demonstrating various features of the framework:
+Migrating from v0.7? See [`MIGRATION.md`](./MIGRATION.md).
 
-| Example                                                   | Description                          |
-| --------------------------------------------------------- | ------------------------------------ |
-| [Basic App](./examples/01-basic-app/index.ts)             | Modules, Controllers, and simple DI  |
-| [Routing & Params](./examples/02-routing-params/index.ts) | Extracting data and Zod validation   |
-| [Guards & Auth](./examples/03-guards-auth/index.ts)       | JWT and custom Guard implementations |
-| [CQRS](./examples/04-cqrs/index.ts)                       | Command Bus and Handlers             |
-| [SQL Database](./examples/05-database-sql/index.ts)       | Database registration and usage      |
-| [Scheduling](./examples/06-scheduling/index.ts)           | Periodic tasks and delayed execution |
-| [Adapters](./examples/07-adapters/index.ts)               | Cache and Form-Data handling         |
-| [OpenAPI](./examples/08-openapi/index.ts)                 | Swagger documentation setup          |
+## AI agents
 
-## 📖 Documentation
+`bunstone new` writes an `AGENTS.md` into your project that links to the bundled
+documentation in `node_modules`, so any LLM can discover the full API on its own.
 
-Visit our [Documentation Website](https://grupodiariodaregiao.github.io/bunstone) (if hosted) or run it locally:
-
-```bash
-bun run docs:dev
-```
-
-### Guide
-
-- [Application Runtime](./docs/application-runtime.md)
-- [CLI](./docs/cli.md)
-- [Dependency Injection](./docs/dependency-injection.md)
-- [Logging](./docs/logging.md)
-- [Routing & Parameters](./docs/routing-params.md)
-- [CQRS & Sagas](./docs/cqrs.md)
-- [Guards & JWT](./docs/guards-jwt.md)
-- [Scheduling (Cron/Timeout)](./docs/scheduling.md)
-- [Adapters](./docs/adapters/form-data.md)
-- [Testing](./docs/testing.md)
-
-## 🤖 Agent Context
-
-The published package now includes `AGENTS.md`, `CLAUDE.md`, and the `docs/` and `examples/` folders. After installation, coding agents can read everything directly from `node_modules/@grupodiariodaregiao/bunstone/`.
-
-## 📄 License
+## License
 
 MIT

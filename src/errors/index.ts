@@ -1,0 +1,665 @@
+export abstract class BunstoneError extends Error {
+	public readonly code: string;
+	public readonly suggestion?: string;
+	public readonly context?: Record<string, unknown>;
+	public override readonly cause?: Error;
+
+	constructor(
+		message: string,
+		code: string,
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, cause ? { cause } : undefined);
+		this.name = this.constructor.name;
+		this.code = code;
+		this.suggestion = suggestion;
+		this.context = context;
+		this.cause = cause;
+		Object.setPrototypeOf(this, new.target.prototype);
+	}
+}
+
+export class DependencyResolutionError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-DI-001" | "BNS-DI-002" | "BNS-DI-003" = "BNS-DI-003",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static undefinedType(resolutionStack: string): DependencyResolutionError {
+		return new DependencyResolutionError(
+			`Cannot resolve dependency: type is \`undefined\` in chain [${resolutionStack}].`,
+			"BNS-DI-001",
+			[
+				"This usually happens when you use `import type` on a class that is injected via DI.",
+				"Replace `import type { MyService }` with `import { MyService }` in affected files.",
+				"Also check for circular dependencies between your providers.",
+			].join("\n  "),
+			{ resolutionStack },
+		);
+	}
+
+	static objectType(resolutionStack: string): DependencyResolutionError {
+		return new DependencyResolutionError(
+			`Cannot resolve dependency: type resolved to \`Object\` in chain [${resolutionStack}].`,
+			"BNS-DI-002",
+			[
+				"Ensure `emitDecoratorMetadata: true` and `experimentalDecorators: true` are set in tsconfig.json.",
+				"This error can also be caused by a circular dependency. Check the resolution chain above.",
+				"Make sure injected classes are imported as values, not as types (`import type`).",
+			].join("\n  "),
+			{ resolutionStack },
+		);
+	}
+
+	static generic(
+		message: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	): DependencyResolutionError {
+		return new DependencyResolutionError(
+			message,
+			"BNS-DI-003",
+			"Ensure all providers are decorated with @Injectable() and listed in the `providers` array of the owning @Module().",
+			context,
+			cause,
+		);
+	}
+
+	static circular(resolutionStack: string): DependencyResolutionError {
+		return new DependencyResolutionError(
+			`Circular dependency detected: [${resolutionStack}].`,
+			"BNS-DI-002",
+			[
+				"Break the cycle: extract the shared logic into a third provider both can depend on,",
+				"or restructure so the dependency only flows one way.",
+			].join("\n  "),
+			{ resolutionStack },
+		);
+	}
+
+	static notRegistered(
+		tokenName: string,
+		resolutionStack: string,
+	): DependencyResolutionError {
+		return new DependencyResolutionError(
+			`No provider registered for \`${tokenName}\` in chain [${resolutionStack}].`,
+			"BNS-DI-003",
+			[
+				`Add \`${tokenName}\` to the \`providers\` array of a @Module(),`,
+				"or register it on the application container before resolving.",
+			].join("\n  "),
+			{ tokenName, resolutionStack },
+		);
+	}
+}
+
+export class ModuleInitializationError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-MOD-001" | "BNS-MOD-002" = "BNS-MOD-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static providersFailed(
+		context?: Record<string, unknown>,
+		cause?: Error,
+	): ModuleInitializationError {
+		return new ModuleInitializationError(
+			"Failed to initialize one or more providers in this module.",
+			"BNS-MOD-001",
+			[
+				"Ensure all providers are decorated with @Injectable().",
+				"Check for circular dependencies between providers.",
+				"Verify that imported modules export the providers you depend on.",
+			].join("\n  "),
+			context,
+			cause,
+		);
+	}
+
+	static unsupportedHttpMethod(method: string): ModuleInitializationError {
+		return new ModuleInitializationError(
+			`HTTP method "${method}" is not supported by the underlying adapter.`,
+			"BNS-MOD-002",
+			"Use standard HTTP methods: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS.",
+			{ method },
+		);
+	}
+}
+
+export class ConfigurationError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-CFG-001" | "BNS-CFG-002" = "BNS-CFG-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static missingModule(
+		featureName: string,
+		registerCall: string,
+	): ConfigurationError {
+		return new ConfigurationError(
+			`${featureName} is not configured. The required module was never registered.`,
+			"BNS-CFG-002",
+			`Call \`${registerCall}\` in your root AppModule imports before using this feature.`,
+			{ feature: featureName },
+		);
+	}
+}
+
+export class CqrsError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-CQRS-001" | "BNS-CQRS-002" | "BNS-CQRS-003" = "BNS-CQRS-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static noCommandHandler(commandName: string): CqrsError {
+		return new CqrsError(
+			`No handler found for command: ${commandName}.`,
+			"BNS-CQRS-001",
+			[
+				`Create a class decorated with @CommandHandler(${commandName}) that implements ICommandHandler<${commandName}>.`,
+				`Register it in the \`providers\` array of the module where you use CommandBus.`,
+			].join("\n  "),
+			{ command: commandName },
+		);
+	}
+
+	static noQueryHandler(queryName: string): CqrsError {
+		return new CqrsError(
+			`No handler found for query: ${queryName}.`,
+			"BNS-CQRS-002",
+			[
+				`Create a class decorated with @QueryHandler(${queryName}) that implements IQueryHandler<${queryName}>.`,
+				`Register it in the \`providers\` array of the module where you use QueryBus.`,
+			].join("\n  "),
+			{ query: queryName },
+		);
+	}
+
+	static noEventHandler(eventName: string): CqrsError {
+		return new CqrsError(
+			`No handler found for event: ${eventName}.`,
+			"BNS-CQRS-003",
+			[
+				`Create a class decorated with @EventHandler(${eventName}) that implements IEventHandler<${eventName}>.`,
+				`Register it in the \`providers\` array of the module where EventBus is used.`,
+			].join("\n  "),
+			{ event: eventName },
+		);
+	}
+}
+
+export class EventStoreError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-ES-001" = "BNS-ES-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static versionConflict(
+		streamId: string,
+		expected: number,
+		actual: number,
+	): EventStoreError {
+		return new EventStoreError(
+			`Concurrency conflict on stream "${streamId}": expected version ${expected} but found ${actual}.`,
+			"BNS-ES-001",
+			[
+				"Another writer appended events to this stream first.",
+				"Reload the aggregate and retry the operation.",
+			].join("\n  "),
+			{ streamId, expected, actual },
+		);
+	}
+}
+
+export class DatabaseError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-DB-001" | "BNS-DB-002" | "BNS-DB-003" = "BNS-DB-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static notInitialized(): DatabaseError {
+		return new DatabaseError(
+			"SQL instance is not initialized. You must register the module before running queries.",
+			"BNS-DB-001",
+			[
+				"Call SqlModule.register(connectionStringOrOptions) inside your root AppModule imports.",
+				"Example: @Module({ imports: [SqlModule.register('postgresql://user:pass@host/db')] })",
+			].join("\n  "),
+		);
+	}
+
+	static invalidConfig(
+		invalidKeys: string[],
+		allowedKeys: readonly string[],
+	): DatabaseError {
+		return new DatabaseError(
+			`Invalid SqlModule option(s): ${invalidKeys.join(", ")}.`,
+			"BNS-DB-003",
+			`Use only supported options: ${allowedKeys.join(", ")}.`,
+			{ invalidKeys, allowedKeys },
+		);
+	}
+}
+
+export class BullMQError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-MQ-001" | "BNS-MQ-002" = "BNS-MQ-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static notConfigured(): BullMQError {
+		return new BullMQError(
+			"BullMQ Redis options are not configured.",
+			"BNS-MQ-001",
+			[
+				"Call BullMqModule.register({ redis: { host, port } }) in your root AppModule imports.",
+				"Example: @Module({ imports: [BullMqModule.register({ redis: { host: 'localhost', port: 6379 } })] })",
+			].join("\n  "),
+		);
+	}
+
+	static queueFailed(queueName: string, cause?: Error): BullMQError {
+		return new BullMQError(
+			`Failed to create or access BullMQ queue "${queueName}".`,
+			"BNS-MQ-002",
+			[
+				"Verify that the Redis server is running and accessible.",
+				"Check that the Redis connection options passed to BullMqModule.register() are correct.",
+			].join("\n  "),
+			{ queueName },
+			cause,
+		);
+	}
+}
+
+export class RabbitMQError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-RMQ-001" | "BNS-RMQ-002" | "BNS-RMQ-003" = "BNS-RMQ-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static notConfigured(): RabbitMQError {
+		return new RabbitMQError(
+			"RabbitMQModule is not configured.",
+			"BNS-RMQ-001",
+			[
+				"Call RabbitMQModule.register({ ... }) in your root AppModule imports.",
+				"Example: @Module({ imports: [RabbitMQModule.register({ uri: 'amqp://localhost' })] })",
+			].join("\n  "),
+		);
+	}
+
+	static connectionFailed(attempts: number, cause?: Error): RabbitMQError {
+		return new RabbitMQError(
+			`Could not connect to RabbitMQ after ${attempts} attempt(s).`,
+			"BNS-RMQ-002",
+			[
+				"Make sure the RabbitMQ server is running and reachable from this host.",
+				"Double-check the host, port, username, password, and vhost in RabbitMQModule.register().",
+				"If using Docker, ensure the container is healthy and the port is exposed.",
+			].join("\n  "),
+			{ attempts },
+			cause,
+		);
+	}
+
+	static topologyFailed(
+		resource: string,
+		resourceName: string,
+		cause?: Error,
+	): RabbitMQError {
+		return new RabbitMQError(
+			`Failed to assert ${resource} "${resourceName}" on RabbitMQ.`,
+			"BNS-RMQ-003",
+			[
+				`Verify that the ${resource} configuration passed to RabbitMQModule.register() is correct.`,
+				"Check that the RabbitMQ user has the required permissions.",
+				`If the ${resource} already exists on the broker with different settings, either delete it or match the existing configuration.`,
+			].join("\n  "),
+			{ resource, resourceName },
+			cause,
+		);
+	}
+}
+
+export class ScheduleError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-SCHED-001" | "BNS-SCHED-002" = "BNS-SCHED-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static invalidCron(expression?: string): ScheduleError {
+		return new ScheduleError(
+			`Invalid or empty cron expression${expression ? `: "${expression}"` : ""}.`,
+			"BNS-SCHED-001",
+			[
+				"Provide a valid 5 or 6-field cron expression to @Cron().",
+				'Examples: @Cron("0 * * * *")  // every hour',
+				'         @Cron("*/5 * * * *") // every 5 minutes',
+				"Use https://crontab.guru to generate and validate cron expressions.",
+			].join("\n  "),
+			expression ? { expression } : undefined,
+		);
+	}
+
+	static invalidDelay(delay: number): ScheduleError {
+		return new ScheduleError(
+			`Invalid timeout delay: ${delay}. Delay must be a positive number (milliseconds).`,
+			"BNS-SCHED-002",
+			[
+				"Pass a positive integer (ms) to @Timeout().",
+				"Example: @Timeout(5000) // fires once after 5 seconds",
+			].join("\n  "),
+			{ delay },
+		);
+	}
+}
+
+export class TestingError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-TEST-001" = "BNS-TEST-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static providerNotFound(providerName: string): TestingError {
+		return new TestingError(
+			`Provider "${providerName}" was not found in the TestingModule.`,
+			"BNS-TEST-001",
+			[
+				`Ensure "${providerName}" is listed in the \`providers\` array of the module passed to TestingModuleBuilder.`,
+				"If you want to override it, call .overrideProvider() before .compile().",
+				"Example: const module = await TestingModuleBuilder.create(AppModule).compile();",
+			].join("\n  "),
+			{ provider: providerName },
+		);
+	}
+}
+
+export class RateLimitError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-RL-001" | "BNS-RL-002" = "BNS-RL-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static transactionFailed(cause?: Error): RateLimitError {
+		return new RateLimitError(
+			"Failed to execute atomic Redis transaction for rate limiting.",
+			"BNS-RL-001",
+			[
+				"Check that the Redis client passed to RedisStorage is connected and healthy.",
+				"Verify that the Redis server supports MULTI/EXEC commands (standard in Redis ≥ 1.2).",
+			].join("\n  "),
+			undefined,
+			cause,
+		);
+	}
+
+	static invalidResponse(): RateLimitError {
+		return new RateLimitError(
+			"Received an invalid or unexpected response from the Redis MULTI/EXEC transaction.",
+			"BNS-RL-002",
+			[
+				"This may indicate a version incompatibility between your Redis client library and the server.",
+				"Ensure the Redis client implements the RedisClientLike interface correctly.",
+			].join("\n  "),
+		);
+	}
+}
+
+export class UploadError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-S3-001" | "BNS-S3-002" = "BNS-S3-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static emptyPath(): UploadError {
+		return new UploadError(
+			"S3 object path cannot be empty.",
+			"BNS-S3-001",
+			[
+				"Provide a non-empty string path to UploadAdapter.upload().",
+				'Example: await uploadAdapter.upload({ path: "images/avatar.png", body: file })',
+			].join("\n  "),
+		);
+	}
+
+	static uploadFailed(path: string, cause?: Error): UploadError {
+		return new UploadError(
+			`Failed to upload object to S3 at path "${path}".`,
+			"BNS-S3-002",
+			[
+				"Verify that the S3/MinIO credentials and endpoint are correct.",
+				"Ensure the target bucket exists and the user has write permissions.",
+			].join("\n  "),
+			{ path },
+			cause,
+		);
+	}
+}
+
+export class EmailError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-EMAIL-001" | "BNS-EMAIL-002" = "BNS-EMAIL-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static notConfigured(): EmailError {
+		return new EmailError(
+			"EmailService is not configured. The EmailModule was never registered.",
+			"BNS-EMAIL-001",
+			[
+				"Call EmailModule.register({ host, port, auth: { user, pass } }) in your root AppModule imports.",
+				"Example: @Module({ imports: [EmailModule.register({ host: 'smtp.example.com', port: 587, ... })] })",
+			].join("\n  "),
+		);
+	}
+
+	static sendFailed(to: string | string[], cause?: Error): EmailError {
+		return new EmailError(
+			`Failed to send email to ${Array.isArray(to) ? to.join(", ") : to}.`,
+			"BNS-EMAIL-002",
+			[
+				"Check that the SMTP server is reachable and the credentials are correct.",
+				"Verify the recipient address is valid.",
+			].join("\n  "),
+			{ to: Array.isArray(to) ? to : [to] },
+			cause,
+		);
+	}
+}
+
+export class HttpParamError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-HTTP-001" | "BNS-HTTP-002" = "BNS-HTTP-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static formDataUnavailable(): HttpParamError {
+		return new HttpParamError(
+			"FormData is not available on this request.",
+			"BNS-HTTP-001",
+			[
+				"Ensure the route handler that uses @FormData() receives a multipart/form-data request.",
+				"Check that the HTTP adapter (Elysia) is not consuming the request body before Bunstone reads it.",
+			].join("\n  "),
+		);
+	}
+
+	static formDataReadFailed(reason: string, cause?: Error): HttpParamError {
+		return new HttpParamError(
+			`Could not read multipart form data from the request: ${reason}`,
+			"BNS-HTTP-002",
+			[
+				"Ensure the client sends a proper multipart/form-data payload.",
+				"The request body may have been consumed by another middleware. Make sure no other handler reads the body first.",
+			].join("\n  "),
+			{ reason },
+			cause,
+		);
+	}
+}
+
+export class GuardError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-GRD-001" = "BNS-GRD-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+}
+
+export class AdapterError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-ADP-001" | "BNS-ADP-002" = "BNS-ADP-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+}
+
+export class ImportError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-IMP-001" | "BNS-IMP-002" = "BNS-IMP-002",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static typeOnlyImport(
+		name: string,
+		pkg: string,
+		valueAlternatives: string[],
+	): ImportError {
+		const altSection =
+			valueAlternatives.length > 0
+				? [
+						"",
+						"If you were looking for a runtime value with a similar name, did you mean one of these?",
+						...valueAlternatives.map((s) => `  - ${s}`),
+					].join("\n  ")
+				: "";
+
+		return new ImportError(
+			`'${name}' is a type-only export of '${pkg}' — it does not exist at runtime.`,
+			"BNS-IMP-001",
+			[
+				`Replace the import with 'import type':`,
+				`  ✗  import { ${name} } from '${pkg}'`,
+				`  ✓  import type { ${name} } from '${pkg}'`,
+				altSection,
+			]
+				.filter(Boolean)
+				.join("\n  "),
+			{ name, package: pkg },
+		);
+	}
+
+	static unknownExport(
+		name: string,
+		pkg: string,
+		suggestions: string[],
+	): ImportError {
+		const didYouMean =
+			suggestions.length > 0
+				? [
+						"",
+						"Did you mean one of these?",
+						...suggestions.map((s) => `  - ${s}`),
+					].join("\n  ")
+				: "";
+
+		return new ImportError(
+			`'${name}' is not exported by '${pkg}'.`,
+			"BNS-IMP-002",
+			[
+				"Check the spelling of the imported name.",
+				"Run 'bunstone exports' to see all available exports.",
+				didYouMean,
+			]
+				.filter(Boolean)
+				.join("\n  "),
+			{ name, package: pkg },
+		);
+	}
+}

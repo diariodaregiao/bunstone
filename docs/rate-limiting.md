@@ -1,260 +1,88 @@
 # Rate Limiting
 
-Protect your endpoints against abuse with configurable rate limiting. Bunstone supports request limiting at multiple levels, with in-memory or Redis-backed storage.
-
-## Overview
-
-Bunstone's rate limiting system provides:
-
-- **Multiple configuration levels**: Global, Controller, or Endpoint
-- **Flexible storage**: Memory (default) or Redis (production)
-- **Smart identification**: IP + Method + Endpoint
-- **Automatic headers**: Limit information on every response
-- **Customizable messages**: Customize the 429 error message
+Protect endpoints from abuse with the `@RateLimit()` decorator. It applies a fixed-window counter, adds informative `X-RateLimit-*` headers to every response, and returns `429 Too Many Requests` once the limit is hit.
 
 ## Basic Usage
 
-### Per Endpoint with @RateLimit()
+Apply `@RateLimit()` to a controller method or to the whole controller (class-level applies to every route in it; a method-level decorator overrides the controller-level one).
 
-Use the `@RateLimit()` decorator to apply specific limits to individual endpoints:
-
-```typescript
-import { Controller, Get, Post, RateLimit } from "@grupodiariodaregiao/bunstone";
+```ts
+import { Controller, Get, RateLimit } from "@grupodiariodaregiao/bunstone";
 
 @Controller("api")
 export class ApiController {
-  @Get("public")
-  @RateLimit({ max: 100, windowMs: 60000 }) // 100 requests/minute
-  getPublic() {
-    return { data: [] };
+  @Get("limited")
+  @RateLimit({ max: 2, windowMs: 10_000, message: "slow down" })
+  limited() {
+    return { ok: true };
   }
 
-  @Post("sensitive")
-  @RateLimit({ max: 5, windowMs: 60000 }) // 5 requests/minute (more restrictive)
-  createSensitive() {
-    return { success: true };
+  @Get("open")
+  open() {
+    return { ok: true };
   }
 }
 ```
 
-### Global Configuration
+Routes without the decorator are never rate limited.
 
-Apply rate limiting across the entire application via `AppStartup.create()`:
+## Configuration
 
-```typescript
-const app = await AppStartup.create(AppModule, {
-  rateLimit: {
-    enabled: true,
-    max: 1000,
-    windowMs: 60000, // 1000 requests/minute for all endpoints
-  },
-});
+```ts
+interface RateLimitConfig {
+  max: number;        // maximum requests allowed within the window
+  windowMs: number;   // window length in milliseconds
+  message?: string;   // body message returned on 429 (default: "Too many requests.")
+  keyGenerator?: (ctx) => string; // custom bucket key (default: IP + method + path)
+}
 ```
 
-## Configuration Options
+By default each request is keyed by `IP:METHOD:PATH`. Override `keyGenerator` to key by something else, e.g. an authenticated user id:
 
-### @RateLimit() Decorator
-
-```typescript
+```ts
 @RateLimit({
-  max: 100,              // Maximum requests within the window
-  windowMs: 60000,       // Time window in milliseconds (1 minute)
-  message?: string,      // Custom message when exceeded (optional)
-  storage?: Storage,     // Custom storage (optional)
-  keyGenerator?: fn,     // Function to generate the identification key (optional)
-  skipHeader?: string,   // Header that allows bypass (optional)
-  skip?: fn              // Function to skip rate limiting (optional)
+  max: 100,
+  windowMs: 60_000,
+  keyGenerator: (ctx) => ctx.headers.get("x-user-id") ?? "anonymous",
 })
-```
-
-### Global Configuration
-
-```typescript
-{
-  rateLimit: {
-    enabled?: boolean,     // Enable/disable global rate limiting
-    max?: number,          // Maximum requests (default: 100)
-    windowMs?: number,     // Window in ms (default: 60000)
-    storage?: Storage,     // Custom storage
-    keyGenerator?: fn,     // Custom key generator
-    skipHeader?: string,   // Bypass header
-    skip?: fn,             // Bypass function
-    message?: string       // Error message
-  }
-}
-```
-
-## Storage
-
-### MemoryStorage (Default)
-
-Ideal for development and single-instance applications:
-
-```typescript
-// No configuration required - this is the default
-@RateLimit({ max: 100, windowMs: 60000 })
-```
-
-### RedisStorage
-
-For production applications with multiple instances:
-
-```typescript
-import { RedisStorage } from "@grupodiariodaregiao/bunstone";
-import Redis from "ioredis"; // or "redis"
-
-const redisClient = new Redis({
-  host: "localhost",
-  port: 6379,
-});
-
-const app = await AppStartup.create(AppModule, {
-  rateLimit: {
-    enabled: true,
-    max: 1000,
-    windowMs: 60000,
-    storage: new RedisStorage(redisClient, "ratelimit:"), // optional prefix
-  },
-});
 ```
 
 ## Response Headers
 
-All responses include informative headers:
+Every response to a rate-limited route carries:
 
 ```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 87
+X-RateLimit-Limit: 2
+X-RateLimit-Remaining: 1
 X-RateLimit-Reset: 1706640000
 ```
 
-When the limit is exceeded (HTTP 429):
+When the limit is exceeded the request is rejected with `429` and a `Retry-After` header (seconds until the window resets):
 
 ```
 HTTP/1.1 429 Too Many Requests
-X-RateLimit-Limit: 100
+X-RateLimit-Limit: 2
 X-RateLimit-Remaining: 0
 X-RateLimit-Reset: 1706640000
-Retry-After: 45
+Retry-After: 8
 
-{ "status": 429, "message": "Too many requests, please try again later." }
+{ "message": "slow down" }
 ```
 
-## Advanced Use Cases
+## Storage
 
-### Custom Identification Key
+The default storage is `MemoryStorage`: an in-process **fixed window** counter. When a window elapses the bucket resets, so a client is never permanently locked out — it simply gets a fresh allowance in the next window.
 
-By default, the key is `IP:Method:Path`. You can customize it:
+```ts
+import { MemoryStorage } from "@grupodiariodaregiao/bunstone";
 
-```typescript
-@RateLimit({
-  max: 100,
-  windowMs: 60000,
-  keyGenerator: (req) => {
-    // Rate limit by authenticated user instead of IP
-    return req.headers["x-user-id"] || req.ip;
-  },
-})
+const storage = new MemoryStorage();
+await storage.hit("key", 1, 20); // { allowed: true, remaining: 0, ... }
+await storage.hit("key", 1, 20); // { allowed: false, ... }
 ```
 
-### Bypass via Header
+`MemoryStorage` is single-instance only. It periodically sweeps expired buckets and is created automatically for the server, so you never have to instantiate it yourself for normal usage.
 
-Allow bypass in internal environments:
+## Ordering
 
-```typescript
-@RateLimit({
-  max: 100,
-  windowMs: 60000,
-  skipHeader: "x-internal-request", // Requests with this header ignore the limit
-})
-```
-
-### Conditional Bypass
-
-Custom logic to skip rate limiting:
-
-```typescript
-@RateLimit({
-  max: 100,
-  windowMs: 60000,
-  skip: (req) => {
-    // Skip for internal IPs
-    return req.ip?.startsWith("10.0.0.");
-  },
-})
-```
-
-### Custom Messages
-
-```typescript
-@RateLimit({
-  max: 5,
-  windowMs: 60000,
-  message: "You have reached the attempt limit. Please wait 1 minute.",
-})
-```
-
-## Configuration Hierarchy
-
-Settings are applied in the following precedence order:
-
-1. **`@RateLimit()` decorator** (highest precedence)
-2. **Controller configuration** (if implemented)
-3. **Global configuration** in `AppStartup.create()`
-4. **No rate limit** (default if no configuration is provided)
-
-Merge example:
-
-```typescript
-// Global configuration: 1000 req/min
-const app = await AppStartup.create(AppModule, {
-  rateLimit: { enabled: true, max: 1000, windowMs: 60000 },
-});
-
-@Controller("api")
-class ApiController {
-  @Get("strict")
-  @RateLimit({ max: 10 }) // Uses 10 req/min (overrides global)
-  strictEndpoint() {}
-
-  @Get("default")
-  defaultEndpoint() {} // Uses 1000 req/min (inherits global)
-}
-```
-
-## Complete Example
-
-<<< @/../examples/08-ratelimit/index.ts
-
-## Production Tips
-
-1. **Use RedisStorage** for multi-instance applications
-2. **Configure skipHeader** for health checks and internal monitoring
-3. **Adjust windowMs** according to the usage pattern (REST APIs generally use 1 minute)
-4. **Monitor the headers** to understand usage patterns
-5. **Informative messages** help users understand the limits
-
-## API Reference
-
-### Classes
-
-- `RateLimitService` - Main rate limiting service
-- `MemoryStorage` - In-memory implementation
-- `RedisStorage` - Redis implementation
-
-### Interfaces
-
-- `RateLimitStorage` - Interface for custom implementations
-- `RateLimitConfig` - Rate limit configuration
-- `RateLimitInfo` - Usage information
-- `RateLimitHeaders` - Response headers
-
-### Decorators
-
-- `@RateLimit(options)` - Applies rate limiting to an endpoint
-
-### Exceptions
-
-- `RateLimitExceededException` - Thrown when the limit is exceeded
-
-[See the full example on GitHub](https://github.com/diariodaregiao/bunstone/blob/main/examples/08-ratelimit/index.ts)
+Rate limiting runs **before guards** in the request pipeline. A blocked request is rejected with `429` before any guard, validation, or handler code executes, so abusive traffic never reaches your authorization logic.

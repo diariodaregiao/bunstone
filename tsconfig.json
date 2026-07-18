@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    // Environment setup & latest features
     "lib": ["ESNext"],
     "target": "ESNext",
     "module": "Preserve",
@@ -9,7 +8,11 @@
     "jsxImportSource": "react",
     "allowJs": true,
 
-    // Bundler mode
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
@@ -18,22 +21,39 @@
     "emitDeclarationOnly": true,
     "outDir": "./dist",
 
-    // Best practices
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
 
-    // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
 
-    // Enable decorators
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["lib/**/*", "index.ts"],
-  "exclude": ["node_modules", "tests"]
+  "include": [
+    "src/core/**/*",
+    "src/http/**/*",
+    "src/cqrs/**/*",
+    "src/messaging/**/*",
+    "src/ratelimit/**/*",
+    "src/testing/**/*",
+    "src/openapi/**/*",
+    "src/cli/**/*",
+    "src/auth/**/*",
+    "src/database/**/*",
+    "src/observability/**/*",
+    "src/cache/**/*",
+    "src/scheduling/**/*",
+    "src/errors/**/*",
+    "src/utils/logger.ts",
+    "src/utils/is-zod-schema.ts",
+    "bin/**/*",
+    "index.ts",
+    "tests/**/*"
+  ],
+  "exclude": ["node_modules", "dist"]
 }

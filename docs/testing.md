@@ -1,128 +1,96 @@
 # Testing
 
-Bunstone provides a powerful testing module that facilitates integration and End-to-End (E2E) testing. It allows you to compile modules with provider overrides (mocking) and interact with your application without binding to a real network port.
+Bunstone's testing module compiles your DI graph, lets you swap providers for mocks, and dispatches HTTP requests **in-memory without binding a port**. The full pipeline — guards, validation, and dependency injection — runs exactly as in production.
 
-## Installation
+## Creating a testing module
 
-The testing module is included in the core package:
+`Test.createTestingModule({ imports, controllers, providers })` returns a builder. Call `.compile()` to get a `TestingModule`.
 
-```typescript
-import { Test, TestingModule } from "@grupodiariodaregiao/bunstone";
-```
-
-## Basic Concepts
-
-Testing in Bunstone revolves around three main components:
-
-1.  **`Test`**: A static utility to create a `TestingModuleBuilder`.
-2.  **`TestingModule`**: A compiled module that gives you access to the Dependency Injection (DI) container.
-3.  **`TestApp`**: A wrapper around your application that allows making HTTP requests directly via `app.handle()`.
-
----
-
-## Integration Testing (DI Overrides)
-
-You can use the testing module to swap real services with mocks for integration testing.
-
-```typescript
-import { describe, expect, it, mock } from "bun:test";
-import { Test } from "@grupodiariodaregiao/bunstone";
-import { AppModule } from "./app.module";
-import { UsersService } from "./users.service";
-
-describe("Users integration", () => {
-  it("should use a mocked service", async () => {
-    const mockUsersService = {
-      findAll: () => [{ id: 1, name: "Test User" }],
-    };
-
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(UsersService)
-      .useValue(mockUsersService)
-      .compile();
-
-    const service = moduleRef.get(UsersService);
-    expect(service.findAll()).toEqual([{ id: 1, name: "Test User" }]);
-  });
-});
-```
-
----
-
-## End-to-End (E2E) Testing
-
-For E2E tests, you can create a `TestApp` instance. This allows you to simulate HTTP requests against your controllers without needing to run a live server on a specific port.
-
-```typescript
+```ts
 import { describe, expect, it } from "bun:test";
 import { Test } from "@grupodiariodaregiao/bunstone";
-import { AppModule } from "./app.module";
+import { UsersController } from "./users.controller";
+import { UsersService } from "./users.service";
 
-describe("AppController (E2E)", () => {
-  it("/ (GET)", async () => {
+describe("Users", () => {
+  it("resolves providers", async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
+      controllers: [UsersController],
+      providers: [UsersService],
     }).compile();
 
-    const app = await moduleRef.createTestApp();
-    const response = await app.get("/");
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ message: "Hello World!" });
-  });
-
-  it("/users (POST)", async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    const app = await moduleRef.createTestApp();
-    const response = await app.post("/users", { name: "New User" });
-
-    expect(response.status).toBe(201);
+    expect(moduleRef.get(UsersService).findAll()).toEqual([
+      { id: 1, name: "real" },
+    ]);
   });
 });
 ```
 
-### `TestApp` Methods
+`moduleRef.get(Token)` resolves any provider from the container.
 
-The `TestApp` wrapper supports all standard HTTP methods:
+## Overriding providers
 
-- `app.get(path, options?)`
-- `app.post(path, body, options?)`
-- `app.put(path, body, options?)`
-- `app.patch(path, body, options?)`
-- `app.delete(path, options?)`
+Swap a real provider for a mock with `.overrideProvider(Token).useValue(mock)` or `.useClass(Impl)`.
 
-All methods returns a standard `Response` object.
+```ts
+const moduleRef = await Test.createTestingModule({
+  controllers: [UsersController],
+  providers: [UsersService],
+})
+  .overrideProvider(UsersService)
+  .useValue({ findAll: () => [{ id: 99, name: "mock" }] })
+  .compile();
 
----
-
-## Testing CQRS
-
-Since CQRS handlers are resolved from the DI container, you can easily mock them or the buses themserves.
-
-```typescript
-it("should mock a command handler", async () => {
-  const mockHandler = {
-    execute: (command) => {
-      /* mock implementation */
-    },
-  };
-
-  const moduleRef = await Test.createTestingModule({
-    imports: [AppModule],
-  })
-    .overrideProvider(CreateUserHandler)
-    .useValue(mockHandler)
-    .compile();
-
-  // ...
-});
+expect(moduleRef.get(UsersService).findAll()).toEqual([
+  { id: 99, name: "mock" },
+]);
 ```
 
-## Isolation
+## In-memory HTTP requests
 
-The `Test.createTestingModule()` utility automatically clears the `GlobalRegistry` and internal state before compilation, ensuring that tests remain isolated from each other.
+`moduleRef.createTestApp()` returns a `TestApp` that dispatches requests directly against your controllers — no server is bound to a port. Each method returns a real `Response`.
+
+```ts
+const moduleRef = await Test.createTestingModule({
+  controllers: [UsersController],
+  providers: [UsersService],
+}).compile();
+
+const app = moduleRef.createTestApp();
+
+const list = await app.get("/users");
+expect(await list.json()).toEqual([{ id: 1, name: "real" }]);
+
+const created = await app.post("/users", { name: "New User" });
+expect(created.status).toBe(200);
+```
+
+### TestApp methods
+
+```ts
+app.get(path, { headers });
+app.post(path, body, { headers });
+app.put(path, body, { headers });
+app.patch(path, body, { headers });
+app.delete(path, { headers });
+```
+
+Bodies are JSON-encoded automatically. Every method returns a standard `Response`.
+
+## The full pipeline runs
+
+Because requests go through the real route handler, validation and guards behave exactly as in production.
+
+```ts
+const app = moduleRef.createTestApp();
+
+// Zod validation → 400 on bad input
+expect((await app.post("/users", { name: "ok" })).status).toBe(200);
+expect((await app.post("/users", { name: "x" })).status).toBe(400);
+
+// Guards → 403 without the required header, 200 with it
+expect((await app.get("/users/admin/secret")).status).toBe(403);
+expect(
+  (await app.get("/users/admin/secret", { headers: { "x-admin": "yes" } })).status,
+).toBe(200);
+```

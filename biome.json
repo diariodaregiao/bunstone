@@ -20,7 +20,8 @@
 				"noStaticOnlyClass": "off"
 			},
 			"correctness": {
-				"noUnusedImports": "error"
+				"noUnusedImports": "error",
+				"useHookAtTopLevel": "off"
 			},
 			"style": {
 				"useImportType": "off"
@@ -41,10 +42,12 @@
 	},
 	"files": {
 		"includes": [
-			"lib/**/*.ts",
+			"src/**/*.ts",
+			"src/**/*.tsx",
 			"bin/**/*.ts",
 			"tests/**/*.ts",
-			"tests/**/*.tsx"
+			"tests/**/*.tsx",
+			"index.ts"
 		]
 	}
 }

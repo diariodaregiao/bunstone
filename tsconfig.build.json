@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/core/**/*",
+    "src/http/**/*",
+    "src/cqrs/**/*",
+    "src/messaging/**/*",
+    "src/ratelimit/**/*",
+    "src/testing/**/*",
+    "src/openapi/**/*",
+    "src/cli/**/*",
+    "src/auth/**/*",
+    "src/database/**/*",
+    "src/observability/**/*",
+    "src/cache/**/*",
+    "src/scheduling/**/*",
+    "src/errors/**/*",
+    "src/utils/logger.ts",
+    "src/utils/is-zod-schema.ts",
+    "src/utils/colors.ts",
+    "index.ts"
+  ],
+  "exclude": ["node_modules", "dist", "tests", "bin", "benchmarks", "scenario"]
+}
