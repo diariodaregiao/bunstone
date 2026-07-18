@@ -113,7 +113,13 @@ describe("CQRS buses", () => {
 
 	it("delivers an event to every handler, isolating failures", async () => {
 		const bus = app.resolve(EventBus);
-		await bus.publishAndWait(new UserCreated("linus"));
+		const originalLog = console.log;
+		console.log = () => {};
+		try {
+			await bus.publishAndWait(new UserCreated("linus"));
+		} finally {
+			console.log = originalLog;
+		}
 		expect(sideEffects.sort()).toEqual(["audit:linus", "welcome:linus"]);
 	});
 });

@@ -112,8 +112,11 @@ describe("Scheduler", () => {
 		});
 		const mixed = app.resolve(Mixed);
 
+		const originalLog = console.log;
+		console.log = () => {};
 		await sleep(70);
 		await app.close();
+		console.log = originalLog;
 		expect(mixed.good).toBeGreaterThanOrEqual(2);
 	});
 

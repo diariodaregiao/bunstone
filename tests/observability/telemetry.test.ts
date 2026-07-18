@@ -66,7 +66,10 @@ describe("HTTP telemetry", () => {
 
 	it("marks 5xx responses as error spans", async () => {
 		exporter.reset();
+		const originalLog = console.log;
+		console.log = () => {};
 		const res = await fetch(`${base}/ping/fail`);
+		console.log = originalLog;
 		expect(res.status).toBe(500);
 
 		const span = exporter.getFinishedSpans()[0];
