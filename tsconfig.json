@@ -37,6 +37,7 @@
   "include": [
     "src/core/**/*",
     "src/http/**/*",
+    "src/auth/**/*",
     "src/errors/**/*",
     "src/utils/logger.ts",
     "src/utils/is-zod-schema.ts",

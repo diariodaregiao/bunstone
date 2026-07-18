@@ -1,6 +1,16 @@
 import "reflect-metadata";
 
 export {
+	JWT_OPTIONS,
+	Jwt,
+	JwtGuard,
+	JwtModule,
+	type JwtOptions,
+	JwtPayload,
+	JwtService,
+	type SignOverrides,
+} from "@/auth";
+export {
 	Application,
 	type ApplicationOptions,
 	type CompiledModules,
@@ -9,11 +19,13 @@ export {
 	compileModules,
 	DisposableRegistry,
 	type Disposer,
+	type DynamicModule,
 	Inject,
 	Injectable,
 	InjectionToken,
 	isInjectable,
 	Module,
+	type ModuleImport,
 	type ModuleMetadata,
 	type OnApplicationBootstrap,
 	type OnModuleDestroy,
@@ -52,6 +64,7 @@ export {
 	type RequestContext,
 	type RouteDefinition,
 	SetHeader,
+	State,
 	StaticFiles,
 	type StaticOptions,
 	TooManyRequestsException,

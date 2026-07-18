@@ -23,8 +23,10 @@ export {
 export {
 	type CompiledModules,
 	compileModules,
+	type DynamicModule,
 	getModuleMetadata,
 	MODULE_METADATA,
 	Module,
+	type ModuleImport,
 	type ModuleMetadata,
 } from "./module";

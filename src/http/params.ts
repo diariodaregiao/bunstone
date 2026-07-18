@@ -11,6 +11,7 @@ export enum ParamSource {
 	HEADER = "header",
 	REQ = "req",
 	CONTEXT = "context",
+	STATE = "state",
 }
 
 interface ParamMetadata {
@@ -79,6 +80,16 @@ export function Ctx(): ParameterDecorator {
 		addParam(target, propertyKey as string, {
 			index,
 			source: ParamSource.CONTEXT,
+		});
+	};
+}
+
+export function State(key?: string): ParameterDecorator {
+	return (target, propertyKey, index) => {
+		addParam(target, propertyKey as string, {
+			index,
+			source: ParamSource.STATE,
+			key,
 		});
 	};
 }
@@ -156,6 +167,9 @@ export async function extractArgs(
 				break;
 			case ParamSource.CONTEXT:
 				value = ctx;
+				break;
+			case ParamSource.STATE:
+				value = meta.key ? ctx.state[meta.key] : ctx.state;
 				break;
 		}
 
