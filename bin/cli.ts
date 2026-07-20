@@ -42,11 +42,35 @@ async function scaffold(name?: string): Promise<void> {
 					"@grupodiariodaregiao/bunstone": "^1.0.0",
 					"reflect-metadata": "^0.2.2",
 				},
+				devDependencies: {
+					"@types/bun": "latest",
+					typescript: "^5",
+				},
+			},
+			null,
+			2,
+		),
+		"tsconfig.json": JSON.stringify(
+			{
+				compilerOptions: {
+					lib: ["ESNext"],
+					target: "ESNext",
+					module: "ESNext",
+					moduleResolution: "bundler",
+					types: ["bun"],
+					experimentalDecorators: true,
+					emitDecoratorMetadata: true,
+					strict: true,
+					skipLibCheck: true,
+					noEmit: true,
+				},
+				include: ["src"],
 			},
 			null,
 			2,
 		),
 		"AGENTS.md": projectAgentsMd(),
+		"CLAUDE.md": "@AGENTS.md\n",
 		"src/main.ts": `import "reflect-metadata";
 import { Application } from "@grupodiariodaregiao/bunstone";
 import { AppModule } from "./app.module";
