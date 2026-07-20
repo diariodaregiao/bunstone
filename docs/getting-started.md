@@ -7,7 +7,7 @@ This guide walks through creating a Bunstone application from scratch.
 The fastest way to start is the CLI:
 
 ```bash
-bunx bunstone new my-app
+bunx @grupodiariodaregiao/bunstone new my-app
 cd my-app
 bun install
 ```

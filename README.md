@@ -12,7 +12,7 @@ a first-class testing module.
 ## Install
 
 ```bash
-bunx bunstone new my-app
+bunx @grupodiariodaregiao/bunstone new my-app
 cd my-app && bun install && bun run dev
 ```
 
@@ -53,7 +53,7 @@ agents and developers can read it locally:
   limiting, observability, testing, OpenAPI, CLI.
 - Full single-file reference: [`AGENTS.md`](./AGENTS.md)
 - Machine-readable index: [`llms.txt`](./llms.txt)
-- List every public export: `bunx bunstone exports`
+- List every public export: `bunx @grupodiariodaregiao/bunstone exports`
 
 Migrating from v0.7? See [`MIGRATION.md`](./MIGRATION.md).
 
