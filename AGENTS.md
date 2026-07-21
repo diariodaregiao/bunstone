@@ -8,7 +8,7 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (121)
+## Public exports (123)
 
 - `AdapterError`
 - `AggregateRoot`
@@ -68,6 +68,8 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `JwtModule`
 - `JwtPayload`
 - `JwtService`
+- `LogLevel`
+- `Logger`
 - `MemoryStorage`
 - `Module`
 - `ModuleInitializationError`
