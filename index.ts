@@ -159,6 +159,11 @@ export {
 	TelemetryService,
 } from "@/observability";
 export {
+	Logger,
+	type LoggerOptions,
+	LogLevel,
+} from "@/utils/logger";
+export {
 	ApiOperation,
 	type ApiOperationInfo,
 	ApiResponse,
