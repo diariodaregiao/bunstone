@@ -1,5 +1,9 @@
 import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
+import {
+	assertOpenApiBasicAuth,
+	type OpenApiBasicAuth,
+} from "@/openapi/basic-auth";
 import { buildOpenApiDocument, type OpenApiInfo } from "@/openapi/builder";
 import { swaggerUiHtml } from "@/openapi/ui";
 import { getRateLimit } from "@/ratelimit/decorator";
@@ -39,6 +43,11 @@ export interface OpenApiServeOptions {
 	path?: string;
 	uiPath?: string;
 	ui?: boolean;
+	/**
+	 * Protect `/openapi.json` and the Swagger UI with HTTP Basic Auth.
+	 * When set, unauthenticated requests receive `401` with `WWW-Authenticate`.
+	 */
+	auth?: OpenApiBasicAuth;
 }
 
 export type RouteHandler = (
@@ -95,16 +104,27 @@ export class HttpServer {
 	): void {
 		const document = buildOpenApiDocument(controllers, options.info);
 		const specPath = options.path ?? "/openapi.json";
-		this.routes[specPath] = { GET: () => Response.json(document) };
+		const guard = (req: BunRequest, next: () => Response): Response => {
+			if (!options.auth) return next();
+			return assertOpenApiBasicAuth(req, options.auth) ?? next();
+		};
+
+		this.routes[specPath] = {
+			GET: (req) => guard(req, () => Response.json(document)),
+		};
 
 		if (options.ui) {
 			const uiPath = options.uiPath ?? "/docs";
 			const html = swaggerUiHtml(specPath);
 			this.routes[uiPath] = {
-				GET: () =>
-					new Response(html, {
-						headers: { "content-type": "text/html; charset=utf-8" },
-					}),
+				GET: (req) =>
+					guard(
+						req,
+						() =>
+							new Response(html, {
+								headers: { "content-type": "text/html; charset=utf-8" },
+							}),
+					),
 			};
 		}
 	}
