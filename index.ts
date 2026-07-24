@@ -169,7 +169,9 @@ export {
 	ApiResponse,
 	type ApiResponseInfo,
 	ApiTags,
+	assertOpenApiBasicAuth,
 	buildOpenApiDocument,
+	type OpenApiBasicAuth,
 	type OpenApiInfo,
 	swaggerUiHtml,
 } from "@/openapi";
