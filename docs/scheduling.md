@@ -20,8 +20,6 @@ export class ReportService {
 
 An invalid cron expression throws at startup.
 
-`@Cron` requires **Bun >= 1.3.11** (`Bun.cron.parse`). For sub-minute schedules, use `@Interval(ms)` — Bun does not support 6-field expressions with seconds.
-
 ## @Interval
 
 Runs a method repeatedly every `ms` milliseconds.

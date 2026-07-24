@@ -29,10 +29,10 @@ interface OpenApiServeOptions {
   ui?: boolean;      // serve Swagger UI (default: off)
   path?: string;     // spec path (default: "/openapi.json")
   uiPath?: string;   // UI path (default: "/docs")
-  auth?: {           // optional HTTP Basic Auth for the spec + UI
+  auth?: {
     username: string;
     password: string;
-    realm?: string;  // default: "API Docs"
+    realm?: string;
   };
 }
 ```

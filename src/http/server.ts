@@ -43,10 +43,6 @@ export interface OpenApiServeOptions {
 	path?: string;
 	uiPath?: string;
 	ui?: boolean;
-	/**
-	 * Protect `/openapi.json` and the Swagger UI with HTTP Basic Auth.
-	 * When set, unauthenticated requests receive `401` with `WWW-Authenticate`.
-	 */
 	auth?: OpenApiBasicAuth;
 }
 

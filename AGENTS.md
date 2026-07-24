@@ -1375,8 +1375,6 @@ export class ReportService {
 
 An invalid cron expression throws at startup.
 
-`@Cron` requires **Bun >= 1.3.11** (`Bun.cron.parse`). For sub-minute schedules, use `@Interval(ms)` — Bun does not support 6-field expressions with seconds.
-
 ## @Interval
 
 Runs a method repeatedly every `ms` milliseconds.
@@ -1846,10 +1844,10 @@ interface OpenApiServeOptions {
   ui?: boolean;      // serve Swagger UI (default: off)
   path?: string;     // spec path (default: "/openapi.json")
   uiPath?: string;   // UI path (default: "/docs")
-  auth?: {           // optional HTTP Basic Auth for the spec + UI
+  auth?: {
     username: string;
     password: string;
-    realm?: string;  // default: "API Docs"
+    realm?: string;
   };
 }
 ```

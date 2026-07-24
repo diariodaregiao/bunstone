@@ -3,7 +3,6 @@ import { timingSafeEqual } from "node:crypto";
 export interface OpenApiBasicAuth {
 	username: string;
 	password: string;
-	/** Realm shown by the browser prompt. Default: `"API Docs"`. */
 	realm?: string;
 }
 
@@ -21,16 +20,11 @@ function safeEqual(a: string, b: string): boolean {
 	const left = Buffer.from(a);
 	const right = Buffer.from(b);
 	if (left.length !== right.length) {
-		// Still compare against itself so timing does not leak length.
 		return timingSafeEqual(left, left) && false;
 	}
 	return timingSafeEqual(left, right);
 }
 
-/**
- * Validates HTTP Basic credentials against {@link OpenApiBasicAuth}.
- * Returns `null` when authorized, otherwise a `401` response.
- */
 export function assertOpenApiBasicAuth(
 	req: Request,
 	auth: OpenApiBasicAuth,
