@@ -100,3 +100,57 @@ describe("OpenAPI", () => {
 		expect(await res.text()).toContain("swagger");
 	});
 });
+
+describe("OpenAPI basic auth", () => {
+	let secured: Application;
+	let securedBase: string;
+
+	beforeAll(async () => {
+		secured = await Application.create(AppModule, {
+			gracefulShutdown: false,
+			logStartup: false,
+			openapi: {
+				info: { title: "Secured API", version: "1.0.0" },
+				ui: true,
+				auth: { username: "docs", password: "s3cret" },
+			},
+		});
+		secured.listen(0);
+		securedBase = secured.getServer()?.url.href.replace(/\/$/, "") ?? "";
+	});
+
+	afterAll(async () => {
+		await secured.close();
+	});
+
+	it("rejects unauthenticated access to the spec and ui", async () => {
+		const spec = await fetch(`${securedBase}/openapi.json`);
+		expect(spec.status).toBe(401);
+		expect(spec.headers.get("www-authenticate")).toContain('Basic realm="API Docs"');
+
+		const ui = await fetch(`${securedBase}/docs`);
+		expect(ui.status).toBe(401);
+	});
+
+	it("allows access with valid basic credentials", async () => {
+		const headers = {
+			authorization: `Basic ${btoa("docs:s3cret")}`,
+		};
+
+		const spec = await fetch(`${securedBase}/openapi.json`, { headers });
+		expect(spec.status).toBe(200);
+		const doc = (await spec.json()) as { info: { title: string } };
+		expect(doc.info.title).toBe("Secured API");
+
+		const ui = await fetch(`${securedBase}/docs`, { headers });
+		expect(ui.status).toBe(200);
+		expect(await ui.text()).toContain("swagger");
+	});
+
+	it("rejects invalid credentials", async () => {
+		const res = await fetch(`${securedBase}/openapi.json`, {
+			headers: { authorization: `Basic ${btoa("docs:wrong")}` },
+		});
+		expect(res.status).toBe(401);
+	});
+});
