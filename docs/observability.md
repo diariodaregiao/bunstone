@@ -30,6 +30,17 @@ Start the app as usual — telemetry begins immediately.
 
 - **HTTP** — `{METHOD} {route}` (e.g. `GET /users/:id`) with `http.request.method`, `http.route` and `http.response.status_code`. Responses `>= 500` are marked as errors.
 - **Queue** — `process {queue}` with `messaging.system`, `messaging.destination.name` and `messaging.attempt`. A handler that throws marks the span as an error.
+- **Database** — one span per `SqlService` operation, named after the statement's verb (`SELECT`, `INSERT`, `TRANSACTION`), with `db.operation.name` and `db.query.text`. Statements are parameterised, so the recorded text contains no values.
+- **CQRS** — `command CreateUser`, `query GetUser`, `event UserCreated`, with `cqrs.kind` and `cqrs.message`.
+
+These nest under the request that caused them, so a trace shows where the time actually went:
+
+```
+GET /orders/:id
+├── query GetOrder
+│   └── SELECT
+└── SELECT
+```
 
 ### Metrics
 
@@ -45,6 +56,9 @@ Start the app as usual — telemetry begins immediately.
 | `messaging.circuit_breaker.state` | gauge | `queue` — 0 closed, 1 half-open, 2 open |
 | `messaging.consumer.paused` | gauge | `queue` — 1 while paused |
 | `messaging.consumer.in_flight` | gauge | `queue` |
+| `db.client.operation.duration` | histogram (ms) | `db.operation.name`, `outcome` |
+| `cache.operations` | counter | `operation`, `result` (`hit` / `miss`) |
+| `cqrs.handler.duration` | histogram (ms) | `cqrs.kind`, `cqrs.message`, `outcome` |
 
 Status is recorded as a **class** (`2xx`, `4xx`, `5xx`) rather than an exact code, and routes are recorded as templates, so label cardinality stays bounded however many distinct URLs you serve.
 

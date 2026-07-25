@@ -26,6 +26,9 @@ interface Instruments {
 	published: Counter;
 	retried: Counter;
 	deadLettered: Counter;
+	dbDuration: Histogram;
+	cacheOperations: Counter;
+	cqrsDuration: Histogram;
 }
 
 const consumerStates = new Map<string, () => ConsumerState>();
@@ -81,6 +84,17 @@ export function getInstruments(): Instruments {
 		}),
 		deadLettered: meter.createCounter("messaging.dead_lettered.messages", {
 			description: "Messages moved to a dead-letter queue.",
+		}),
+		dbDuration: meter.createHistogram("db.client.operation.duration", {
+			unit: "ms",
+			description: "Duration of database operations.",
+		}),
+		cacheOperations: meter.createCounter("cache.operations", {
+			description: "Cache operations by kind and result.",
+		}),
+		cqrsDuration: meter.createHistogram("cqrs.handler.duration", {
+			unit: "ms",
+			description: "Duration of command, query and event handlers.",
 		}),
 	};
 	registerConsumerGauges(meter);

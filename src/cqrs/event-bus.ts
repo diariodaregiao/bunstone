@@ -1,5 +1,6 @@
 import type { Constructor } from "@/core/injectable";
 import { Injectable } from "@/core/injectable";
+import { instrumentDispatch } from "@/observability/instrumentation";
 import { Logger } from "@/utils/logger";
 import type { IEventHandler } from "./interfaces";
 
@@ -25,7 +26,9 @@ export class EventBus {
 
 	private async dispatch(event: object, handler: IEventHandler): Promise<void> {
 		try {
-			await handler.handle(event);
+			await instrumentDispatch("event", event.constructor.name, () =>
+				Promise.resolve(handler.handle(event)),
+			);
 		} catch (error) {
 			this.logger.error(
 				`Event handler failed for "${event.constructor.name}":`,

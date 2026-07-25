@@ -1,6 +1,7 @@
 import type { RedisClient } from "bun";
 import { Inject, Injectable } from "@/core/injectable";
 import type { OnModuleDestroy } from "@/core/lifecycle";
+import { recordCacheResult } from "@/observability/instrumentation";
 import { Logger } from "@/utils/logger";
 import { CACHE_CLIENT, type CacheSetOptions } from "./cache.tokens";
 
@@ -15,7 +16,9 @@ export class CacheService implements OnModuleDestroy {
 	}
 
 	async get<T>(key: string): Promise<T | null> {
-		return decode<T>(await this.redis.get(key));
+		const raw = await this.redis.get(key);
+		recordCacheResult("get", raw === null ? "miss" : "hit");
+		return decode<T>(raw);
 	}
 
 	/**
@@ -58,6 +61,7 @@ export class CacheService implements OnModuleDestroy {
 		// A stored JSON `null` is a cached value, not a miss, so negative results
 		// are cached too; only an absent key runs the factory.
 		const raw = await this.redis.get(key);
+		recordCacheResult("getOrSet", raw === null ? "miss" : "hit");
 		if (raw !== null) {
 			try {
 				return JSON.parse(raw) as T;

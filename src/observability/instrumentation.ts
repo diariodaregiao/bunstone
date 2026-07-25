@@ -151,3 +151,86 @@ export function instrumentConsume<T>(
 		},
 	);
 }
+
+/**
+ * Wraps a database operation. The statement is parameterised, so its text
+ * carries no values and is safe to record; the bound parameters are not.
+ */
+export function instrumentQuery<T>(
+	operation: string,
+	statement: string,
+	run: () => Promise<T>,
+): Promise<T> {
+	const start = performance.now();
+	const { dbDuration } = getInstruments();
+	let outcome = "ok";
+
+	return getTracer().startActiveSpan(
+		operation,
+		{ kind: SpanKind.CLIENT },
+		context.active(),
+		async (span) => {
+			span.setAttribute("db.operation.name", operation);
+			span.setAttribute("db.query.text", statement);
+			try {
+				return await run();
+			} catch (error) {
+				outcome = "error";
+				span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: error instanceof Error ? error.message : String(error),
+				});
+				throw error;
+			} finally {
+				dbDuration.record(performance.now() - start, {
+					"db.operation.name": operation,
+					outcome,
+				});
+				span.end();
+			}
+		},
+	);
+}
+
+/** Records a cache lookup so hit ratio is visible without extra wiring. */
+export function recordCacheResult(operation: string, result: string): void {
+	getInstruments().cacheOperations.add(1, { operation, result });
+}
+
+/** Wraps a CQRS handler: `command CreateUser`, `query GetUser`, `event UserCreated`. */
+export function instrumentDispatch<T>(
+	kind: string,
+	name: string,
+	run: () => Promise<T>,
+): Promise<T> {
+	const start = performance.now();
+	const { cqrsDuration } = getInstruments();
+	let outcome = "ok";
+
+	return getTracer().startActiveSpan(
+		`${kind} ${name}`,
+		{ kind: SpanKind.INTERNAL },
+		context.active(),
+		async (span) => {
+			span.setAttribute("cqrs.kind", kind);
+			span.setAttribute("cqrs.message", name);
+			try {
+				return await run();
+			} catch (error) {
+				outcome = "error";
+				span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: error instanceof Error ? error.message : String(error),
+				});
+				throw error;
+			} finally {
+				cqrsDuration.record(performance.now() - start, {
+					"cqrs.kind": kind,
+					"cqrs.message": name,
+					outcome,
+				});
+				span.end();
+			}
+		},
+	);
+}
