@@ -3,6 +3,7 @@ import type { Constructor, Token } from "@/core/injectable";
 import { runLifecycle } from "@/core/lifecycle";
 import { compileModules, type ModuleMetadata } from "@/core/module";
 import { wireCqrs } from "@/cqrs/cqrs-module";
+import { assertEventStoreWiring } from "@/cqrs/event-sourcing-module";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import { collectGateways } from "@/http/websocket";
 import { TestApp } from "./test-app";
@@ -88,6 +89,7 @@ export class TestingModuleBuilder {
 			providers: [...(this.metadata.providers ?? []), ...this.overrides],
 		});
 
+		assertEventStoreWiring(container);
 		container.instantiateAll();
 		const instances = container.getInstances();
 		await runLifecycle(instances, "onModuleInit");

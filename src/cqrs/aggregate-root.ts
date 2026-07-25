@@ -1,3 +1,13 @@
+/**
+ * An aggregate that can be snapshotted. Both halves are required: writing state
+ * without being able to restore it would rehydrate an empty aggregate stamped
+ * with the snapshot's version — a silent, permanent corruption.
+ */
+export interface Snapshottable<TState = unknown> {
+	snapshotState(): TState;
+	restoreFromState(state: TState): void;
+}
+
 export abstract class AggregateRoot {
 	private currentVersion = 0;
 	private readonly pending: object[] = [];
@@ -14,6 +24,16 @@ export abstract class AggregateRoot {
 		this.when(event);
 		this.pending.push(event);
 		this.currentVersion++;
+	}
+
+	/**
+	 * Restores from a snapshot without replaying it: `when` is not invoked and
+	 * nothing is marked uncommitted, so the result is indistinguishable from a
+	 * full replay up to `version`.
+	 */
+	loadFromSnapshot(state: unknown, version: number): void {
+		(this as unknown as Snapshottable).restoreFromState(state);
+		this.currentVersion = version;
 	}
 
 	loadFromHistory(events: readonly object[]): void {

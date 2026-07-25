@@ -122,3 +122,63 @@ await this.sql.transaction(async (tx) => {
 ```
 
 If the callback throws, the whole transaction is rolled back.
+
+## MongoDB
+
+`MongoModule` connects to MongoDB for use by [the event store](./event-sourcing.md) or by your own read models. The `mongodb` driver is an **optional peer dependency**: install it only if you use this module.
+
+```bash
+bun add mongodb
+```
+
+```ts
+import { Module, MongoModule } from "@grupodiariodaregiao/bunstone";
+
+@Module({
+  imports: [MongoModule.register("mongodb://localhost:27017/app")],
+})
+export class AppModule {}
+```
+
+Or with options:
+
+```ts
+MongoModule.register({
+  uri: "mongodb://localhost:27017",
+  database: "app",
+  client: { maxPoolSize: 20 },      // passed verbatim to the driver
+});
+```
+
+You can also hand over a client you built yourself — Bunstone will use it and never close it:
+
+```ts
+MongoModule.register({ client: myMongoClient, database: "app" });
+```
+
+### MongoService
+
+```ts
+import { Inject, Injectable, MongoService } from "@grupodiariodaregiao/bunstone";
+import type { Db } from "mongodb";
+
+@Injectable()
+export class OrdersReadModel {
+  constructor(private readonly mongo: MongoService) {}
+
+  async recent() {
+    const db = await this.mongo.db<Db>();
+    return db.collection("orders").find().limit(20).toArray();
+  }
+}
+```
+
+- `db<TDb>(name?)` — the configured database, or another one by name.
+- `client<TClient>()` — the underlying `MongoClient`.
+- `connected` — whether the link is up; suitable as a readiness check.
+
+The database name comes from `database`, else the path in the URI, else `bunstone`. The connection is opened during startup, so a bad URI fails the boot rather than the first query, and it is closed on shutdown.
+
+Bunstone's own types never name `mongodb`, so a project that only uses SQL typechecks without the driver installed. Pass your own generic (`db<Db>()`) to get the driver's types where you want them.
+
+> **Bundling:** if you bundle with dependencies inlined, pass `--packages external` (or `--external mongodb`), otherwise the bundler tries to resolve the optional driver even on the SQL backend.

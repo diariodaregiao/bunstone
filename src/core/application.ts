@@ -1,4 +1,5 @@
 import { wireCqrs } from "@/cqrs/cqrs-module";
+import { assertEventStoreWiring } from "@/cqrs/event-sourcing-module";
 import { resolveHealth, runChecks } from "@/http/health";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
@@ -84,6 +85,8 @@ export class Application {
 		// every resource is registered for disposal *before* it is started, so a
 		// failure part-way through bootstrap cannot strand a timer or a socket
 		try {
+			// named-module diagnostics before the container reports a raw token
+			assertEventStoreWiring(container);
 			container.instantiateAll();
 			instances = container.getInstances();
 

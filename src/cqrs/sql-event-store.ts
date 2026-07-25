@@ -188,12 +188,19 @@ export class SqlEventStore implements EventStore, OnModuleInit {
 		return Number(rows[0]?.v ?? 0);
 	}
 
-	async read(streamId: string): Promise<EventRecord[]> {
+	read(streamId: string): Promise<EventRecord[]> {
+		return this.readFrom(streamId, 0);
+	}
+
+	async readFrom(
+		streamId: string,
+		afterVersion: number,
+	): Promise<EventRecord[]> {
 		const rows = await this.sql.query<EventRow>(
 			this.bind(
-				"SELECT stream_id, version, type, payload, created_at FROM events WHERE stream_id = ? ORDER BY version ASC",
+				"SELECT stream_id, version, type, payload, created_at FROM events WHERE stream_id = ? AND version > ? ORDER BY version ASC",
 			),
-			[streamId],
+			[streamId, afterVersion],
 		);
 		return rows.map((row) => ({
 			streamId: row.stream_id,

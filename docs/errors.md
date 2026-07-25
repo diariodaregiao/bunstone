@@ -17,6 +17,16 @@ abstract class BunstoneError extends Error {
 
 `instanceof` works correctly for every subclass, and `cause` chains are preserved, so a wrapped driver error is still reachable.
 
+The `message` carries the code and the suggestion, because that is what an uncaught error prints and what a logger records:
+
+```
+ConfigurationError: MongoEventStoreModule is not configured. The required module was never registered. [BNS-CFG-002]
+
+  Call `MongoModule.register(...)` in your root AppModule imports before using this feature.
+```
+
+`summary` holds the first sentence alone when you want to log or match on it without the extra lines.
+
 ```ts
 import { BunstoneError, DatabaseError } from "@grupodiariodaregiao/bunstone";
 
@@ -58,11 +68,13 @@ Codes are stable and greppable — they are safe to alert on. The prefix identif
 | `BNS-MOD-*` | modules | `BNS-MOD-001` not a module, `BNS-MOD-002` `undefined` entry (usually a circular import) |
 | `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module |
 | `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller |
-| `BNS-DB-*`, `BNS-ES-*` | database, event store | connection, query and concurrency failures |
+| `BNS-DB-*` | database | `BNS-DB-002` a connection module was never registered |
+| `BNS-ES-*` | event store | `BNS-ES-001` concurrency conflict, `BNS-ES-002` commit over the document limit, `BNS-ES-003` aggregate is not snapshottable |
 | `BNS-CQRS-*` | CQRS buses | missing or duplicate handler |
 | `BNS-RMQ-*`, `BNS-MQ-*` | messaging | connection, topology and publish failures |
 | `BNS-SCHED-*` | scheduling | invalid cron expression |
-| `BNS-RL-*`, `BNS-GRD-*`, `BNS-TEST-*`, `BNS-IMP-*`, `BNS-ADP-*`, `BNS-EMAIL-*` | rate limiting, guards, testing, optional imports, adapters, email |
+| `BNS-IMP-*` | optional drivers | `BNS-IMP-003` an optional peer dependency is not installed |
+| `BNS-RL-*`, `BNS-GRD-*`, `BNS-TEST-*`, `BNS-ADP-*`, `BNS-EMAIL-*` | rate limiting, guards, testing, adapters, email |
 
 ## Failing fast
 

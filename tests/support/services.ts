@@ -11,6 +11,10 @@ export const RABBITMQ_URI =
 
 export const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
+export const MONGO_URI =
+	process.env.MONGO_URI ??
+	"mongodb://root:root@localhost:27017/?authSource=admin";
+
 function announce(service: string, target: string, reason?: unknown): void {
 	const detail = reason instanceof Error ? ` (${reason.message})` : "";
 	console.warn(
@@ -40,6 +44,19 @@ export async function redisReachable(url = REDIS_URL): Promise<boolean> {
 		return true;
 	} catch (error) {
 		announce("Redis/Valkey", url, error);
+		return false;
+	}
+}
+
+export async function mongoReachable(uri = MONGO_URI): Promise<boolean> {
+	try {
+		const { MongoClient } = await import("mongodb");
+		const client = new MongoClient(uri, { serverSelectionTimeoutMS: 1500 });
+		await client.connect();
+		await client.close();
+		return true;
+	} catch (error) {
+		announce("MongoDB", uri, error);
 		return false;
 	}
 }
