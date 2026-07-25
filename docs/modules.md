@@ -22,12 +22,50 @@ The metadata fields are all optional:
 - `imports` — other modules (or dynamic modules) whose providers are added to the graph.
 - `controllers` — controller classes whose routes are registered.
 - `providers` — injectable classes or provider objects (see [Dependency Injection](./dependency-injection.md)).
-- `exports` — tokens this module intends to share with modules that import it.
-- `global` — marks the module as globally available.
+- `exports` — the module's public surface: the tokens modules that import it may resolve.
+- `global` — when `true`, this module's public surface is available everywhere without being imported.
 
-**On visibility:** Bunstone compiles every module into a single shared container, so a provider is the same singleton everywhere and there is currently **no enforced encapsulation** — a provider is resolvable from any module once its declaring module is part of the graph, whether or not it is listed in `exports`. Treat `exports` as documentation of intent: it records the module's public surface for readers and for future enforcement, but nothing today rejects a resolve that ignores it. `global: true` is likewise informational, since every provider already behaves that way.
+Providers are singletons across the whole application: an imported provider is the same instance everywhere it is used.
 
-If you rely on a module boundary, enforce it by convention (and code review) rather than assuming the container will stop you.
+## Module boundaries
+
+By default any provider can resolve any other, whether or not it was exported. Turn on `strictModuleBoundaries` to have the container enforce the boundaries you declared:
+
+```ts
+const app = await Application.create(AppModule, {
+  strictModuleBoundaries: true,
+});
+```
+
+With it on, a provider declared in module `M` may resolve:
+
+- providers declared in `M` itself,
+- whatever the modules `M` imports list in their `exports`,
+- and the public surface of any `global` module.
+
+Anything else fails **at startup**, not at request time, with the token, the module that asked for it and the module that owns it:
+
+```
+`OrdersService` cannot resolve `UsersRepository`: it is not part of any module it imports.
+  Add `UsersRepository` to the `exports` array of the module that provides it (`UsersModule`),
+  and make sure `OrdersModule` lists that module in its `imports`.
+```
+
+A module that declares no `exports` keeps everything private:
+
+```ts
+@Module({
+  providers: [UsersRepository, UsersService],
+  exports: [UsersService],       // UsersRepository stays internal
+})
+export class UsersModule {}
+```
+
+Re-exporting works too — a module may export a token it received from one of its own imports, which lets an aggregate module present a single public surface.
+
+### Migrating an existing application
+
+The option is off by default because enabling it can reject an application that today resolves across a boundary it never declared. Turn it on one service at a time: every failure names exactly which `exports` entry or `imports` entry is missing, and nothing fails silently. Once a service boots cleanly with it on, leave it on — the boundary is then enforced rather than merely documented.
 
 ## Dynamic modules
 

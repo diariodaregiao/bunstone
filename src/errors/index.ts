@@ -24,7 +24,11 @@ export abstract class BunstoneError extends Error {
 export class DependencyResolutionError extends BunstoneError {
 	constructor(
 		message: string,
-		code: "BNS-DI-001" | "BNS-DI-002" | "BNS-DI-003" = "BNS-DI-003",
+		code:
+			| "BNS-DI-001"
+			| "BNS-DI-002"
+			| "BNS-DI-003"
+			| "BNS-DI-004" = "BNS-DI-003",
 		suggestion?: string,
 		context?: Record<string, unknown>,
 		cause?: Error,
@@ -96,6 +100,22 @@ export class DependencyResolutionError extends BunstoneError {
 				"or register it on the application container before resolving.",
 			].join("\n  "),
 			{ tokenName, resolutionStack },
+		);
+	}
+
+	static notVisible(
+		tokenName: string,
+		requestingModule: string,
+		owningModule: string,
+	): DependencyResolutionError {
+		return new DependencyResolutionError(
+			`\`${requestingModule}\` cannot resolve \`${tokenName}\`: it is not part of any module it imports.`,
+			"BNS-DI-004",
+			[
+				`Add \`${tokenName}\` to the \`exports\` array of the module that provides it (\`${owningModule}\`),`,
+				`and make sure \`${requestingModule}\` lists that module in its \`imports\`.`,
+			].join("\n  "),
+			{ tokenName, requestingModule, owningModule },
 		);
 	}
 }

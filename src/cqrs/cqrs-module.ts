@@ -16,6 +16,7 @@ export class CqrsModule {
 			module: CqrsModule,
 			global: true,
 			providers: [CommandBus, QueryBus, EventBus],
+			exports: [CommandBus, QueryBus, EventBus],
 		};
 	}
 }

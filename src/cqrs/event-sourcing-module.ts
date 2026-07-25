@@ -15,6 +15,7 @@ export class EventSourcingModule {
 					inject: [SqlEventStore],
 				},
 			],
+			exports: [EVENT_STORE, SqlEventStore],
 		};
 	}
 }

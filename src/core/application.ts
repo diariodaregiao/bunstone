@@ -14,6 +14,14 @@ import { runLifecycle } from "./lifecycle";
 import { compileModules } from "./module";
 
 export interface ApplicationOptions extends HttpServerOptions {
+	/**
+	 * Enforces module boundaries: a provider may only resolve what its own
+	 * module declares, what the modules it imports `exports`, and what a
+	 * `global` module exposes. Off by default — turning it on can reject an
+	 * application that today resolves across an undeclared boundary.
+	 */
+	strictModuleBoundaries?: boolean;
+
 	gracefulShutdown?: boolean;
 
 	logStartup?: boolean;
@@ -60,7 +68,10 @@ export class Application {
 		rootModule: Constructor,
 		options: ApplicationOptions = {},
 	): Promise<Application> {
-		const { container, controllers } = compileModules(rootModule);
+		const { container, controllers } = compileModules(
+			rootModule,
+			options.strictModuleBoundaries === true,
+		);
 		const disposables = new DisposableRegistry();
 		let instances: readonly unknown[] = [];
 

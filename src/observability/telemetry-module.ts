@@ -33,6 +33,7 @@ export class TelemetryModule {
 				{ provide: TELEMETRY_OPTIONS, useValue: options },
 				TelemetryService,
 			],
+			exports: [TELEMETRY_OPTIONS, TelemetryService],
 		};
 	}
 }

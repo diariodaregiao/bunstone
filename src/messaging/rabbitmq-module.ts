@@ -41,6 +41,7 @@ export class RabbitMQModule {
 				},
 				RabbitMQService,
 			],
+			exports: [RABBIT_OPTIONS, RabbitConnection, RabbitMQService],
 		};
 	}
 }
