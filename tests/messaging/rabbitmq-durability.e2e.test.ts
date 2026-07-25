@@ -21,6 +21,8 @@ const createdQueues = new Set<string>();
 function uniqueQueue(prefix: string, retry?: RetryOptions): string {
 	const name = `bunstone.${prefix}.${crypto.randomUUID().slice(0, 8)}`;
 	createdQueues.add(name);
+	// a dead-letter queue is provisioned per consumed queue even when unnamed
+	createdQueues.add(`${name}.dlq`);
 	for (const delay of retryDelays(retry)) {
 		createdQueues.add(retryQueueName(name, delay));
 	}

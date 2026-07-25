@@ -1,7 +1,7 @@
 import type { Options } from "amqplib";
 import { Injectable } from "@/core/injectable";
-import { RabbitMQError } from "@/errors";
 import { RabbitConnection } from "./connection";
+import { publishConfirmed } from "./publish";
 
 /**
  * Publishes on a confirm channel: the returned promise settles only once the
@@ -12,6 +12,11 @@ import { RabbitConnection } from "./connection";
 export class RabbitMQService {
 	constructor(private readonly connection: RabbitConnection) {}
 
+	/**
+	 * Publishing to an exchange with no matching binding is normal (a subscriber
+	 * that is not deployed yet), so this does not fail by default. Pass
+	 * `mandatory: true` when the message must reach a queue.
+	 */
 	async publish(
 		exchange: string,
 		routingKey: string,
@@ -19,68 +24,51 @@ export class RabbitMQService {
 		options?: Options.Publish,
 	): Promise<void> {
 		const channel = await this.connection.getChannel();
-		await confirmed(channel, `${exchange}/${routingKey}`, (callback) =>
-			channel.publish(
-				exchange,
-				routingKey,
-				encode(message),
-				{ persistent: true, ...options, mandatory: true },
-				callback,
-			),
+		await publishConfirmed(
+			channel,
+			`${exchange}/${routingKey}`,
+			{ mandatory: options?.mandatory === true },
+			(headers, mandatory, callback) =>
+				channel.publish(
+					exchange,
+					routingKey,
+					encode(message),
+					{
+						persistent: true,
+						...options,
+						mandatory,
+						headers: { ...options?.headers, ...headers },
+					},
+					callback,
+				),
 		);
 	}
 
+	/** A queue that does not exist is always an error, so this is `mandatory`. */
 	async sendToQueue(
 		queue: string,
 		message: unknown,
 		options?: Options.Publish,
 	): Promise<void> {
 		const channel = await this.connection.getChannel();
-		await confirmed(channel, queue, (callback) =>
-			channel.sendToQueue(
-				queue,
-				encode(message),
-				{ persistent: true, ...options, mandatory: true },
-				callback,
-			),
+		await publishConfirmed(
+			channel,
+			queue,
+			{ mandatory: true },
+			(headers, mandatory, callback) =>
+				channel.sendToQueue(
+					queue,
+					encode(message),
+					{
+						persistent: true,
+						...options,
+						mandatory,
+						headers: { ...options?.headers, ...headers },
+					},
+					callback,
+				),
 		);
 	}
-}
-
-type ConfirmCallback = (error: Error | null) => void;
-
-interface Returnable {
-	once(event: "return", listener: () => void): unknown;
-	removeListener(event: "return", listener: () => void): unknown;
-}
-
-/**
- * The broker confirms a publish it could not route, so `mandatory` is set and a
- * returned message is reported as an error rather than as a successful send.
- */
-function confirmed(
-	channel: Returnable,
-	target: string,
-	send: (callback: ConfirmCallback) => boolean,
-): Promise<void> {
-	return new Promise((resolve, reject) => {
-		let returned = false;
-		const onReturn = () => {
-			returned = true;
-		};
-		channel.once("return", onReturn);
-
-		send((error) => {
-			channel.removeListener("return", onReturn);
-			if (error) return reject(error);
-			if (returned) {
-				return reject(
-					new RabbitMQError(`"${target}" did not accept the message.`),
-				);
-			}
-			resolve();
-		});
-	});
 }
 
 function encode(message: unknown): Buffer {

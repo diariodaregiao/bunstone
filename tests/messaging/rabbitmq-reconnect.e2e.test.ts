@@ -58,6 +58,7 @@ afterAll(async () => {
 	const channel = await connection.createChannel();
 	for (const queue of [
 		QUEUE,
+		`${QUEUE}.dlq`,
 		...retryDelays(undefined).map((delay) => retryQueueName(QUEUE, delay)),
 	]) {
 		try {

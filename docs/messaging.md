@@ -80,7 +80,7 @@ export class OrderConsumer {
 You do not ack manually. When the handler **resolves**, the message is acknowledged. When it **throws**:
 
 1. If `attempt` is below `retry.maxAttempts`, the message is moved to a **retry queue** that holds it for the backoff delay (`baseDelayMs * factor^(attempt-1)`, capped at `maxDelayMs`) and then dead-letters it back into the original queue with the attempt counter incremented.
-2. Once attempts are exhausted, the message is sent to the queue's `deadLetterQueue` if one is configured. Without one it is **rejected** rather than acknowledged, so the queue's own dead-letter route still applies and the payload is never destroyed by the framework. Configure a `deadLetterQueue` if you want failures kept somewhere you can inspect them.
+2. Once attempts are exhausted, the message is moved to the queue's dead-letter queue. If you did not configure one, `<queue>.dlq` is created and used, so an exhausted message is never destroyed — set `deadLetterQueue` when you want a specific name or want several queues to share one.
 
 The retry queues are declared for you, one per distinct delay, named `<queue>.retry.<delay>ms`. They carry `x-message-ttl` plus a dead-letter route back to the source queue, so **the backoff is broker state, not a timer in your process**.
 
@@ -101,6 +101,8 @@ Stopping the app — a deploy, `SIGTERM`, a crash — and starting it again resu
 Delivery is at-least-once: a crash between a handler's side effect and its ack means the message is delivered again. Handlers should be idempotent.
 
 ### Circuit breaker
+
+If the framework cannot move a failed message to its retry or dead-letter queue — the target was deleted, for instance — the message is left on the queue and consumption pauses briefly instead of spinning through immediate redeliveries.
 
 Each subscription is wrapped in its own **circuit breaker**. After repeated failures it opens and **pauses consumption of that queue** for the cooldown — the consumer is cancelled and messages stay on the broker instead of burning through their retries against a dependency that is down. When the cooldown elapses the consumer re-registers and the next message decides whether the circuit closes or opens again. Defaults: 5 failures to open, 10s cooldown, 1 success to close.
 
@@ -166,6 +168,14 @@ export class OrderService {
 - `publish(exchange, routingKey, message, options?)` — publish to an exchange.
 - `sendToQueue(queue, message, options?)` — send straight to a queue.
 
-Both publish on a **confirm channel** with `mandatory` set: the promise resolves only once the broker has acknowledged the message *and* confirmed it was routed somewhere. A publish to an exchange with no matching binding, or to a queue that does not exist, **rejects** — the broker acknowledges unroutable messages, so without this they would vanish while your `await` reported success.
+Both publish on a **confirm channel**: the promise resolves only once the broker has acknowledged the message.
+
+`sendToQueue` is also `mandatory` — a queue that does not exist is always a mistake, and the broker acknowledges unroutable messages, so without this the message would vanish while your `await` reported success.
+
+`publish` is **not** mandatory by default, because publishing an event to a topic exchange nobody has bound yet is a normal state during a rollout. Pass `mandatory: true` when the message must reach a queue:
+
+```ts
+await this.rabbit.publish("events", "orders.created", payload, { mandatory: true });
+```
 
 Publishing while the broker is unreachable rejects after a timeout instead of hanging indefinitely, so an HTTP handler is never pinned for the length of an outage.

@@ -29,11 +29,15 @@ class FakeChannel {
 	private tag = 0;
 	/** Set to make the broker "return" the publish as unroutable. */
 	unroutable = false;
-	private returnListeners = new Set<() => void>();
+	private returnListeners = new Set<(message: unknown) => void>();
 
-	once(event: string, listener: () => void) {
+	on(event: string, listener: (message: unknown) => void) {
 		if (event === "return") this.returnListeners.add(listener);
 		return this;
+	}
+
+	once(event: string, listener: (message: unknown) => void) {
+		return this.on(event, listener);
 	}
 
 	removeListener(event: string, listener: () => void) {
@@ -81,7 +85,10 @@ class FakeChannel {
 			return true;
 		}
 		if (this.unroutable) {
-			for (const listener of this.returnListeners) listener();
+			// the broker returns the message before confirming it
+			for (const listener of this.returnListeners) {
+				listener({ properties: { headers: options.headers ?? {} } });
+			}
 			callback(null);
 			return true;
 		}
@@ -205,7 +212,7 @@ describe("QueueConsumer", () => {
 		expect(channel.nacked.at(-1)?.requeue).toBe(true);
 	});
 
-	it("rejects an exhausted message instead of destroying it", async () => {
+	it("dead-letters an exhausted message even with no DLQ configured", async () => {
 		const { channel, consumer } = await setup({
 			handle: async () => {
 				throw new Error("boom");
@@ -215,12 +222,9 @@ describe("QueueConsumer", () => {
 		channel.deliver({ id: 1 }, { "x-attempt": 3 });
 		await consumer.drain(1000);
 
-		// no DLQ configured: the payload must not be acked away
-		expect(channel.acked).toHaveLength(0);
-		expect(channel.nacked.at(-1)).toEqual({
-			message: expect.anything(),
-			requeue: false,
-		});
+		// a default dead-letter queue is provisioned, so nothing is destroyed
+		expect(channel.published.at(-1)?.queue).toBe("orders.dlq");
+		expect(channel.acked).toHaveLength(1);
 	});
 
 	it("keeps the message on the queue when the retry publish fails", async () => {

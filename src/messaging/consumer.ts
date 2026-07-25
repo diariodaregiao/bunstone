@@ -5,11 +5,13 @@ import {
 	type CircuitBreakerOptions,
 	CircuitOpenError,
 } from "./circuit-breaker";
+import { publishConfirmed } from "./publish";
 import { backoffDelay, type RetryOptions, shouldRetry } from "./retry";
-import { declareRetryTopology, retryQueueName } from "./topology";
+import { declareRetryTopology, retryDelays, retryQueueName } from "./topology";
 import type { RabbitMessage } from "./types";
 
 const RECONSUME_DELAY_MS = 1000;
+const HOP_FAILURE_PAUSE_MS = 5000;
 
 export interface QueueConsumerOptions {
 	queue: string;
@@ -51,6 +53,14 @@ export class QueueConsumer {
 		return this.options.queue;
 	}
 
+	/**
+	 * Always defined: without somewhere to put an exhausted message the broker
+	 * would drop it, so one is provisioned per queue when none is configured.
+	 */
+	get deadLetterQueue(): string {
+		return this.options.deadLetterQueue ?? `${this.options.queue}.dlq`;
+	}
+
 	/** Binds the consumer to a freshly established channel. */
 	async attach(channel: ConfirmChannel): Promise<void> {
 		if (this.stopped) return;
@@ -58,18 +68,20 @@ export class QueueConsumer {
 		this.channel = channel;
 		this.consumerTag = undefined;
 		// an open circuit means the downstream is still down: reconnecting must
-		// not resume consumption behind its back
+		// not resume consumption behind its back, but it must still be scheduled
+		// to come back, or the queue would stall for the life of the connection
 		this.paused = this.breaker.current === "open";
 
 		if (this.options.declareQueue) {
 			await channel.assertQueue(this.queue, { durable: true });
 		}
-		if (this.options.deadLetterQueue) {
-			await channel.assertQueue(this.options.deadLetterQueue, {
-				durable: true,
-			});
-		}
+		await channel.assertQueue(this.deadLetterQueue, { durable: true });
 		await declareRetryTopology(channel, this.queue, this.options.retry);
+
+		if (this.paused) {
+			this.scheduleResume(this.breaker.msUntilHalfOpen());
+			return;
+		}
 		await this.consume();
 	}
 
@@ -167,44 +179,56 @@ export class QueueConsumer {
 	): Promise<void> {
 		const target = this.failureTarget(attempt, error);
 
-		if (!target) {
-			// acking here would destroy the payload; reject instead so the queue's
-			// own dead-letter route (if any) takes it and it is never silently lost
-			this.logger.error(
-				`Message on "${this.queue}" failed after ${attempt} attempt(s); rejecting it. Configure \`deadLetterQueue\` to keep failures for inspection.`,
-				error,
-			);
-			this.settle(() => channel.nack(raw, false, false));
-			return;
-		}
-
 		try {
-			await publishConfirmed(channel, target.queue, raw.content, {
-				...forwardable(raw.properties),
-				persistent: true,
-				headers: { ...raw.properties.headers, ...target.headers },
-			});
+			await publishConfirmed(
+				channel,
+				target.queue,
+				{ mandatory: true },
+				(headers, mandatory, callback) =>
+					channel.sendToQueue(
+						target.queue,
+						raw.content,
+						{
+							...forwardable(raw.properties),
+							persistent: true,
+							mandatory,
+							headers: {
+								...raw.properties.headers,
+								...target.headers,
+								...headers,
+							},
+						},
+						callback,
+					),
+			);
 			this.settle(() => channel.ack(raw));
 		} catch (publishError) {
+			// requeueing alone would spin: the same hop fails again immediately.
+			// Pausing throttles the retry and keeps the message on the broker.
 			this.logger.error(
 				`Could not move a message from "${this.queue}" to "${target.queue}"; leaving it on the queue.`,
 				publishError,
 			);
 			this.settle(() => channel.nack(raw, false, true));
+			this.pause(HOP_FAILURE_PAUSE_MS);
 		}
 	}
 
-	private failureTarget(attempt: number, error: unknown): FailureTarget | null {
+	private failureTarget(attempt: number, error: unknown): FailureTarget {
 		if (shouldRetry(attempt, this.options.retry)) {
-			const delay = backoffDelay(attempt, this.options.retry);
+			// only a bounded number of retry queues is declared, so an attempt
+			// past the last one reuses it instead of publishing into the void
+			const delays = retryDelays(this.options.retry);
+			const delay =
+				delays[Math.min(attempt - 1, delays.length - 1)] ??
+				backoffDelay(attempt, this.options.retry);
 			return {
 				queue: retryQueueName(this.queue, delay),
 				headers: { "x-attempt": attempt + 1 },
 			};
 		}
-		if (!this.options.deadLetterQueue) return null;
 		return {
-			queue: this.options.deadLetterQueue,
+			queue: this.deadLetterQueue,
 			headers: { "x-attempt": attempt, "x-error": String(error) },
 		};
 	}
@@ -214,24 +238,27 @@ export class QueueConsumer {
 	 * consumed until the cooldown elapses. Messages stay on the broker instead
 	 * of being burned through their retries against a dependency that is gone.
 	 */
-	private pause(): void {
-		if (this.paused) return;
+	private pause(waitMs = this.breaker.msUntilHalfOpen()): void {
+		if (this.paused || this.stopped) return;
 		this.paused = true;
-		const wait = this.breaker.msUntilHalfOpen();
-		this.logger.warn(
-			`Circuit open for "${this.queue}"; pausing consumption for ${wait}ms.`,
-		);
+		this.logger.warn(`Pausing consumption of "${this.queue}" for ${waitMs}ms.`);
 		void this.cancel();
-		this.resumeTimer = setTimeout(() => void this.resume(), wait);
+		this.scheduleResume(waitMs);
+	}
+
+	/** Single-slot, so a pause and a re-consume can never stack timers. */
+	private scheduleResume(waitMs: number): void {
+		this.clearResumeTimer();
+		if (this.stopped) return;
+		this.resumeTimer = setTimeout(() => {
+			this.resumeTimer = undefined;
+			void this.resume();
+		}, waitMs);
 	}
 
 	/** Re-registers after a broker-side cancel, retrying while it keeps failing. */
 	private scheduleReconsume(): void {
-		if (this.stopped || this.resumeTimer) return;
-		this.resumeTimer = setTimeout(() => {
-			this.resumeTimer = undefined;
-			this.consume().catch(() => this.scheduleReconsume());
-		}, RECONSUME_DELAY_MS);
+		this.scheduleResume(RECONSUME_DELAY_MS);
 	}
 
 	private async resume(): Promise<void> {
@@ -262,43 +289,6 @@ export class QueueConsumer {
 		if (this.resumeTimer) clearTimeout(this.resumeTimer);
 		this.resumeTimer = undefined;
 	}
-}
-
-/**
- * The broker acks a publish it could not route, so a confirm alone does not
- * prove the copy landed anywhere. `mandatory` makes it return the message
- * instead, and the return is treated as a failure.
- */
-function publishConfirmed(
-	channel: ConfirmChannel,
-	queue: string,
-	content: Buffer,
-	options: Options.Publish,
-): Promise<void> {
-	return new Promise((resolve, reject) => {
-		let returned = false;
-		const onReturn = () => {
-			returned = true;
-		};
-		channel.once("return", onReturn);
-
-		channel.sendToQueue(
-			queue,
-			content,
-			{ ...options, mandatory: true },
-			(error) => {
-				channel.removeListener("return", onReturn);
-				if (error) return reject(error);
-				// the return arrives before the confirm for an unroutable message
-				if (returned) {
-					return reject(
-						new Error(`Queue "${queue}" did not accept the message.`),
-					);
-				}
-				resolve();
-			},
-		);
-	});
 }
 
 /** Keeps the original envelope minus the fields we set ourselves. */

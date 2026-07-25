@@ -53,7 +53,7 @@ export class RabbitConnection {
 			.then((channel) => {
 				// tracked and watched, so a failure on it still triggers recovery
 				this.consumerChannels.push(channel);
-				this.watch(connection, [channel], this.generation);
+				this.watchChannel(channel, this.generation);
 			})
 			.catch((error) =>
 				this.logger.error(
@@ -142,16 +142,17 @@ export class RabbitConnection {
 		const generation = this.generation;
 
 		try {
+			this.watchConnection(connection, generation);
 			const channel = await connection.createConfirmChannel();
 			// listeners go on before any setup runs: a topology conflict during
 			// `establish` would otherwise be an unhandled 'error' event
-			this.watch(connection, [channel], generation);
+			this.watchChannel(channel, generation);
 			for (const setup of this.setups) await setup(channel);
 
 			const consumerChannels: ConfirmChannel[] = [];
 			for (const consumer of this.consumers) {
 				const consumerChannel = await connection.createConfirmChannel();
-				this.watch(connection, [consumerChannel], generation);
+				this.watchChannel(consumerChannel, generation);
 				await consumerChannel.prefetch(this.prefetch);
 				await consumer.attach(consumerChannel);
 				consumerChannels.push(consumerChannel);
@@ -189,23 +190,26 @@ export class RabbitConnection {
 	 * channel-level error (a bad exchange, a topology conflict) would silently
 	 * stop every consumer while the socket stayed up.
 	 */
-	private watch(
-		connection: ChannelModel,
-		channels: ConfirmChannel[],
-		generation: number,
-	): void {
-		const onDown = (source: string) => (error?: unknown) => {
+	private downHandler(source: string, generation: number) {
+		return (error?: unknown) => {
 			if (this.generation !== generation || this.closing) return;
 			if (error) this.logger.warn(`RabbitMQ ${source} error:`, error);
 			this.handleDown();
 		};
+	}
 
-		connection.on("close", onDown("connection"));
-		connection.on("error", onDown("connection"));
-		for (const channel of channels) {
-			channel.on("close", onDown("channel"));
-			channel.on("error", onDown("channel"));
-		}
+	/** Attached once per connection; adding a pair per channel would trip
+	 * Node's max-listener warning as soon as a handful of consumers exist. */
+	private watchConnection(connection: ChannelModel, generation: number): void {
+		const onDown = this.downHandler("connection", generation);
+		connection.on("close", onDown);
+		connection.on("error", onDown);
+	}
+
+	private watchChannel(channel: ConfirmChannel, generation: number): void {
+		const onDown = this.downHandler("channel", generation);
+		channel.on("close", onDown);
+		channel.on("error", onDown);
 	}
 
 	private handleDown(): void {

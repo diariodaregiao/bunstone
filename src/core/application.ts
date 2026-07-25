@@ -202,6 +202,9 @@ export class Application {
 	}
 
 	private installSignals(): void {
+		// listen() may be called again; without this the previous handlers stay
+		// on `process` and only the last pair is ever removed
+		this.removeSignals();
 		for (const signal of SHUTDOWN_SIGNALS) {
 			const handler = () => {
 				this.close()

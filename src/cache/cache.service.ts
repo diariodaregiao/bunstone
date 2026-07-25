@@ -98,5 +98,7 @@ function normalizeTtl(ttlSeconds: number | undefined): number | undefined {
 		logger.warn(`Ignoring a non-finite ttlSeconds (${ttlSeconds}).`);
 		return undefined;
 	}
-	return Math.floor(ttlSeconds);
+	// Redis needs whole seconds; rounding a sub-second TTL down to 0 would turn
+	// a short-lived cache entry into a delete
+	return ttlSeconds > 0 ? Math.max(1, Math.floor(ttlSeconds)) : 0;
 }

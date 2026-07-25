@@ -29,6 +29,10 @@ On startup the store creates two tables if they do not exist: `events` (composit
 
 The store adapts its bind-parameter style to the configured adapter, so the same code works on PostgreSQL (`$1, $2, …`) as on MySQL, MariaDB and SQLite (`?`).
 
+On MySQL and MariaDB the key column is created with a binary collation — the server default is case-insensitive, which would merge two stream ids differing only in case into a single aggregate — and payloads use `LONGTEXT` rather than `TEXT`, which caps at 64 KB.
+
+> **Upgrading:** `CREATE TABLE IF NOT EXISTS` cannot change a table that already exists. If your `events` table predates this, startup logs the exact `ALTER TABLE` statements to run.
+
 ## Aggregates
 
 Extend `AggregateRoot`. Mutations call the protected `apply(event)`, which invokes your `when(event)` reducer, records the event as uncommitted, and bumps the version. Domain events are plain objects carrying a `type` field.

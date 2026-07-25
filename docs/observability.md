@@ -95,4 +95,6 @@ The built-in `Logger` automatically includes `trace_id` and `span_id` whenever a
 
 `TelemetryModule` registers an `onModuleDestroy` hook that flushes all pending spans and metrics when the application closes, so nothing is lost on graceful shutdown.
 
-Only the SDK's own providers are shut down — the OpenTelemetry API globals are left intact. That means a process that creates a second `Application` after closing the first (integration test suites, hot-reload supervisors) keeps exporting traces and metrics normally.
+Only the SDK's own providers are shut down, and the process-wide OpenTelemetry slots are released so the next application can claim them. A process that creates a second `Application` after closing the first (integration test suites, hot-reload supervisors) keeps exporting normally.
+
+**One telemetry-enabled application per process.** OpenTelemetry's tracer and meter providers are process globals. If a second application starts telemetry while a first still owns them, the second logs a warning and does not export — it will not seize the slots and silence the application that is already running. Run one at a time, or enable `TelemetryModule` in only one of them.

@@ -70,7 +70,7 @@ afterAll(async () => {
 	const amqp = await import("amqplib");
 	const connection = await amqp.connect(URI);
 	const channel = await connection.createChannel();
-	for (const queue of [WORK_QUEUE, DLQ]) {
+	for (const queue of [WORK_QUEUE, DLQ, `${WORK_QUEUE}.dlq`, `${DLQ}.dlq`]) {
 		try {
 			await channel.deleteQueue(queue);
 		} catch {}

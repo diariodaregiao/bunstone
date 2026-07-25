@@ -9,6 +9,7 @@ import { buildOpenApiDocument, type OpenApiInfo } from "@/openapi/builder";
 import { swaggerUiHtml } from "@/openapi/ui";
 import { getRateLimit } from "@/ratelimit/decorator";
 import { MemoryStorage, type RateLimitStorage } from "@/ratelimit/storage";
+import { Logger } from "@/utils/logger";
 import { Cors, type CorsOptions } from "./cors";
 import { getControllerGuards, getRouteGuards } from "./guard";
 import { type HealthOptions, resolveHealth } from "./health";
@@ -56,6 +57,8 @@ export type RouteHandler = (
 function routeShape(path: string): string {
 	return path.replace(/:[^/]+/g, ":param");
 }
+
+const logger = new Logger("HTTP");
 
 export type RouteMethods = Record<string, RouteHandler>;
 export type RoutesMap = Record<string, RouteMethods>;
@@ -198,7 +201,13 @@ export class HttpServer {
 		const shapes = new Map<string, string>();
 		for (const controller of controllers) {
 			const base = getControllerPath(controller);
-			for (const route of getRoutes(controller)) {
+			const routes = getRoutes(controller);
+			if (routes.length === 0) {
+				logger.warn(
+					`\`${controller.name}\` is registered as a controller but declares no routes. Route decorators are not inherited: move them onto the subclass.`,
+				);
+			}
+			for (const route of routes) {
 				const path = joinPaths(base, route.path);
 				const handler = createRouteHandler({
 					container,
@@ -339,11 +348,15 @@ export class HttpServer {
 			timer = setTimeout(resolve, timeoutMs);
 			timer.unref?.();
 		});
+
+		// Drain in-flight work, then force the rest: idle keep-alive sockets
+		// survive a graceful stop and would otherwise still be served. Both
+		// phases race the same deadline — a long-lived response (an open SSE
+		// stream) never resolves a forced stop, and waiting on it would hang
+		// shutdown forever instead of timing out.
 		await Promise.race([server.stop(false), deadline]);
+		await Promise.race([server.stop(true), deadline]);
 		if (timer) clearTimeout(timer);
-		// draining leaves idle keep-alive sockets open, so a client holding a
-		// pooled connection could still be served after shutdown "finished"
-		await server.stop(true);
 	}
 
 	get raw(): BunServer | undefined {

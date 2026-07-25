@@ -2,6 +2,7 @@ import { Injectable } from "@/core/injectable";
 import type { OnModuleInit } from "@/core/lifecycle";
 import { SqlService } from "@/database/sql.service";
 import { EventStoreError } from "@/errors";
+import { Logger } from "@/utils/logger";
 import type {
 	EventInput,
 	EventRecord,
@@ -51,6 +52,8 @@ function isConcurrencyConflict(error: unknown): boolean {
 	);
 }
 
+const logger = new Logger("EventStore");
+
 @Injectable()
 export class SqlEventStore implements EventStore, OnModuleInit {
 	private readonly numberedPlaceholders: boolean;
@@ -84,6 +87,40 @@ export class SqlEventStore implements EventStore, OnModuleInit {
 		await this.sql.query(
 			`CREATE TABLE IF NOT EXISTS snapshots (stream_id ${key} PRIMARY KEY, version INTEGER NOT NULL, state ${json})`,
 		);
+		if (mysql) await this.warnOnLegacySchema();
+	}
+
+	/**
+	 * `CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists,
+	 * so a deployment created before the collation fix silently keeps merging
+	 * stream ids that differ only in case, and still truncates large payloads.
+	 */
+	private async warnOnLegacySchema(): Promise<void> {
+		try {
+			const columns = await this.sql.query<{
+				COLUMN_NAME: string;
+				COLLATION_NAME: string | null;
+				DATA_TYPE: string;
+			}>(
+				"SELECT COLUMN_NAME, COLLATION_NAME, DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'events' AND COLUMN_NAME IN ('stream_id','payload')",
+			);
+
+			const streamId = columns.find((c) => c.COLUMN_NAME === "stream_id");
+			const payload = columns.find((c) => c.COLUMN_NAME === "payload");
+
+			if (streamId && !streamId.COLLATION_NAME?.endsWith("_bin")) {
+				logger.warn(
+					"`events.stream_id` uses a case-insensitive collation: two stream ids differing only in case will be treated as one aggregate. Fix with: ALTER TABLE events MODIFY stream_id VARCHAR(255) COLLATE utf8mb4_bin NOT NULL;",
+				);
+			}
+			if (payload && payload.DATA_TYPE.toLowerCase() === "text") {
+				logger.warn(
+					"`events.payload` is TEXT and caps at 64KB. Fix with: ALTER TABLE events MODIFY payload LONGTEXT NOT NULL;",
+				);
+			}
+		} catch {
+			// information_schema is not reachable everywhere; the check is advisory
+		}
 	}
 
 	async append(
