@@ -10,6 +10,7 @@ Decorator-based framework for Bun (native Bun.serve, Bun.SQL, Bun.cron).
 - docs/controllers.md
 - docs/guards-jwt.md
 - docs/uploads-and-static.md
+- docs/cors.md
 - docs/database.md
 - docs/cache.md
 - docs/cqrs.md

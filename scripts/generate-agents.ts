@@ -13,6 +13,7 @@ const DOC_ORDER = [
 	"controllers.md",
 	"guards-jwt.md",
 	"uploads-and-static.md",
+	"cors.md",
 	"database.md",
 	"cache.md",
 	"cqrs.md",

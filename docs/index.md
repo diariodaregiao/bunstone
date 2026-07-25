@@ -62,7 +62,7 @@ Run it with Bun and open `http://localhost:3000`.
 - [Modules](./modules.md)
 - [Controllers](./controllers.md)
 - [Guards & JWT](./guards-jwt.md)
-- [Uploads & static files](./uploads-and-static.md)
+- [Uploads & static files](./uploads-and-static.md) · [CORS](./cors.md)
 - [Database](./database.md) · [Cache](./cache.md) · [CQRS](./cqrs.md) · [Event sourcing](./event-sourcing.md)
 - [Messaging](./messaging.md) · [Scheduling](./scheduling.md) · [Realtime](./realtime.md)
 - [Rate limiting](./rate-limiting.md) · [Logging](./logging.md) · [Observability](./observability.md) · [Errors](./errors.md)
