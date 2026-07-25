@@ -130,8 +130,12 @@ export {
 	CircuitOpenError,
 	type CircuitState,
 	DEFAULT_RETRY,
+	declareRetryTopology,
+	declareTopology,
 	getSubscriptions,
 	isRabbitConsumer,
+	QueueConsumer,
+	type QueueConsumerOptions,
 	RABBIT_OPTIONS,
 	type RabbitBinding,
 	RabbitConnection,
@@ -146,8 +150,11 @@ export {
 	type RabbitReconnectOptions,
 	RabbitSubscribe,
 	type RetryOptions,
+	retryDelays,
+	retryQueueName,
 	type SubscribeConfig,
 	shouldRetry,
+	type TopologyOptions,
 	wireRabbit,
 } from "@/messaging";
 export {
@@ -158,11 +165,6 @@ export {
 	TelemetrySdk,
 	TelemetryService,
 } from "@/observability";
-export {
-	Logger,
-	type LoggerOptions,
-	LogLevel,
-} from "@/utils/logger";
 export {
 	ApiOperation,
 	type ApiOperationInfo,
@@ -199,3 +201,8 @@ export {
 	TestingModuleBuilder,
 	type TestRequestOptions,
 } from "@/testing";
+export {
+	Logger,
+	type LoggerOptions,
+	LogLevel,
+} from "@/utils/logger";

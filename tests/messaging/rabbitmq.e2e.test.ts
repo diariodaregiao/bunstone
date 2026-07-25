@@ -78,6 +78,16 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await app?.close();
+	if (!reachable) return;
+	const amqp = await import("amqplib");
+	const connection = await amqp.connect(URI);
+	const channel = await connection.createChannel();
+	for (const queue of [WORK_QUEUE, DLQ]) {
+		try {
+			await channel.deleteQueue(queue);
+		} catch {}
+	}
+	await connection.close();
 });
 
 describe.skipIf(!reachable)("RabbitMQ E2E", () => {

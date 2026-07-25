@@ -6,6 +6,7 @@ import { Module } from "@/core/module";
 import { RabbitConsumer, RabbitSubscribe } from "@/messaging/decorators";
 import { RabbitMQService } from "@/messaging/rabbitmq.service";
 import { RabbitMQModule } from "@/messaging/rabbitmq-module";
+import { retryDelays, retryQueueName } from "@/messaging/topology";
 import type { RabbitMessage } from "@/messaging/types";
 
 const URI = process.env.RABBITMQ_URI ?? "amqp://guest:guest@localhost:5672";
@@ -61,7 +62,20 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	if (canRun) await app.close();
+	if (!canRun) return;
+	await app.close();
+	const amqp = await import("amqplib");
+	const connection = await amqp.connect(URI);
+	const channel = await connection.createChannel();
+	for (const queue of [
+		QUEUE,
+		...retryDelays(undefined).map((delay) => retryQueueName(QUEUE, delay)),
+	]) {
+		try {
+			await channel.deleteQueue(queue);
+		} catch {}
+	}
+	await connection.close();
 });
 
 async function waitFor(id: number, timeoutMs: number): Promise<void> {

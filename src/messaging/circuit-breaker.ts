@@ -43,6 +43,12 @@ export class CircuitBreaker {
 		return this.state;
 	}
 
+	/** Milliseconds left before an open circuit is allowed to half-open. */
+	msUntilHalfOpen(): number {
+		if (this.state !== "open") return 0;
+		return Math.max(0, this.cooldownMs - (this.now() - this.openedAt));
+	}
+
 	async execute<T>(fn: () => Promise<T>): Promise<T> {
 		if (this.current === "open") throw new CircuitOpenError();
 		try {

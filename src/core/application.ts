@@ -29,6 +29,7 @@ interface ReadinessState {
 }
 
 const SHUTDOWN_SIGNALS: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
+const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
 
 export class Application {
 	private readonly logger = new Logger("Application");
@@ -79,7 +80,10 @@ export class Application {
 		disposables.add(() => scheduler.stopAll(), "scheduler");
 		if (container.has(RabbitConnection)) {
 			disposables.add(
-				() => container.resolve(RabbitConnection).close(),
+				() =>
+					container
+						.resolve(RabbitConnection)
+						.close(options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS),
 				"rabbit",
 			);
 		}
