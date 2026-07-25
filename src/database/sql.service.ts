@@ -8,7 +8,14 @@ type Row = Record<string, unknown>;
 
 /** The leading verb is enough to group operations without exploding labels. */
 function operationOf(text: string): string {
-	return text.trimStart().split(/\s+/, 1)[0]?.toUpperCase() ?? "QUERY";
+	// leading comments and a CTE would otherwise be reported as the operation
+	const stripped = text
+		.replace(/\/\*[\s\S]*?\*\//g, " ")
+		.replace(/--[^\n]*/g, " ")
+		.trimStart();
+	const verb = stripped.split(/\s+/, 1)[0]?.toUpperCase();
+	if (!verb) return "QUERY";
+	return verb === "WITH" ? "WITH" : verb;
 }
 export type TransactionClient = Parameters<
 	SQL.TransactionContextCallback<unknown>

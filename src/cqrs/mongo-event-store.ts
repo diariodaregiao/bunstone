@@ -3,7 +3,7 @@ import { Inject, Injectable, InjectionToken } from "@/core/injectable";
 import type { OnModuleInit } from "@/core/lifecycle";
 import { loadMongoDriver } from "@/database/mongo.driver";
 import { MongoService } from "@/database/mongo.service";
-import { DatabaseError, EventStoreError } from "@/errors";
+import { ConfigurationError, DatabaseError, EventStoreError } from "@/errors";
 import { Logger } from "@/utils/logger";
 import type {
 	EventInput,
@@ -56,14 +56,20 @@ export class MongoEventStore implements EventStore, OnModuleInit {
 
 		// idempotent, the analogue of `CREATE TABLE IF NOT EXISTS`: a matching
 		// index is left untouched
-		await this.commits.createIndexes([
-			{
-				key: { streamId: 1, version: 1 },
-				name: STREAM_VERSION_INDEX,
-				unique: true,
-				collation: SIMPLE,
-			},
-		]);
+		try {
+			await this.commits.createIndexes([
+				{
+					key: { streamId: 1, version: 1 },
+					name: STREAM_VERSION_INDEX,
+					unique: true,
+					collation: SIMPLE,
+				},
+			]);
+		} catch (error) {
+			// 85/86 mean an incompatible index already occupies this key or name;
+			// the raw driver error names neither Bunstone nor the fix
+			throw indexConflict(this.options.eventsCollection ?? "events", error);
+		}
 
 		await this.warnOnLegacyIndexes(db);
 	}
@@ -158,6 +164,15 @@ export class MongoEventStore implements EventStore, OnModuleInit {
 	}
 
 	async saveSnapshot<TState>(snapshot: Snapshot<TState>): Promise<void> {
+		const bytes = this.sizeOf(snapshot as object);
+		if (bytes > this.maxCommitBytes) {
+			throw EventStoreError.payloadTooLarge(
+				snapshot.streamId,
+				bytes,
+				this.maxCommitBytes,
+			);
+		}
+
 		try {
 			await this.requireSnapshots().updateOne(
 				{ _id: snapshot.streamId, version: { $lte: snapshot.version } },
@@ -204,11 +219,13 @@ export class MongoEventStore implements EventStore, OnModuleInit {
 			{ streamId },
 			{
 				sort: { version: -1 },
-				projection: { lastVersion: 1 },
+				projection: { lastVersion: 1, version: 1 },
 				collation: SIMPLE,
 			},
 		);
-		return last?.lastVersion ?? 0;
+		// a foreign document without `lastVersion` would report head 0 and let a
+		// writer fork the stream, so fall back to the commit boundary
+		return last?.lastVersion ?? last?.version ?? 0;
 	}
 
 	private commitAt(
@@ -295,6 +312,15 @@ function flatten(
 ): EventRecord[] {
 	const records: EventRecord[] = [];
 	for (const commit of commits) {
+		// a document sharing this stream id but not written by Bunstone (a legacy
+		// one-doc-per-event store, a hand-rolled migration) would otherwise crash
+		// the read with a raw TypeError
+		if (!Array.isArray(commit.events)) {
+			logger.warn(
+				`Ignoring a document in stream "${commit.streamId}" with no \`events\` array; it was not written by this store.`,
+			);
+			continue;
+		}
 		commit.events.forEach((event, index) => {
 			const version = commit.version + index;
 			// safety net for a caller that asked from inside a commit
@@ -339,15 +365,37 @@ function notConnected(): DatabaseError {
 	);
 }
 
+/** 85 IndexOptionsConflict, 86 IndexKeySpecsConflict. */
+function indexConflict(collection: string, error: unknown): Error {
+	const code = (error as { code?: unknown } | null)?.code;
+	if (code !== 85 && code !== 86) return error as Error;
+	return new ConfigurationError(
+		`\`${collection}\` already has an index that conflicts with the one the event store needs.`,
+		"BNS-CFG-004",
+		[
+			`The store requires { streamId: 1, version: 1 } as a unique index named "${STREAM_VERSION_INDEX}" with collation { locale: "simple" } — it is what enforces optimistic concurrency.`,
+			`Drop the conflicting index and let the store recreate it, or point the store at another collection with \`MongoEventStoreModule.register({ eventsCollection: "..." })\`.`,
+		].join("\n  "),
+		{ collection },
+		error instanceof Error ? error : undefined,
+	);
+}
+
 function jsonSize(doc: object): number {
 	return Buffer.byteLength(JSON.stringify(doc), "utf8");
 }
 
 /** BSON sizing is exact; the JSON fallback keeps the guard working without it. */
 async function resolveSizer(): Promise<(doc: object) => number> {
-	const driver = (await loadMongoDriver()) as {
-		BSON?: { calculateObjectSize?: (doc: object) => number };
-	};
-	const calculate = driver.BSON?.calculateObjectSize;
-	return typeof calculate === "function" ? calculate : jsonSize;
+	try {
+		const driver = (await loadMongoDriver()) as {
+			BSON?: { calculateObjectSize?: (doc: object) => number };
+		};
+		const calculate = driver.BSON?.calculateObjectSize;
+		return typeof calculate === "function" ? calculate : jsonSize;
+	} catch {
+		// the caller may have supplied their own client, in which case the driver
+		// is not required at all; JSON bytes are a close enough guard
+		return jsonSize;
+	}
 }

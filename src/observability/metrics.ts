@@ -31,21 +31,27 @@ interface Instruments {
 	cqrsDuration: Histogram;
 }
 
-const consumerStates = new Map<string, () => ConsumerState>();
+const consumerStates = new Map<
+	object,
+	{ queue: string; read: () => ConsumerState }
+>();
 
 /**
  * Consumers report their own state; the gauges read this registry when the
  * collector asks, so nothing is computed while no backend is listening.
  */
 export function registerConsumerState(
+	owner: object,
 	queue: string,
 	read: () => ConsumerState,
 ): void {
-	consumerStates.set(queue, read);
+	// keyed by the consumer instance: two applications in one process, or two
+	// consumers on one queue, would otherwise overwrite each other's reading
+	consumerStates.set(owner, { queue, read });
 }
 
-export function unregisterConsumerState(queue: string): void {
-	consumerStates.delete(queue);
+export function unregisterConsumerState(owner: object): void {
+	consumerStates.delete(owner);
 }
 
 let provider: MeterProvider | undefined;
@@ -118,7 +124,7 @@ function registerConsumerGauges(meter: Meter): void {
 
 	meter.addBatchObservableCallback(
 		(result) => {
-			for (const [queue, read] of consumerStates) {
+			for (const { queue, read } of consumerStates.values()) {
 				const state = read();
 				const attributes: Attributes = { queue };
 				result.observe(circuit, state.circuit, attributes);

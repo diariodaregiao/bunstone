@@ -33,6 +33,10 @@ Start the app as usual — telemetry begins immediately.
 - **Database** — one span per `SqlService` operation, named after the statement's verb (`SELECT`, `INSERT`, `TRANSACTION`), with `db.operation.name` and `db.query.text`. Statements are parameterised, so the recorded text contains no values.
 - **CQRS** — `command CreateUser`, `query GetUser`, `event UserCreated`, with `cqrs.kind` and `cqrs.message`.
 
+Only requests that reach a route handler are traced. A `404`, a `405`, a CORS preflight and a static file are answered before the pipeline and produce no span — the router, not your code, decided them.
+
+A streaming response (SSE) ends its span when the response is constructed, not when the stream closes: the span measures the time to first byte, not the lifetime of the connection.
+
 These nest under the request that caused them, so a trace shows where the time actually went:
 
 ```

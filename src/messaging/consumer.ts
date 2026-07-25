@@ -74,7 +74,7 @@ export class QueueConsumer {
 
 	/** Binds the consumer to a freshly established channel. */
 	async attach(channel: ConfirmChannel): Promise<void> {
-		registerConsumerState(this.queue, () => ({
+		registerConsumerState(this, this.queue, () => ({
 			circuit: CIRCUIT_STATES[this.breaker.current] ?? 0,
 			paused: this.paused,
 			inFlight: this.inFlight.size,
@@ -137,7 +137,7 @@ export class QueueConsumer {
 	async close(timeoutMs: number): Promise<void> {
 		// sticky: a reconnect racing shutdown must not resurrect this consumer
 		this.stopped = true;
-		unregisterConsumerState(this.queue);
+		unregisterConsumerState(this);
 		this.clearResumeTimer();
 		await this.cancel();
 		await this.drain(timeoutMs);

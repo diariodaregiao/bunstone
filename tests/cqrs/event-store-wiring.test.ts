@@ -36,7 +36,7 @@ describe("event store wiring", () => {
 				gracefulShutdown: false,
 				logStartup: false,
 			}),
-		).rejects.toThrow(/MongoModule\.register/);   // the fix is in the message
+		).rejects.toThrow(/MongoModule\.register/); // the fix is in the message
 	});
 
 	it("resolves EVENT_STORE and the implementation to one instance", async () => {
@@ -141,5 +141,57 @@ describe("optionalImport", () => {
 				"SomeModule",
 			),
 		).rejects.toThrow(boom);
+	});
+});
+
+describe("snapshot durability", () => {
+	it("keeps the newest snapshot when a stale one is written after it", async () => {
+		@Module({
+			imports: [SqlModule.register(sqlite), SqlEventStoreModule.register()],
+		})
+		class AppModule {}
+
+		const app = await Application.create(AppModule, {
+			gracefulShutdown: false,
+			logStartup: false,
+		});
+		const store = app.resolve<EventStore>(EVENT_STORE);
+
+		await store.saveSnapshot({ streamId: "s", version: 10, state: { v: 10 } });
+		await store.saveSnapshot({ streamId: "s", version: 4, state: { v: 4 } });
+
+		// the same guarantee the Mongo store gives, so the two are interchangeable
+		expect(await store.loadSnapshot("s")).toEqual({
+			streamId: "s",
+			version: 10,
+			state: { v: 10 },
+		});
+		await app.close();
+	});
+
+	it("stores the state as it was when the version was stamped", async () => {
+		@Module({
+			imports: [SqlModule.register(sqlite), SqlEventStoreModule.register()],
+		})
+		class AppModule {}
+
+		const app = await Application.create(AppModule, {
+			gracefulShutdown: false,
+			logStartup: false,
+		});
+		const store = app.resolve<EventStore>(EVENT_STORE);
+
+		const live = { ops: [1, 2] };
+		const writing = store.saveSnapshot({
+			streamId: "live",
+			version: 2,
+			state: live,
+		});
+		live.ops.push(99); // mutated while the write is in flight
+		await writing;
+
+		const snapshot = await store.loadSnapshot<{ ops: number[] }>("live");
+		expect(snapshot?.state.ops).toEqual([1, 2]);
+		await app.close();
 	});
 });

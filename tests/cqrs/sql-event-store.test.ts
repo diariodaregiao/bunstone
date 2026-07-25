@@ -50,9 +50,13 @@ describe("SqlEventStore placeholders", () => {
 		expect(client.statements).toContain(
 			"INSERT INTO events (stream_id, version, type, payload, created_at) VALUES ($1, $2, $3, $4, $5)",
 		);
-		expect(client.statements).toContain(
-			"INSERT INTO snapshots (stream_id, version, state) VALUES ($1, $2, $3)",
-		);
+		expect(
+			client.statements.some((statement) =>
+				statement.startsWith(
+					"INSERT INTO snapshots (stream_id, version, state) VALUES ($1, $2, $3) ON CONFLICT",
+				),
+			),
+		).toBe(true);
 	});
 
 	it("keeps `?` placeholders on mysql and sqlite", async () => {

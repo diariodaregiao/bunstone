@@ -30,7 +30,9 @@ export class EventSourcedRepository<A extends AggregateRoot> {
 		private readonly factory: () => A,
 		options: RepositoryOptions = {},
 	) {
-		this.snapshotEvery = options.snapshotEvery ?? 0;
+		const every = options.snapshotEvery ?? 0;
+		// a NaN would slip past `every <= 0` and then never satisfy the trigger
+		this.snapshotEvery = Number.isFinite(every) && every > 0 ? every : 0;
 	}
 
 	async load(streamId: string): Promise<A | null> {
@@ -98,7 +100,10 @@ export class EventSourcedRepository<A extends AggregateRoot> {
 			await this.store.saveSnapshot({
 				streamId,
 				version: aggregate.version,
-				state: (aggregate as unknown as Snapshottable).snapshotState(),
+				// detached in the same tick the version is read: a store that
+				// serialises later would otherwise persist state the aggregate
+				// mutated in between, stamped with a version it never had
+				state: detach((aggregate as unknown as Snapshottable).snapshotState()),
 			});
 		} catch (error) {
 			// a snapshot is a cache: losing one costs a longer replay, not correctness
@@ -107,6 +112,15 @@ export class EventSourcedRepository<A extends AggregateRoot> {
 				error,
 			);
 		}
+	}
+}
+
+/** Structured clone where possible; JSON is the fallback for exotic values. */
+function detach<T>(state: T): T {
+	try {
+		return structuredClone(state);
+	} catch {
+		return state;
 	}
 }
 

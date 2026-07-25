@@ -16,9 +16,11 @@ export class CacheService implements OnModuleDestroy {
 	}
 
 	async get<T>(key: string): Promise<T | null> {
-		const raw = await this.redis.get(key);
-		recordCacheResult("get", raw === null ? "miss" : "hit");
-		return decode<T>(raw);
+		const value = decode<T>(await this.redis.get(key));
+		// unparseable is a miss: counting it as a hit would hide the problem in
+		// the one metric meant to reveal it
+		recordCacheResult("get", value === null ? "miss" : "hit");
+		return value;
 	}
 
 	/**

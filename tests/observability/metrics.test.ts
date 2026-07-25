@@ -113,7 +113,8 @@ describe("HTTP metrics", () => {
 describe("consumer state gauges", () => {
 	it("reports what a registered consumer says about itself", async () => {
 		const state: ConsumerState = { circuit: 2, paused: true, inFlight: 3 };
-		registerConsumerState("orders", () => state);
+		const owner = {};
+		registerConsumerState(owner, "orders", () => state);
 
 		try {
 			const circuit = await pointsFor("messaging.circuit_breaker.state");
@@ -130,17 +131,18 @@ describe("consumer state gauges", () => {
 				3,
 			);
 		} finally {
-			unregisterConsumerState("orders");
+			unregisterConsumerState(owner);
 		}
 	});
 
 	it("stops reporting a consumer that unregistered", async () => {
-		registerConsumerState("gone", () => ({
+		const owner = {};
+		registerConsumerState(owner, "gone", () => ({
 			circuit: 0,
 			paused: false,
 			inFlight: 0,
 		}));
-		unregisterConsumerState("gone");
+		unregisterConsumerState(owner);
 
 		const points = await pointsFor("messaging.consumer.paused");
 		expect(points.some((point) => point.attributes.queue === "gone")).toBe(

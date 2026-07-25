@@ -1648,7 +1648,9 @@ One knob drives both halves on purpose: a repository that writes snapshots witho
 
 Both methods are required. An aggregate with `snapshotState` but no `restoreFromState` would rehydrate empty and stamped with the snapshot's version — a silent corruption — so the repository rejects it with `BNS-ES-003` **before** appending anything.
 
-`snapshotState()` must return a JSON-round-trippable value: `Date`, `Map`, `Set` and class instances do not survive the trip through either backend.
+`snapshotState()` must return a JSON-round-trippable value: `Date`, `Map`, `Set` and class instances do not survive the trip through either backend. The state is detached the moment the version is stamped, so mutating the aggregate while the snapshot is being written cannot store a state the version never had.
+
+A snapshot is written monotonically on both backends: a stale writer can never overwrite a newer snapshot.
 
 A snapshot is a cache. If writing one fails the save still succeeds and a warning is logged — you pay a longer replay, never a lost event.
 
@@ -1660,6 +1662,13 @@ A snapshot is a cache. If writing one fails the save still succeeds and a warnin
 | Atomicity of a multi-event append | transaction | one document per commit — a torn append is structurally impossible |
 | Topology requirements | none | none: works on a standalone `mongod`, no replica set needed |
 | Payload limit | `LONGTEXT` on MySQL, unbounded elsewhere | 16 MB per commit; the store rejects at 15 MB with `BNS-ES-002` |
+| Stream id length | `VARCHAR(255)`; longer ids are rejected | no practical limit |
+| `Date` in a payload | read back as an ISO string | read back as a `Date` |
+| `undefined` in a payload | rejected | stored as `null` |
+
+Those last three are why a `when()` reducer should treat its event payloads as plain JSON. Write it so it works on either backend and switching one is a configuration change rather than a migration of your domain code.
+
+> A snapshot whose version is **ahead** of the stream head — only reachable if events were deleted out of band — is trusted as written, and the next `save` then fails with `BNS-ES-001`. If you run a retention or GDPR-deletion job over `events`, delete the matching snapshot in the same operation.
 
 The Mongo store stores **one document per `append()`**, not per event. Multi-document transactions require a replica set, and an ordered `insertMany` that fails halfway leaves earlier events permanently committed with no rollback — replay would then produce a state that never legally existed. Batching the commit removes that failure mode on every topology.
 
@@ -2283,6 +2292,10 @@ Start the app as usual — telemetry begins immediately.
 - **Queue** — `process {queue}` with `messaging.system`, `messaging.destination.name` and `messaging.attempt`. A handler that throws marks the span as an error.
 - **Database** — one span per `SqlService` operation, named after the statement's verb (`SELECT`, `INSERT`, `TRANSACTION`), with `db.operation.name` and `db.query.text`. Statements are parameterised, so the recorded text contains no values.
 - **CQRS** — `command CreateUser`, `query GetUser`, `event UserCreated`, with `cqrs.kind` and `cqrs.message`.
+
+Only requests that reach a route handler are traced. A `404`, a `405`, a CORS preflight and a static file are answered before the pipeline and produce no span — the router, not your code, decided them.
+
+A streaming response (SSE) ends its span when the response is constructed, not when the stream closes: the span measures the time to first byte, not the lifetime of the connection.
 
 These nest under the request that caused them, so a trace shows where the time actually went:
 

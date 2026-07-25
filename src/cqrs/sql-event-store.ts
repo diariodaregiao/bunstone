@@ -211,18 +211,29 @@ export class SqlEventStore implements EventStore, OnModuleInit {
 		}));
 	}
 
+	/**
+	 * A single upsert, not DELETE-then-INSERT in a transaction: the delete takes
+	 * next-key locks that reach beyond the row and deadlocked concurrent writers
+	 * on *different* streams. The version predicate makes it monotonic, so a
+	 * stale writer can never overwrite a newer snapshot.
+	 */
 	async saveSnapshot<TState>(snapshot: Snapshot<TState>): Promise<void> {
-		await this.sql.transaction(async (tx) => {
-			await tx.unsafe(this.bind("DELETE FROM snapshots WHERE stream_id = ?"), [
-				snapshot.streamId,
-			]);
-			await tx.unsafe(
-				this.bind(
-					"INSERT INTO snapshots (stream_id, version, state) VALUES (?, ?, ?)",
-				),
-				[snapshot.streamId, snapshot.version, JSON.stringify(snapshot.state)],
-			);
-		});
+		const state = JSON.stringify(snapshot.state);
+		await this.sql.query(this.bind(this.upsertSnapshot()), [
+			snapshot.streamId,
+			snapshot.version,
+			state,
+		]);
+	}
+
+	private upsertSnapshot(): string {
+		const insert =
+			"INSERT INTO snapshots (stream_id, version, state) VALUES (?, ?, ?)";
+		if (this.adapter === "mysql" || this.adapter === "mariadb") {
+			return `${insert} ON DUPLICATE KEY UPDATE version = IF(VALUES(version) >= version, VALUES(version), version), state = IF(VALUES(version) >= version, VALUES(state), state)`;
+		}
+		// postgres and sqlite share the standard conflict clause
+		return `${insert} ON CONFLICT (stream_id) DO UPDATE SET version = EXCLUDED.version, state = EXCLUDED.state WHERE snapshots.version <= EXCLUDED.version`;
 	}
 
 	async loadSnapshot<TState>(
