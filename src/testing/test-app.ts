@@ -12,13 +12,7 @@ export interface TestRequestOptions {
 }
 
 export class TestApp {
-	private readonly routes: RoutesMap;
-	private readonly matcher = new RouteMatcher();
-
-	constructor(server: HttpServer) {
-		this.routes = server.getRoutesMap();
-		for (const path of Object.keys(this.routes)) this.matcher.add(path);
-	}
+	constructor(private readonly server: HttpServer) {}
 
 	get(path: string, options?: TestRequestOptions): Promise<Response> {
 		return this.dispatch("GET", path, { headers: options?.headers });
@@ -59,31 +53,7 @@ export class TestApp {
 	): Promise<Response> {
 		const url = `http://test.local${path.startsWith("/") ? path : `/${path}`}`;
 		const req = new Request(url, { method, ...init }) as BunRequest;
-		const match = this.matcher.match(new URL(url).pathname);
-		const handler = match ? this.routes[match.path]?.[method] : undefined;
-
-		// mirrors HttpServer.fallback: a known path with no handler for the method
-		// is 405 with an `Allow` header, anything else is 404
-		if (!handler) {
-			const allowed = match ? Object.keys(this.routes[match.path] ?? {}) : [];
-			if (allowed.length > 0) {
-				return Promise.resolve(
-					Response.json(
-						{ statusCode: 405, message: "Method Not Allowed" },
-						{ status: 405, headers: { allow: allowed.join(", ") } },
-					),
-				);
-			}
-			return Promise.resolve(
-				Response.json(
-					{ statusCode: 404, message: "Not Found" },
-					{ status: 404 },
-				),
-			);
-		}
-
-		if (match) req.params = match.params;
-		return Promise.resolve(handler(req, fakeServer));
+		return this.server.handle(req, fakeServer);
 	}
 }
 

@@ -34,7 +34,11 @@ export class TestingModule {
 		return new TestApp(server);
 	}
 
+	private closed = false;
+
 	async close(): Promise<void> {
+		if (this.closed) return;
+		this.closed = true;
 		for (const server of this.servers.splice(0)) await server.stop(0);
 		await runLifecycle(this.instances, "onModuleDestroy", true);
 	}

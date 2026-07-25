@@ -5,8 +5,8 @@ import { JwtModule } from "@/auth/jwt-module";
 import { Application } from "@/core/application";
 import { Injectable } from "@/core/injectable";
 import { Module } from "@/core/module";
-import { type GuardContract, UseGuards } from "@/http/guard";
 import { Cors } from "@/http/cors";
+import { type GuardContract, UseGuards } from "@/http/guard";
 import { Controller, Get, Options } from "@/http/routing";
 
 @Injectable()

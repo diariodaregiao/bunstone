@@ -267,6 +267,26 @@ export class HttpServer {
 		return this.server;
 	}
 
+	/**
+	 * Routes one request exactly as the live server does, falling back to CORS
+	 * preflight, static files and the 404/405 answers. `TestApp` dispatches
+	 * through here so in-memory tests cannot drift from production behaviour.
+	 */
+	async handle(req: BunRequest, server: BunServer): Promise<Response> {
+		const pathname = new URL(req.url).pathname;
+		const match = this.matcher.match(pathname);
+		const handler = match ? this.routes[match.path]?.[req.method] : undefined;
+
+		if (handler && match) {
+			req.params = match.params;
+			return handler(req, server);
+		}
+		return (
+			(await this.fallback(req, server)) ??
+			new Response("WebSocket upgrade failed", { status: 426 })
+		);
+	}
+
 	private async fallback(
 		req: BunRequest,
 		server: BunServer,

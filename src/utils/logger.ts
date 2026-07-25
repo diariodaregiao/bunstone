@@ -31,15 +31,25 @@ function serializeArg(value: unknown): string {
 	}
 }
 
-function errorShape(error: Error): Record<string, unknown> {
+function errorShape(
+	error: Error,
+	seen = new WeakSet<Error>(),
+): Record<string, unknown> {
 	const shape: Record<string, unknown> = {
 		name: error.name,
 		message: error.message,
 		stack: error.stack,
 	};
+	// a `cause` chain can loop, and losing the whole log line to that would
+	// defeat the point of hardening the serializer in the first place
+	seen.add(error);
 	if (error.cause !== undefined) {
 		shape.cause =
-			error.cause instanceof Error ? errorShape(error.cause) : error.cause;
+			error.cause instanceof Error
+				? seen.has(error.cause)
+					? "[Circular]"
+					: errorShape(error.cause, seen)
+				: error.cause;
 	}
 	return shape;
 }

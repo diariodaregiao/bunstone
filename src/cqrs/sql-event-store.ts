@@ -28,27 +28,37 @@ function adapterOf(sql: SqlService): string | undefined {
 	return client.options?.adapter;
 }
 
-// Postgres rejects duplicates with SQLSTATE 23505, MySQL with ER_DUP_ENTRY and
-// SQLite with a SQLITE_CONSTRAINT_* code; older drivers only set the message.
-function isUniqueViolation(error: unknown): boolean {
+/**
+ * Every engine reports a lost append differently: Postgres raises SQLSTATE
+ * 23505, MySQL `ER_DUP_ENTRY`, SQLite a `SQLITE_CONSTRAINT_*` code — and
+ * MariaDB, under snapshot isolation, fails the *read* with "Record has changed
+ * since last read" rather than the insert. They all mean the same thing here:
+ * another writer got to this version first.
+ */
+function isConcurrencyConflict(error: unknown): boolean {
 	if (!(error instanceof Error)) return false;
 	const code = String((error as { code?: unknown }).code ?? "");
 	if (
 		code === "23505" ||
 		code === "ER_DUP_ENTRY" ||
+		code === "ER_CHECKREAD" ||
 		code.startsWith("SQLITE_CONSTRAINT")
 	) {
 		return true;
 	}
-	return /duplicate (key|entry)|unique constraint/i.test(error.message);
+	return /duplicate (key|entry)|unique constraint|record has changed since last read|deadlock found|could not serialize access/i.test(
+		error.message,
+	);
 }
 
 @Injectable()
 export class SqlEventStore implements EventStore, OnModuleInit {
 	private readonly numberedPlaceholders: boolean;
+	private readonly adapter: string | undefined;
 
 	constructor(private readonly sql: SqlService) {
-		this.numberedPlaceholders = adapterOf(sql) === "postgres";
+		this.adapter = adapterOf(sql);
+		this.numberedPlaceholders = this.adapter === "postgres";
 	}
 
 	// Statements are written with `?`; Bun's postgres driver only binds `$1, $2, ...`.
@@ -59,11 +69,20 @@ export class SqlEventStore implements EventStore, OnModuleInit {
 	}
 
 	async onModuleInit(): Promise<void> {
+		const mysql = this.adapter === "mysql" || this.adapter === "mariadb";
+		// MySQL's default collation is case-insensitive, which would merge two
+		// stream ids differing only in case into one aggregate; and TEXT caps at
+		// 64 KB, which a normal event payload can exceed.
+		const key = mysql
+			? "VARCHAR(255) COLLATE utf8mb4_bin NOT NULL"
+			: "VARCHAR(255) NOT NULL";
+		const json = mysql ? "LONGTEXT NOT NULL" : "TEXT NOT NULL";
+
 		await this.sql.query(
-			"CREATE TABLE IF NOT EXISTS events (stream_id VARCHAR(255) NOT NULL, version INTEGER NOT NULL, type VARCHAR(255) NOT NULL, payload TEXT NOT NULL, created_at VARCHAR(64) NOT NULL, PRIMARY KEY (stream_id, version))",
+			`CREATE TABLE IF NOT EXISTS events (stream_id ${key}, version INTEGER NOT NULL, type VARCHAR(255) NOT NULL, payload ${json}, created_at VARCHAR(64) NOT NULL, PRIMARY KEY (stream_id, version))`,
 		);
 		await this.sql.query(
-			"CREATE TABLE IF NOT EXISTS snapshots (stream_id VARCHAR(255) NOT NULL PRIMARY KEY, version INTEGER NOT NULL, state TEXT NOT NULL)",
+			`CREATE TABLE IF NOT EXISTS snapshots (stream_id ${key} PRIMARY KEY, version INTEGER NOT NULL, state ${json})`,
 		);
 	}
 
@@ -108,7 +127,7 @@ export class SqlEventStore implements EventStore, OnModuleInit {
 			if (error instanceof EventStoreError) throw error;
 			// The read-then-insert is not atomic: a concurrent writer is rejected by
 			// the (stream_id, version) primary key rather than by the check above.
-			if (!isUniqueViolation(error)) throw error;
+			if (!isConcurrencyConflict(error)) throw error;
 			throw EventStoreError.versionConflict(
 				streamId,
 				expectedVersion,
