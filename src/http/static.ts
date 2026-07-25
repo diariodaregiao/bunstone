@@ -20,7 +20,13 @@ export class StaticFiles {
 	}
 
 	async serve(pathname: string): Promise<Response> {
-		const relative = decodeURIComponent(pathname.slice(this.prefix.length));
+		let relative: string;
+		try {
+			relative = decodeURIComponent(pathname.slice(this.prefix.length));
+		} catch {
+			// a malformed percent-escape is a bad request, not a server error
+			return new Response("Bad Request", { status: 400 });
+		}
 		const target = resolve(this.root, `.${relative}`);
 
 		if (target !== this.root && !target.startsWith(this.root + sep)) {

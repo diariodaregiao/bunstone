@@ -233,6 +233,9 @@ export class HttpServer {
 	}
 
 	listen(port?: number): BunServer {
+		// re-listening would otherwise leave the previous server bound and
+		// unreachable by `stop()`
+		this.server?.stop(true);
 		this.server = Bun.serve({
 			port: port ?? this.options.port ?? 3000,
 			hostname: this.options.hostname,

@@ -96,6 +96,8 @@ When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJS
 
 Some Zod types have no JSON Schema equivalent (`z.date()`, `z.bigint()`, `z.custom()`, `.transform()`). These are emitted as permissive schemas rather than failing: document generation can never stop your application from booting. When a schema cannot be represented, a warning naming the route is logged.
 
+A self-referencing schema (a category with children of its own type, for example) is hoisted into `components.schemas` and referenced from there, so its internal `$ref` resolves to the schema rather than to the root of the document.
+
 The Swagger UI page loads swagger-ui-dist from a CDN at an exact pinned version, locked with a subresource-integrity hash, so a compromised or altered CDN asset cannot execute on your API's origin.
 
 For the controller above, the generated document includes:

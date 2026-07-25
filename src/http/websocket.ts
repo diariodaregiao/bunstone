@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import type { ServerWebSocket } from "bun";
 import type { Constructor } from "@/core/injectable";
+import { Logger } from "@/utils/logger";
 import type { WebSocketData } from "./types";
 
 export type Socket = ServerWebSocket<WebSocketData>;
@@ -54,16 +55,40 @@ function decode(message: string | Buffer): unknown {
 	}
 }
 
+const logger = new Logger("WebSocket");
+
+/**
+ * A gateway callback is invoked by Bun, so a rejection has nowhere to surface.
+ * Errors are caught and logged per event, the way scheduled jobs are, instead
+ * of vanishing into a discarded promise.
+ */
+function guard(event: string, run: () => void | Promise<void>): void {
+	try {
+		const result = run();
+		if (result instanceof Promise) {
+			result.catch((error) =>
+				logger.error(`WebSocket "${event}" handler failed:`, error),
+			);
+		}
+	} catch (error) {
+		logger.error(`WebSocket "${event}" handler failed:`, error);
+	}
+}
+
 export function buildWebSocketHandler(gateways: Map<string, WebSocketHandler>) {
 	return {
 		open(socket: Socket) {
-			void gateways.get(socket.data.path)?.open?.(socket);
+			guard("open", () => gateways.get(socket.data.path)?.open?.(socket));
 		},
 		message(socket: Socket, message: string | Buffer) {
-			void gateways.get(socket.data.path)?.message(socket, decode(message));
+			guard("message", () =>
+				gateways.get(socket.data.path)?.message(socket, decode(message)),
+			);
 		},
 		close(socket: Socket, code: number, reason: string) {
-			void gateways.get(socket.data.path)?.close?.(socket, code, reason);
+			guard("close", () =>
+				gateways.get(socket.data.path)?.close?.(socket, code, reason),
+			);
 		},
 	};
 }

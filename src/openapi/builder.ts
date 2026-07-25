@@ -36,7 +36,11 @@ const logger = new Logger("OpenAPI");
  */
 function toJsonSchema(schema: ZodType, route: string): JsonObject {
 	try {
-		return z.toJSONSchema(schema, { unrepresentable: "any" }) as JsonObject;
+		const converted = z.toJSONSchema(schema, {
+			unrepresentable: "any",
+		}) as JsonObject;
+		delete converted.$schema;
+		return converted;
 	} catch (error) {
 		logger.warn(
 			`Could not convert the schema for ${route} to JSON Schema; documenting it as unconstrained.`,
@@ -46,11 +50,44 @@ function toJsonSchema(schema: ZodType, route: string): JsonObject {
 	}
 }
 
+/**
+ * Zod emits `{"$ref": "#"}` for a self-referencing schema. Inline in an
+ * operation that `#` resolves to the root of the OpenAPI document, so the
+ * schema has to be hoisted into `components.schemas` and its internal
+ * references rebased onto that location.
+ */
+function rebaseRefs(value: unknown, componentPath: string): unknown {
+	if (Array.isArray(value)) {
+		return value.map((item) => rebaseRefs(item, componentPath));
+	}
+	if (value === null || typeof value !== "object") return value;
+
+	const result: JsonObject = {};
+	for (const [key, entry] of Object.entries(value as JsonObject)) {
+		if (key === "$ref" && typeof entry === "string") {
+			result.$ref =
+				entry === "#"
+					? componentPath
+					: entry.startsWith("#/")
+						? `${componentPath}/${entry.slice(2)}`
+						: entry;
+			continue;
+		}
+		result[key] = rebaseRefs(entry, componentPath);
+	}
+	return result;
+}
+
+function isSelfReferencing(schema: JsonObject): boolean {
+	return JSON.stringify(schema).includes('"$ref":"#');
+}
+
 export function buildOpenApiDocument(
 	controllers: Constructor[],
 	info: OpenApiInfo,
 ): JsonObject {
 	const paths: Record<string, JsonObject> = {};
+	const components: Record<string, JsonObject> = {};
 
 	for (const controller of controllers) {
 		const base = getControllerPath(controller);
@@ -64,6 +101,7 @@ export function buildOpenApiDocument(
 				route,
 				joined,
 				controllerTags,
+				components,
 			);
 			const entry = paths[fullPath] ?? {};
 			entry[route.method.toLowerCase()] = operation;
@@ -71,7 +109,22 @@ export function buildOpenApiDocument(
 		}
 	}
 
-	return { openapi: "3.1.0", info, paths };
+	const document: JsonObject = { openapi: "3.1.0", info, paths };
+	if (Object.keys(components).length > 0) {
+		document.components = { schemas: components };
+	}
+	return document;
+}
+
+/** Moves a self-referencing schema into `components.schemas` and links to it. */
+function hoist(
+	schema: JsonObject,
+	name: string,
+	components: Record<string, JsonObject>,
+): JsonObject {
+	const componentPath = `#/components/schemas/${name}`;
+	components[name] = rebaseRefs(schema, componentPath) as JsonObject;
+	return { $ref: componentPath };
 }
 
 function buildOperation(
@@ -79,6 +132,7 @@ function buildOperation(
 	route: { method: string; path: string; handlerName: string },
 	fullPath: string,
 	controllerTags: string[],
+	components: Record<string, JsonObject>,
 ): JsonObject {
 	const params: ParamMeta[] =
 		Reflect.getOwnMetadata(
@@ -104,7 +158,12 @@ function buildOperation(
 	const parameters = buildParameters(fullPath, params, label);
 	if (parameters.length > 0) operation.parameters = parameters;
 
-	const requestBody = buildRequestBody(params, label);
+	const requestBody = buildRequestBody(
+		params,
+		label,
+		components,
+		`${controller.name}${route.handlerName.charAt(0).toUpperCase()}${route.handlerName.slice(1)}Body`,
+	);
 	if (requestBody) operation.requestBody = requestBody;
 
 	operation.responses = buildResponses(controller, route.handlerName);
@@ -157,13 +216,21 @@ function buildParameters(
 function buildRequestBody(
 	params: ParamMeta[],
 	route: string,
+	components: Record<string, JsonObject>,
+	name: string,
 ): JsonObject | undefined {
 	const body = params.find((param) => param.source === ParamSource.BODY);
 	if (!body || !isZodSchema(body.schema)) return undefined;
+
+	const converted = toJsonSchema(body.schema, route);
+	const schema = isSelfReferencing(converted)
+		? hoist(converted, name, components)
+		: converted;
+
 	return {
 		required: true,
 		content: {
-			"application/json": { schema: toJsonSchema(body.schema, route) },
+			"application/json": { schema },
 		},
 	};
 }

@@ -1626,6 +1626,8 @@ interface WebSocketHandler {
 
 Only `message` is required. Incoming text is parsed as JSON when possible; otherwise `data` is the raw string. Send data back with `socket.send(...)`.
 
+A handler that throws (or rejects) is caught and logged per event, the way scheduled jobs are, so one bad message cannot take down the gateway or disappear without a trace.
+
 ### Registration
 
 Register the gateway class (and its dependencies) in a module's `providers`. Bunstone discovers gateways during startup and wires the upgrade route for its path.
@@ -2033,6 +2035,8 @@ export class UsersController {
 When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically — including those declared on the `@Controller` prefix — and `@Query("name")` parameters appear as query parameters.
 
 Some Zod types have no JSON Schema equivalent (`z.date()`, `z.bigint()`, `z.custom()`, `.transform()`). These are emitted as permissive schemas rather than failing: document generation can never stop your application from booting. When a schema cannot be represented, a warning naming the route is logged.
+
+A self-referencing schema (a category with children of its own type, for example) is hoisted into `components.schemas` and referenced from there, so its internal `$ref` resolves to the schema rather than to the root of the document.
 
 The Swagger UI page loads swagger-ui-dist from a CDN at an exact pinned version, locked with a subresource-integrity hash, so a compromised or altered CDN asset cannot execute on your API's origin.
 

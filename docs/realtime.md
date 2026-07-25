@@ -110,6 +110,8 @@ interface WebSocketHandler {
 
 Only `message` is required. Incoming text is parsed as JSON when possible; otherwise `data` is the raw string. Send data back with `socket.send(...)`.
 
+A handler that throws (or rejects) is caught and logged per event, the way scheduled jobs are, so one bad message cannot take down the gateway or disappear without a trace.
+
 ### Registration
 
 Register the gateway class (and its dependencies) in a module's `providers`. Bunstone discovers gateways during startup and wires the upgrade route for its path.
