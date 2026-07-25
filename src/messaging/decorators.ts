@@ -29,6 +29,7 @@ export function isRabbitConsumer(ctor: Constructor): boolean {
 	return Reflect.getOwnMetadata(RABBIT_CONSUMER_METADATA, ctor) === true;
 }
 
+/** Inherited, so a subclass consumer still subscribes to what it inherited. */
 export function getSubscriptions(ctor: Constructor): SubscribeConfig[] {
-	return Reflect.getOwnMetadata(RABBIT_SUBSCRIBE_METADATA, ctor) ?? [];
+	return Reflect.getMetadata(RABBIT_SUBSCRIBE_METADATA, ctor) ?? [];
 }

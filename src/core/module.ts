@@ -50,11 +50,23 @@ export function compileModules(root: ModuleImport): CompiledModules {
 	const container = new Container();
 	const modules: Constructor[] = [];
 	const controllers: Constructor[] = [];
-	const seen = new Set<Constructor>();
+	const seen = new Set<ModuleImport | Constructor>();
 
 	const visit = (entry: ModuleImport): void => {
+		if (entry === undefined || entry === null) {
+			throw new ModuleInitializationError(
+				"An import, provider or controller entry is `undefined`.",
+				"BNS-MOD-002",
+				"This is almost always a circular import or an `import type` used as a value. Import the module as a value and break the cycle.",
+				{},
+			);
+		}
+
 		const moduleClass = isDynamicModule(entry) ? entry.module : entry;
-		if (seen.has(moduleClass)) return;
+		// dedupe by the entry itself: two `Module.register(...)` calls are two
+		// distinct configurations and both must contribute their providers
+		if (seen.has(entry)) return;
+		if (!isDynamicModule(entry) && seen.has(moduleClass)) return;
 
 		const staticMetadata = getModuleMetadata(moduleClass);
 		const dynamic = isDynamicModule(entry) ? entry : undefined;
@@ -67,8 +79,9 @@ export function compileModules(root: ModuleImport): CompiledModules {
 			);
 		}
 
+		seen.add(entry);
 		seen.add(moduleClass);
-		modules.push(moduleClass);
+		if (!modules.includes(moduleClass)) modules.push(moduleClass);
 
 		const imports = [
 			...(staticMetadata?.imports ?? []),

@@ -46,6 +46,12 @@ export class PostsController {
 }
 ```
 
+`HEAD` is served automatically wherever `GET` is: Bunstone registers a `HEAD` handler that returns the same status and headers with no body, unless you declare your own.
+
+A request to a known path with a method no handler covers gets `405 Method Not Allowed` with an `Allow` header listing the supported methods. Only an unknown path returns `404`.
+
+Declaring the same method and path twice raises a configuration error at startup rather than silently letting one handler shadow the other.
+
 ## Parameters
 
 Parameter decorators pull data out of the request into method arguments:

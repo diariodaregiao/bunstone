@@ -13,7 +13,10 @@ export function UseGuards(
 ): ClassDecorator & MethodDecorator {
 	return ((target: object, propertyKey?: string | symbol) => {
 		if (propertyKey === undefined) {
-			Reflect.defineMetadata(GUARDS_METADATA, guards, target);
+			// merge, so stacking @Jwt() and @UseGuards() on one class keeps both
+			const existing: Constructor<GuardContract>[] =
+				Reflect.getOwnMetadata(GUARDS_METADATA, target) ?? [];
+			Reflect.defineMetadata(GUARDS_METADATA, [...existing, ...guards], target);
 		} else {
 			const existing: Constructor<GuardContract>[] =
 				Reflect.getOwnMetadata(GUARDS_METADATA, target, propertyKey) ?? [];
@@ -27,10 +30,15 @@ export function UseGuards(
 	}) as ClassDecorator & MethodDecorator;
 }
 
+/**
+ * Inherited on purpose: `@Controller` and its path are read with inherited
+ * metadata, so a subclass that inherits its routes must inherit their guards
+ * too — otherwise extending a guarded controller silently opens it up.
+ */
 export function getControllerGuards(
 	controller: Constructor,
 ): Constructor<GuardContract>[] {
-	return Reflect.getOwnMetadata(GUARDS_METADATA, controller) ?? [];
+	return Reflect.getMetadata(GUARDS_METADATA, controller) ?? [];
 }
 
 export function getRouteGuards(
@@ -38,10 +46,7 @@ export function getRouteGuards(
 	handlerName: string,
 ): Constructor<GuardContract>[] {
 	return (
-		Reflect.getOwnMetadata(
-			GUARDS_METADATA,
-			controller.prototype,
-			handlerName,
-		) ?? []
+		Reflect.getMetadata(GUARDS_METADATA, controller.prototype, handlerName) ??
+		[]
 	);
 }

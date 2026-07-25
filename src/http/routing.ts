@@ -94,7 +94,7 @@ export function getSetHeaders(
 	handlerName: string,
 ): Record<string, string> {
 	return (
-		Reflect.getOwnMetadata(
+		Reflect.getMetadata(
 			SET_HEADER_METADATA,
 			controller.prototype,
 			handlerName,

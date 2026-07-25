@@ -29,11 +29,7 @@ export function getSseOptions(
 	controller: Constructor,
 	handlerName: string,
 ): SseOptions | undefined {
-	return Reflect.getOwnMetadata(
-		SSE_METADATA,
-		controller.prototype,
-		handlerName,
-	);
+	return Reflect.getMetadata(SSE_METADATA, controller.prototype, handlerName);
 }
 
 function normalize(message: SseMessage | unknown): SseMessage {
@@ -47,15 +43,21 @@ function normalize(message: SseMessage | unknown): SseMessage {
 	return { data: message };
 }
 
+/** A newline in a field would forge extra frame lines, so strip them. */
+function singleLine(value: string): string {
+	return value.replace(/[\r\n]+/g, " ");
+}
+
 export function formatEvent(message: SseMessage): string {
 	let frame = "";
-	if (message.event) frame += `event: ${message.event}\n`;
-	if (message.id) frame += `id: ${message.id}\n`;
-	if (message.retry) frame += `retry: ${message.retry}\n`;
+	if (message.event) frame += `event: ${singleLine(message.event)}\n`;
+	if (message.id) frame += `id: ${singleLine(message.id)}\n`;
+	if (message.retry) frame += `retry: ${Math.trunc(message.retry)}\n`;
+	// `JSON.stringify(undefined)` is undefined, which would throw on `.split`
 	const data =
 		typeof message.data === "string"
 			? message.data
-			: JSON.stringify(message.data);
+			: (JSON.stringify(message.data) ?? "");
 	for (const line of data.split("\n")) frame += `data: ${line}\n`;
 	return `${frame}\n`;
 }
@@ -66,31 +68,66 @@ export function sseResponse(
 ): Response {
 	const encoder = new TextEncoder();
 
+	const iterator = source[Symbol.asyncIterator]();
+	let heartbeat: ReturnType<typeof setInterval> | undefined;
+	let onAbort: (() => void) | undefined;
+	let finished = false;
+
+	/**
+	 * Idempotent, and reachable from the abort listener as well as from the
+	 * stream itself — otherwise a client that disconnects mid-generator leaves
+	 * the heartbeat and the listener running until the generator next yields,
+	 * which may be never.
+	 */
+	const cleanup = (): void => {
+		if (finished) return;
+		finished = true;
+		if (heartbeat) clearInterval(heartbeat);
+		if (onAbort) options.signal?.removeEventListener("abort", onAbort);
+		void iterator.return?.(undefined);
+	};
+
 	const stream = new ReadableStream<Uint8Array>({
-		async start(controller) {
-			const heartbeat = options.heartbeatMs
-				? setInterval(() => {
+		start(controller) {
+			if (options.heartbeatMs) {
+				heartbeat = setInterval(() => {
+					// skip the ping when the consumer is already behind
+					if ((controller.desiredSize ?? 1) > 0) {
 						safeEnqueue(controller, encoder.encode(": ping\n\n"));
-					}, options.heartbeatMs)
-				: undefined;
-
-			const onAbort = () => safeClose(controller);
+					}
+				}, options.heartbeatMs);
+			}
+			onAbort = () => {
+				cleanup();
+				safeClose(controller);
+			};
 			options.signal?.addEventListener("abort", onAbort);
+		},
 
+		// pull-driven, so a client that stops reading stops the producer instead
+		// of letting it run ahead and buffer the whole dataset in memory
+		async pull(controller) {
+			if (options.signal?.aborted || finished) {
+				cleanup();
+				safeClose(controller);
+				return;
+			}
 			try {
-				for await (const message of source) {
-					if (options.signal?.aborted) break;
-					safeEnqueue(
-						controller,
-						encoder.encode(formatEvent(normalize(message))),
-					);
+				const { value, done } = await iterator.next();
+				if (done) {
+					cleanup();
+					safeClose(controller);
+					return;
 				}
+				safeEnqueue(controller, encoder.encode(formatEvent(normalize(value))));
 			} catch {
-			} finally {
-				if (heartbeat) clearInterval(heartbeat);
-				options.signal?.removeEventListener("abort", onAbort);
+				cleanup();
 				safeClose(controller);
 			}
+		},
+
+		cancel() {
+			cleanup();
 		},
 	});
 

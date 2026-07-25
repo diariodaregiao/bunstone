@@ -4,7 +4,7 @@ Protect endpoints from abuse with the `@RateLimit()` decorator. It applies a fix
 
 ## Basic Usage
 
-Apply `@RateLimit()` to a controller method or to the whole controller (class-level applies to every route in it; a method-level decorator overrides the controller-level one).
+Apply `@RateLimit()` to a controller method or to the whole controller (class-level applies to every route in it; a method-level decorator overrides the controller-level one). A class-level limit is inherited by subclasses of that controller.
 
 ```ts
 import { Controller, Get, RateLimit } from "@grupodiariodaregiao/bunstone";
@@ -37,7 +37,9 @@ interface RateLimitConfig {
 }
 ```
 
-By default each request is keyed by `IP:METHOD:PATH`. Override `keyGenerator` to key by something else, e.g. an authenticated user id:
+By default each request is keyed by `IP:METHOD:ROUTE`, where `ROUTE` is the route **template** (`/users/:id`) rather than the concrete path. This matters: keying on the concrete path would let a caller mint a fresh bucket for every value of `:id` and never hit the limit at all.
+
+Override `keyGenerator` to key by something else, e.g. an authenticated user id:
 
 ```ts
 @RateLimit({

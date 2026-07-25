@@ -441,10 +441,12 @@ The metadata fields are all optional:
 - `imports` — other modules (or dynamic modules) whose providers are added to the graph.
 - `controllers` — controller classes whose routes are registered.
 - `providers` — injectable classes or provider objects (see [Dependency Injection](./dependency-injection.md)).
-- `exports` — tokens made available to modules that import this one.
-- `global` — when `true`, this module's providers are available everywhere without being imported explicitly.
+- `exports` — tokens this module intends to share with modules that import it.
+- `global` — marks the module as globally available.
 
-Because the container is a single shared graph, an imported provider is the same singleton everywhere it is used.
+**On visibility:** Bunstone compiles every module into a single shared container, so a provider is the same singleton everywhere and there is currently **no enforced encapsulation** — a provider is resolvable from any module once its declaring module is part of the graph, whether or not it is listed in `exports`. Treat `exports` as documentation of intent: it records the module's public surface for readers and for future enforcement, but nothing today rejects a resolve that ignores it. `global: true` is likewise informational, since every provider already behaves that way.
+
+If you rely on a module boundary, enforce it by convention (and code review) rather than assuming the container will stop you.
 
 ## Dynamic modules
 
@@ -517,6 +519,10 @@ Order of execution:
 1. `onModuleInit` — after the container instantiates every provider.
 2. `onApplicationBootstrap` — after CQRS/messaging wiring and server setup.
 3. `onModuleDestroy` — during `app.close()`, in reverse registration order.
+
+`onModuleDestroy` hooks are **isolated**: if one throws, the remaining hooks still run and the failures are reported together as an `AggregateError` once shutdown finishes. Framework resources (scheduler, queue consumers, HTTP server) are stopped *before* these hooks run, so a scheduled job cannot fire against a connection pool your hook has just closed.
+
+If bootstrap fails part-way through `Application.create`, everything already started is torn down before the error propagates — no orphaned timers or open connections.
 
 ## Bootstrapping the application
 
@@ -607,6 +613,12 @@ export class PostsController {
   remove() {}
 }
 ```
+
+`HEAD` is served automatically wherever `GET` is: Bunstone registers a `HEAD` handler that returns the same status and headers with no body, unless you declare your own.
+
+A request to a known path with a method no handler covers gets `405 Method Not Allowed` with an `Allow` header listing the supported methods. Only an unknown path returns `404`.
+
+Declaring the same method and path twice raises a configuration error at startup rather than silently letting one handler shadow the other.
 
 ## Parameters
 
@@ -849,7 +861,16 @@ export class MeController {
 }
 ```
 
-`@Jwt()` composes cleanly with other guards — stack it alongside `@UseGuards(RoleGuard)` to require both a valid token and a custom check.
+`@Jwt()` composes cleanly with other guards — stack it alongside `@UseGuards(RoleGuard)` to require both a valid token and a custom check. Guard decorators applied to the same class are merged, so every one of them runs:
+
+```ts
+@UseGuards(RoleGuard)
+@Jwt()
+@Controller("admin")
+export class AdminController {}   // both guards enforced
+```
+
+Class-level guards are also **inherited**: a controller that extends a guarded base class keeps the base's guards, so extending a protected controller cannot accidentally open it up.
 
 ## docs/database.md
 
@@ -1505,7 +1526,21 @@ async *live(): AsyncGenerator<SseMessage> {
 }
 ```
 
-When the client disconnects, the request's `AbortSignal` fires, the generator loop stops, and the stream closes. No manual cleanup is required.
+When the client disconnects, the request's `AbortSignal` fires, the heartbeat is cleared, the generator is finalized (its `finally` blocks run) and the stream closes. No manual cleanup is required.
+
+### Backpressure
+
+The stream is **pull-driven**: your generator is only advanced when the client is ready for the next message. A consumer that stops reading stops the producer, so streaming a large dataset to a slow or idle client cannot buffer the whole thing into memory.
+
+Heartbeats are skipped while the consumer is behind, so they never pile up either.
+
+### Headers
+
+CORS headers, `@SetHeader` values and rate-limit headers are applied to SSE responses like any other route — a cross-origin `EventSource` works with the same `cors` configuration as the rest of your API.
+
+### Field safety
+
+`event` and `id` are collapsed to a single line before being written, so a value containing a newline cannot forge extra frame lines. This matters whenever an event name or id derives from user input.
 
 ## WebSocket Gateways
 
@@ -1574,7 +1609,7 @@ Protect endpoints from abuse with the `@RateLimit()` decorator. It applies a fix
 
 ## Basic Usage
 
-Apply `@RateLimit()` to a controller method or to the whole controller (class-level applies to every route in it; a method-level decorator overrides the controller-level one).
+Apply `@RateLimit()` to a controller method or to the whole controller (class-level applies to every route in it; a method-level decorator overrides the controller-level one). A class-level limit is inherited by subclasses of that controller.
 
 ```ts
 import { Controller, Get, RateLimit } from "@grupodiariodaregiao/bunstone";
@@ -1607,7 +1642,9 @@ interface RateLimitConfig {
 }
 ```
 
-By default each request is keyed by `IP:METHOD:PATH`. Override `keyGenerator` to key by something else, e.g. an authenticated user id:
+By default each request is keyed by `IP:METHOD:ROUTE`, where `ROUTE` is the route **template** (`/users/:id`) rather than the concrete path. This matters: keying on the concrete path would let a caller mint a fresh bucket for every value of `:id` and never hit the limit at all.
+
+Override `keyGenerator` to key by something else, e.g. an authenticated user id:
 
 ```ts
 @RateLimit({
@@ -1752,6 +1789,8 @@ The built-in `Logger` automatically includes `trace_id` and `span_id` whenever a
 
 `TelemetryModule` registers an `onModuleDestroy` hook that flushes all pending spans and metrics when the application closes, so nothing is lost on graceful shutdown.
 
+Only the SDK's own providers are shut down — the OpenTelemetry API globals are left intact. That means a process that creates a second `Application` after closing the first (integration test suites, hot-reload supervisors) keeps exporting traces and metrics normally.
+
 ## docs/testing.md
 
 # Testing
@@ -1783,6 +1822,10 @@ describe("Users", () => {
 ```
 
 `moduleRef.get(Token)` resolves any provider from the container.
+
+`compile()` builds the same object graph `Application.create` does, including the `onModuleInit` and `onApplicationBootstrap` hooks. It deliberately does **not** start the scheduler or connect to RabbitMQ, so tests never open a broker connection or leave timers running.
+
+Call `await moduleRef.close()` when you are done: it runs the destroy hooks and stops any server `createTestApp()` created.
 
 ## Overriding providers
 
@@ -1832,6 +1875,8 @@ app.delete(path, { headers });
 ```
 
 Bodies are JSON-encoded automatically. Every method returns a standard `Response`.
+
+`TestApp` mirrors the real server's routing: routes are matched by specificity (a static segment wins over a `:param` regardless of declaration order), an unsupported method on a known path returns `405` with an `Allow` header, and an unknown path returns `404` — the same status codes and bodies `Bun.serve` produces.
 
 ## The full pipeline runs
 
@@ -1947,7 +1992,11 @@ export class UsersController {
 
 ## Schemas from Zod
 
-When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically, and `@Query("name")` parameters appear as query parameters.
+When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically — including those declared on the `@Controller` prefix — and `@Query("name")` parameters appear as query parameters.
+
+Some Zod types have no JSON Schema equivalent (`z.date()`, `z.bigint()`, `z.custom()`, `.transform()`). These are emitted as permissive schemas rather than failing: document generation can never stop your application from booting. When a schema cannot be represented, a warning naming the route is logged.
+
+The Swagger UI page loads swagger-ui-dist from a CDN at an exact pinned version, locked with a subresource-integrity hash, so a compromised or altered CDN asset cannot execute on your API's origin.
 
 For the controller above, the generated document includes:
 
@@ -2000,6 +2049,8 @@ bunx @grupodiariodaregiao/bunstone new my-app
 cd my-app && bun install && bun run dev
 ```
 
+Scaffolding into a directory that already has files is refused, so a typo cannot overwrite an existing project. Pass `--force` to overwrite deliberately.
+
 ### `bunstone run <entry>`
 
 Runs an entrypoint with Bun. Extra Bun flags are forwarded.
@@ -2027,6 +2078,8 @@ bunx @grupodiariodaregiao/bunstone generate controller users   # → users.contr
 bunx @grupodiariodaregiao/bunstone g service users             # → users.service.ts (UsersService)
 bunx @grupodiariodaregiao/bunstone g module users              # → users.module.ts (UsersModule)
 ```
+
+An existing file is never overwritten silently — the command refuses and tells you to re-run with `--force`. An unrecognised kind prints the usage line instead of failing with a stack trace.
 
 ### `bunstone exports`
 
@@ -2066,6 +2119,12 @@ await Application.create(AppModule, {
   },
 });
 ```
+
+A check that *throws* counts as not ready — `/ready` answers `503`, never a `500`.
+
+Mounting a controller on `/health`, `/ready`, `/openapi.json` or `/docs` while the matching built-in is enabled raises a configuration error at startup instead of silently replacing your route.
+
+**Under Docker Swarm**, remember that an unhealthy container is *restarted*, not just removed from routing. Point the container `healthcheck` at `/health` and keep dependency probes (database, broker) out of it — restarting a container does not fix a broker that is down, and tying the two together turns an outage into a restart loop across every replica. Use `/ready` with dependency checks only where "not ready" means *stop sending traffic*, such as an external load balancer.
 
 ## Graceful shutdown
 

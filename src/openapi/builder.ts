@@ -3,6 +3,7 @@ import type { Constructor } from "@/core/injectable";
 import { PARAMS_METADATA, ParamSource } from "@/http/params";
 import { getControllerPath, getRoutes, joinPaths } from "@/http/routing";
 import { isZodSchema } from "@/utils/is-zod-schema";
+import { Logger } from "@/utils/logger";
 import {
 	getApiOperation,
 	getApiResponses,
@@ -25,6 +26,26 @@ interface ParamMeta {
 
 type JsonObject = Record<string, unknown>;
 
+const logger = new Logger("OpenAPI");
+
+/**
+ * Document generation runs while the HTTP server is being constructed, so a
+ * schema Zod cannot express (`z.date()`, `.transform()`, `z.custom()`, ...)
+ * must never be allowed to take the whole application down: degrade to a
+ * permissive schema and keep booting.
+ */
+function toJsonSchema(schema: ZodType, route: string): JsonObject {
+	try {
+		return z.toJSONSchema(schema, { unrepresentable: "any" }) as JsonObject;
+	} catch (error) {
+		logger.warn(
+			`Could not convert the schema for ${route} to JSON Schema; documenting it as unconstrained.`,
+			error,
+		);
+		return {};
+	}
+}
+
 export function buildOpenApiDocument(
 	controllers: Constructor[],
 	info: OpenApiInfo,
@@ -36,8 +57,14 @@ export function buildOpenApiDocument(
 		const controllerTags = getControllerTags(controller);
 
 		for (const route of getRoutes(controller)) {
-			const fullPath = toOpenApiPath(joinPaths(base, route.path));
-			const operation = buildOperation(controller, route, controllerTags);
+			const joined = joinPaths(base, route.path);
+			const fullPath = toOpenApiPath(joined);
+			const operation = buildOperation(
+				controller,
+				route,
+				joined,
+				controllerTags,
+			);
 			const entry = paths[fullPath] ?? {};
 			entry[route.method.toLowerCase()] = operation;
 			paths[fullPath] = entry;
@@ -50,6 +77,7 @@ export function buildOpenApiDocument(
 function buildOperation(
 	controller: Constructor,
 	route: { method: string; path: string; handlerName: string },
+	fullPath: string,
 	controllerTags: string[],
 ): JsonObject {
 	const params: ParamMeta[] =
@@ -70,17 +98,24 @@ function buildOperation(
 	if (info?.summary) operation.summary = info.summary;
 	if (info?.description) operation.description = info.description;
 
-	const parameters = buildParameters(route.path, params);
+	// Path params can be declared on the controller prefix too, and every one of
+	// them is required by OpenAPI 3.1, so the joined path is what must be scanned.
+	const label = `${route.method.toUpperCase()} ${fullPath}`;
+	const parameters = buildParameters(fullPath, params, label);
 	if (parameters.length > 0) operation.parameters = parameters;
 
-	const requestBody = buildRequestBody(params);
+	const requestBody = buildRequestBody(params, label);
 	if (requestBody) operation.requestBody = requestBody;
 
 	operation.responses = buildResponses(controller, route.handlerName);
 	return operation;
 }
 
-function buildParameters(path: string, params: ParamMeta[]): JsonObject[] {
+function buildParameters(
+	path: string,
+	params: ParamMeta[],
+	route: string,
+): JsonObject[] {
 	const parameters: JsonObject[] = [];
 
 	for (const name of pathParamNames(path)) {
@@ -102,7 +137,7 @@ function buildParameters(path: string, params: ParamMeta[]): JsonObject[] {
 			});
 		}
 		if (param.source === ParamSource.QUERY && isZodSchema(param.schema)) {
-			const schema = z.toJSONSchema(param.schema) as JsonObject;
+			const schema = toJsonSchema(param.schema, route);
 			const properties = (schema.properties ?? {}) as JsonObject;
 			const required = (schema.required ?? []) as string[];
 			for (const [name, propSchema] of Object.entries(properties)) {
@@ -119,13 +154,16 @@ function buildParameters(path: string, params: ParamMeta[]): JsonObject[] {
 	return parameters;
 }
 
-function buildRequestBody(params: ParamMeta[]): JsonObject | undefined {
+function buildRequestBody(
+	params: ParamMeta[],
+	route: string,
+): JsonObject | undefined {
 	const body = params.find((param) => param.source === ParamSource.BODY);
 	if (!body || !isZodSchema(body.schema)) return undefined;
 	return {
 		required: true,
 		content: {
-			"application/json": { schema: z.toJSONSchema(body.schema) },
+			"application/json": { schema: toJsonSchema(body.schema, route) },
 		},
 	};
 }

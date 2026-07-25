@@ -8,6 +8,8 @@ import { collectGateways } from "@/http/websocket";
 import { TestApp } from "./test-app";
 
 export class TestingModule {
+	private readonly servers: HttpServer[] = [];
+
 	constructor(
 		readonly container: Container,
 		private readonly controllers: Constructor[],
@@ -26,10 +28,14 @@ export class TestingModule {
 			options,
 			gateways,
 		);
+		// the server owns a rate-limit storage with a sweep interval; without
+		// tracking it here every createTestApp() would leak a timer per test
+		this.servers.push(server);
 		return new TestApp(server);
 	}
 
 	async close(): Promise<void> {
+		for (const server of this.servers.splice(0)) await server.stop(0);
 		await runLifecycle(this.instances, "onModuleDestroy", true);
 	}
 }
@@ -63,6 +69,12 @@ export class TestingModuleBuilder {
 		return this;
 	}
 
+	/**
+	 * Mirrors `Application.create` bootstrap so tests run against a fully
+	 * initialised graph, minus the parts that would reach outside the process:
+	 * the Scheduler is not started and `wireRabbit` is not called, so a test
+	 * never opens an AMQP connection nor leaves cron/interval timers running.
+	 */
 	async compile(): Promise<TestingModule> {
 		class TestRootModule {}
 		const { container, controllers } = compileModules({
@@ -76,6 +88,7 @@ export class TestingModuleBuilder {
 		const instances = container.getInstances();
 		await runLifecycle(instances, "onModuleInit");
 		wireCqrs(container, instances);
+		await runLifecycle(instances, "onApplicationBootstrap");
 
 		return new TestingModule(container, controllers, instances);
 	}

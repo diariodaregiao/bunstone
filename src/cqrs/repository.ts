@@ -30,6 +30,6 @@ export class EventSourcedRepository<A extends AggregateRoot> {
 			events.map((event) => ({ type: event.type, payload: event })),
 			expectedVersion,
 		);
-		aggregate.commit();
+		aggregate.commit(events.length);
 	}
 }

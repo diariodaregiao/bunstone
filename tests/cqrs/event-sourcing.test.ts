@@ -61,6 +61,26 @@ afterEach(async () => {
 	await app.close();
 });
 
+describe("AggregateRoot.commit", () => {
+	it("drops every pending event by default", () => {
+		const account = new Account();
+		account.deposit(1);
+		account.deposit(2);
+		account.commit();
+		expect(account.uncommittedEvents).toEqual([]);
+	});
+
+	it("drops only the first `count` events", () => {
+		const account = new Account();
+		account.deposit(1);
+		account.deposit(2);
+		account.commit(1);
+		expect(account.uncommittedEvents).toEqual([
+			{ type: "Deposited", amount: 2 },
+		]);
+	});
+});
+
 describe("Event sourcing", () => {
 	it("persists uncommitted events and rebuilds by replay", async () => {
 		const account = new Account();
@@ -94,6 +114,22 @@ describe("Event sourcing", () => {
 		await expect(
 			store.append("acc-3", [{ type: "Deposited", payload: { amount: 5 } }], 0),
 		).rejects.toThrow(/Concurrency conflict/);
+	});
+
+	it("keeps events applied while an append is in flight", async () => {
+		const account = new Account();
+		account.deposit(100);
+
+		const saving = repo.save("acc-5", account);
+		account.deposit(5);
+		await saving;
+
+		expect(account.uncommittedEvents).toEqual([
+			{ type: "Deposited", amount: 5 },
+		]);
+
+		await repo.save("acc-5", account);
+		expect((await repo.load("acc-5"))?.balance).toBe(105);
 	});
 
 	it("returns null when loading an unknown stream", async () => {

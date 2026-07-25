@@ -27,6 +27,12 @@ await Application.create(AppModule, {
 });
 ```
 
+A check that *throws* counts as not ready — `/ready` answers `503`, never a `500`.
+
+Mounting a controller on `/health`, `/ready`, `/openapi.json` or `/docs` while the matching built-in is enabled raises a configuration error at startup instead of silently replacing your route.
+
+**Under Docker Swarm**, remember that an unhealthy container is *restarted*, not just removed from routing. Point the container `healthcheck` at `/health` and keep dependency probes (database, broker) out of it — restarting a container does not fix a broker that is down, and tying the two together turns an outage into a restart loop across every replica. Use `/ready` with dependency checks only where "not ready" means *stop sending traffic*, such as an external load balancer.
+
 ## Graceful shutdown
 
 On `SIGINT`/`SIGTERM` (or `app.close()`), Bunstone shuts down cleanly:

@@ -31,6 +31,17 @@ interface ReadinessState {
 const SHUTDOWN_SIGNALS: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
 
+/** Best-effort teardown of a bootstrap that never finished. */
+async function unwind(
+	disposables: DisposableRegistry,
+	instances: readonly unknown[],
+): Promise<void> {
+	await disposables.disposeAll().catch(() => undefined);
+	await runLifecycle(instances, "onModuleDestroy", true, true).catch(
+		() => undefined,
+	);
+}
+
 export class Application {
 	private readonly logger = new Logger("Application");
 	private readonly signalHandlers = new Map<NodeJS.Signals, () => void>();
@@ -50,52 +61,63 @@ export class Application {
 		options: ApplicationOptions = {},
 	): Promise<Application> {
 		const { container, controllers } = compileModules(rootModule);
-		container.instantiateAll();
-		const instances = container.getInstances();
-
-		await runLifecycle(instances, "onModuleInit");
-		wireCqrs(container, instances);
-		await wireRabbit(container, instances);
-		const gateways = collectGateways(instances);
-
-		const readiness: ReadinessState = { listening: false, draining: false };
-		const health = resolveHealth(options.health);
-		const isReady = async () =>
-			readiness.listening &&
-			!readiness.draining &&
-			(health ? await runChecks(health.checks) : true);
-
-		const httpServer = new HttpServer(
-			container,
-			controllers,
-			options,
-			gateways,
-			isReady,
-		);
-		await runLifecycle(instances, "onApplicationBootstrap");
-
 		const disposables = new DisposableRegistry();
-		const scheduler = new Scheduler();
-		scheduler.start(instances);
-		disposables.add(() => scheduler.stopAll(), "scheduler");
-		if (container.has(RabbitConnection)) {
-			disposables.add(
-				() =>
-					container
-						.resolve(RabbitConnection)
-						.close(options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS),
-				"rabbit",
-			);
-		}
+		let instances: readonly unknown[] = [];
 
-		return new Application(
-			container,
-			httpServer,
-			disposables,
-			instances,
-			options,
-			readiness,
-		);
+		// every resource is registered for disposal *before* it is started, so a
+		// failure part-way through bootstrap cannot strand a timer or a socket
+		try {
+			container.instantiateAll();
+			instances = container.getInstances();
+
+			await runLifecycle(instances, "onModuleInit");
+			wireCqrs(container, instances);
+
+			if (container.has(RabbitConnection)) {
+				disposables.add(
+					() =>
+						container
+							.resolve(RabbitConnection)
+							.close(options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS),
+					"rabbit",
+				);
+			}
+			await wireRabbit(container, instances);
+			const gateways = collectGateways(instances);
+
+			const readiness: ReadinessState = { listening: false, draining: false };
+			const health = resolveHealth(options.health);
+			const isReady = async () =>
+				readiness.listening &&
+				!readiness.draining &&
+				(health ? await runChecks(health.checks) : true);
+
+			const httpServer = new HttpServer(
+				container,
+				controllers,
+				options,
+				gateways,
+				isReady,
+			);
+			disposables.add(() => httpServer.stop(0), "http-server");
+			await runLifecycle(instances, "onApplicationBootstrap");
+
+			const scheduler = new Scheduler();
+			disposables.add(() => scheduler.stopAll(), "scheduler");
+			scheduler.start(instances);
+
+			return new Application(
+				container,
+				httpServer,
+				disposables,
+				instances,
+				options,
+				readiness,
+			);
+		} catch (error) {
+			await unwind(disposables, instances);
+			throw error;
+		}
 	}
 
 	resolve<T>(token: Token<T>): T {
@@ -128,9 +150,27 @@ export class Application {
 		if (this.options.shutdownGraceMs) {
 			await Bun.sleep(this.options.shutdownGraceMs);
 		}
-		await this.httpServer.stop(this.options.shutdownTimeoutMs);
-		await runLifecycle(this.instances, "onModuleDestroy", true);
-		await this.disposables.disposeAll();
+
+		const errors: Error[] = [];
+		const step = async (run: () => Promise<void>) => {
+			try {
+				await run();
+			} catch (error) {
+				errors.push(error instanceof Error ? error : new Error(String(error)));
+			}
+		};
+
+		await step(() => this.httpServer.stop(this.options.shutdownTimeoutMs));
+		// framework resources stop producing work first, so a scheduled job or a
+		// queue handler cannot fire against a pool a destroy hook already closed
+		await step(() => this.disposables.disposeAll());
+		await step(() =>
+			runLifecycle(this.instances, "onModuleDestroy", true, true),
+		);
+
+		if (errors.length > 0) {
+			throw new AggregateError(errors, "Errors occurred during shutdown.");
+		}
 	}
 
 	private installSignals(): void {

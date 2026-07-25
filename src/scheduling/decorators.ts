@@ -50,6 +50,7 @@ export function Timeout(ms: number): MethodDecorator {
 	};
 }
 
+/** Inherited, so a subclass provider still runs the jobs it inherited. */
 export function getSchedules(ctor: Constructor): ScheduleEntry[] {
-	return Reflect.getOwnMetadata(SCHEDULE_METADATA, ctor) ?? [];
+	return Reflect.getMetadata(SCHEDULE_METADATA, ctor) ?? [];
 }

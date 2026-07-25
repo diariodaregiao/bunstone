@@ -48,7 +48,21 @@ async *live(): AsyncGenerator<SseMessage> {
 }
 ```
 
-When the client disconnects, the request's `AbortSignal` fires, the generator loop stops, and the stream closes. No manual cleanup is required.
+When the client disconnects, the request's `AbortSignal` fires, the heartbeat is cleared, the generator is finalized (its `finally` blocks run) and the stream closes. No manual cleanup is required.
+
+### Backpressure
+
+The stream is **pull-driven**: your generator is only advanced when the client is ready for the next message. A consumer that stops reading stops the producer, so streaming a large dataset to a slow or idle client cannot buffer the whole thing into memory.
+
+Heartbeats are skipped while the consumer is behind, so they never pile up either.
+
+### Headers
+
+CORS headers, `@SetHeader` values and rate-limit headers are applied to SSE responses like any other route — a cross-origin `EventSource` works with the same `cors` configuration as the rest of your API.
+
+### Field safety
+
+`event` and `id` are collapsed to a single line before being written, so a value containing a newline cannot forge extra frame lines. This matters whenever an event name or id derives from user input.
 
 ## WebSocket Gateways
 

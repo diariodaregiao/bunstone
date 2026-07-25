@@ -57,7 +57,7 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 
 			try {
 				if (rateLimit && rateLimitStorage) {
-					await enforceRateLimit(ctx, rateLimit, rateLimitStorage);
+					await enforceRateLimit(ctx, rateLimit, rateLimitStorage, route);
 				}
 
 				for (const GuardClass of guards) {
@@ -81,16 +81,30 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 				const result = await handler.apply(instance, args);
 
 				if (sse) {
-					return sseResponse(result as AsyncIterable<SseMessage>, {
-						signal: req.signal,
-						heartbeatMs: sse.heartbeatMs,
-					});
+					// SSE still needs CORS, @SetHeader and rate-limit headers
+					return applyContextHeaders(
+						sseResponse(result as AsyncIterable<SseMessage>, {
+							signal: req.signal,
+							heartbeatMs: sse.heartbeatMs,
+						}),
+						ctx,
+					);
 				}
 				return serialize(result, ctx);
 			} catch (error) {
 				return errorToResponse(error, ctx);
 			}
 		});
+}
+
+function applyContextHeaders(
+	response: Response,
+	ctx: RequestContext,
+): Response {
+	for (const [name, value] of ctx.responseHeaders) {
+		response.headers.set(name, value);
+	}
+	return response;
 }
 
 function applyStaticHeaders(

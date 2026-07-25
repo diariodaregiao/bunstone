@@ -103,7 +103,9 @@ export class Container {
 			);
 		}
 
-		const overrides: Map<number, Token> | undefined = Reflect.getOwnMetadata(
+		// inherited, to match `design:paramtypes` above — otherwise a subclass
+		// keeps the base's constructor signature but loses its @Inject tokens
+		const overrides: Map<number, Token> | undefined = Reflect.getMetadata(
 			INJECT_TOKENS_METADATA,
 			cls,
 		);

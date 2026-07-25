@@ -29,10 +29,12 @@ export function getRateLimit(
 	handlerName: string,
 ): RateLimitConfig | undefined {
 	return (
-		Reflect.getOwnMetadata(
+		Reflect.getMetadata(
 			RATE_LIMIT_METADATA,
 			controller.prototype,
 			handlerName,
-		) ?? Reflect.getOwnMetadata(RATE_LIMIT_CONTROLLER_METADATA, controller)
+		) ??
+		// inherited: a subclass of a rate-limited controller stays rate limited
+		Reflect.getMetadata(RATE_LIMIT_CONTROLLER_METADATA, controller)
 	);
 }

@@ -30,14 +30,21 @@ export class Cors {
 	}
 
 	headers(ctx: RequestContext): Record<string, string> {
-		const allowOrigin = this.resolveOrigin(ctx.headers.get("origin"));
-		if (allowOrigin === null) return {};
+		const requestOrigin = ctx.headers.get("origin");
+		const resolved = this.resolveOrigin(requestOrigin);
+		// the answer depends on the origin, so caches must key on it either way
+		if (resolved === null) return { vary: "Origin" };
+
+		// `*` is illegal alongside credentials, so echo the caller instead
+		const credentials = this.options.credentials === true;
+		const allowOrigin =
+			credentials && resolved === "*" ? (requestOrigin ?? "*") : resolved;
 
 		const headers: Record<string, string> = {
 			"access-control-allow-origin": allowOrigin,
 		};
 		if (allowOrigin !== "*") headers.vary = "Origin";
-		if (this.options.credentials) {
+		if (credentials && allowOrigin !== "*") {
 			headers["access-control-allow-credentials"] = "true";
 		}
 		if (this.options.exposedHeaders?.length) {
@@ -60,12 +67,14 @@ export class Cors {
 			"access-control-allow-methods",
 			(this.options.methods ?? DEFAULT_METHODS).join(", "),
 		);
-		headers.set(
-			"access-control-allow-headers",
+		// `*` is not a wildcard once credentials are on: echo what was asked for
+		const allowedHeaders =
 			this.options.allowedHeaders?.join(", ") ??
-				ctx.headers.get("access-control-request-headers") ??
-				"*",
-		);
+			ctx.headers.get("access-control-request-headers") ??
+			(this.options.credentials ? null : "*");
+		if (allowedHeaders) {
+			headers.set("access-control-allow-headers", allowedHeaders);
+		}
 		if (this.options.maxAge !== undefined) {
 			headers.set("access-control-max-age", String(this.options.maxAge));
 		}

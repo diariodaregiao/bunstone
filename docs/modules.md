@@ -22,10 +22,12 @@ The metadata fields are all optional:
 - `imports` — other modules (or dynamic modules) whose providers are added to the graph.
 - `controllers` — controller classes whose routes are registered.
 - `providers` — injectable classes or provider objects (see [Dependency Injection](./dependency-injection.md)).
-- `exports` — tokens made available to modules that import this one.
-- `global` — when `true`, this module's providers are available everywhere without being imported explicitly.
+- `exports` — tokens this module intends to share with modules that import it.
+- `global` — marks the module as globally available.
 
-Because the container is a single shared graph, an imported provider is the same singleton everywhere it is used.
+**On visibility:** Bunstone compiles every module into a single shared container, so a provider is the same singleton everywhere and there is currently **no enforced encapsulation** — a provider is resolvable from any module once its declaring module is part of the graph, whether or not it is listed in `exports`. Treat `exports` as documentation of intent: it records the module's public surface for readers and for future enforcement, but nothing today rejects a resolve that ignores it. `global: true` is likewise informational, since every provider already behaves that way.
+
+If you rely on a module boundary, enforce it by convention (and code review) rather than assuming the container will stop you.
 
 ## Dynamic modules
 
@@ -98,6 +100,10 @@ Order of execution:
 1. `onModuleInit` — after the container instantiates every provider.
 2. `onApplicationBootstrap` — after CQRS/messaging wiring and server setup.
 3. `onModuleDestroy` — during `app.close()`, in reverse registration order.
+
+`onModuleDestroy` hooks are **isolated**: if one throws, the remaining hooks still run and the failures are reported together as an `AggregateError` once shutdown finishes. Framework resources (scheduler, queue consumers, HTTP server) are stopped *before* these hooks run, so a scheduled job cannot fire against a connection pool your hook has just closed.
+
+If bootstrap fails part-way through `Application.create`, everything already started is torn down before the error propagates — no orphaned timers or open connections.
 
 ## Bootstrapping the application
 

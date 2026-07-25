@@ -10,7 +10,8 @@ export class JwtGuard implements GuardContract {
 
 	async canActivate(ctx: RequestContext): Promise<boolean> {
 		const header = ctx.headers.get("authorization") ?? "";
-		const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+		// RFC 6750: the auth scheme is case-insensitive.
+		const token = /^bearer\s/i.test(header) ? header.slice(7).trim() : "";
 		if (!token) throw new UnauthorizedException("Missing bearer token.");
 
 		const payload = await this.jwt.verify(token);

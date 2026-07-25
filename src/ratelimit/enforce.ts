@@ -3,17 +3,25 @@ import type { RequestContext } from "@/http/types";
 import type { RateLimitConfig } from "./decorator";
 import type { RateLimitStorage } from "./storage";
 
-function defaultKey(ctx: RequestContext): string {
+/**
+ * Keyed by the route *template* (`/users/:id`), never the concrete path —
+ * otherwise varying the parameter mints a fresh bucket per request and the
+ * limit never applies.
+ */
+function defaultKey(ctx: RequestContext, route: string): string {
 	const ip = ctx.server.requestIP(ctx.req)?.address ?? "unknown";
-	return `${ip}:${ctx.req.method}:${ctx.url.pathname}`;
+	return `${ip}:${ctx.req.method}:${route}`;
 }
 
 export async function enforceRateLimit(
 	ctx: RequestContext,
 	config: RateLimitConfig,
 	storage: RateLimitStorage,
+	route: string,
 ): Promise<void> {
-	const key = config.keyGenerator ? config.keyGenerator(ctx) : defaultKey(ctx);
+	const key = config.keyGenerator
+		? config.keyGenerator(ctx)
+		: defaultKey(ctx, route);
 	const result = await storage.hit(key, config.max, config.windowMs);
 
 	ctx.responseHeaders.set("x-ratelimit-limit", String(result.limit));

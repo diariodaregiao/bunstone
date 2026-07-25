@@ -15,6 +15,54 @@ export interface LoggerOptions {
 	pretty?: boolean;
 }
 
+/**
+ * `JSON.stringify` renders an Error as `{}` — dropping message, stack and cause
+ * in the very mode meant for shipping logs — and throws on a cyclic object,
+ * which would take down the code path the log was there to diagnose.
+ */
+function serializeArg(value: unknown): string {
+	try {
+		if (value instanceof Error) return safeStringify(errorShape(value));
+		if (typeof value === "object" && value !== null)
+			return safeStringify(value);
+		return String(value);
+	} catch {
+		return "[unserializable]";
+	}
+}
+
+function errorShape(error: Error): Record<string, unknown> {
+	const shape: Record<string, unknown> = {
+		name: error.name,
+		message: error.message,
+		stack: error.stack,
+	};
+	if (error.cause !== undefined) {
+		shape.cause =
+			error.cause instanceof Error ? errorShape(error.cause) : error.cause;
+	}
+	return shape;
+}
+
+function safeStringify(value: unknown): string {
+	const seen = new WeakSet<object>();
+	try {
+		return (
+			JSON.stringify(value, (_key, val) => {
+				if (val instanceof Error) return errorShape(val);
+				if (typeof val === "bigint") return val.toString();
+				if (typeof val === "object" && val !== null) {
+					if (seen.has(val)) return "[Circular]";
+					seen.add(val);
+				}
+				return val;
+			}) ?? String(value)
+		);
+	} catch {
+		return String(value);
+	}
+}
+
 export class Logger {
 	private level: LogLevel;
 	private showTimestamp: boolean;
@@ -26,7 +74,9 @@ export class Logger {
 	) {
 		this.level = options.level ?? LogLevel.INFO;
 		this.showTimestamp = options.timestamp ?? true;
-		this.pretty = options.pretty ?? true;
+		// ANSI escapes are noise in a piped or containerised log file, so colours
+		// are only on when someone is actually looking at a terminal
+		this.pretty = options.pretty ?? Boolean(process.stdout?.isTTY);
 	}
 
 	private getTimestamp(): string {
@@ -51,9 +101,7 @@ export class Logger {
 					timestamp: this.getTimestamp(),
 					level,
 					name: this.name,
-					message: args
-						.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a)))
-						.join(" "),
+					message: args.map(serializeArg).join(" "),
 					...traceContext,
 				}),
 			);

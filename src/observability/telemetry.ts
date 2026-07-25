@@ -10,6 +10,7 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
 	ConsoleMetricExporter,
 	MeterProvider,
+	type MetricReader,
 	PeriodicExportingMetricReader,
 } from "@opentelemetry/sdk-metrics";
 import {
@@ -34,6 +35,7 @@ export interface TelemetryOptions {
 	console?: boolean;
 	metricIntervalMillis?: number;
 	spanProcessors?: SpanProcessor[];
+	metricReaders?: MetricReader[];
 }
 
 export class TelemetrySdk {
@@ -51,6 +53,9 @@ export class TelemetrySdk {
 			"deployment.environment": options.environment ?? "development",
 		});
 
+		// Registering a context manager is a no-op when the host process (or a
+		// previous SDK instance) already installed one, and that existing manager
+		// keeps working — so it is never torn down on shutdown.
 		otelContext.setGlobalContextManager(
 			new AsyncLocalStorageContextManager().enable(),
 		);
@@ -74,12 +79,17 @@ export class TelemetrySdk {
 				resource,
 				spanProcessors: processors,
 			});
-			otelTrace.setGlobalTracerProvider(this.tracerProvider);
+			if (!otelTrace.setGlobalTracerProvider(this.tracerProvider)) {
+				// A previous SDK instance still owns the global slot; the API refuses
+				// to overwrite it, so reclaim it here instead of at shutdown.
+				otelTrace.disable();
+				otelTrace.setGlobalTracerProvider(this.tracerProvider);
+			}
 		}
 
 		if (options.metrics !== false) {
 			const interval = options.metricIntervalMillis ?? 60_000;
-			const readers: PeriodicExportingMetricReader[] = [];
+			const readers: MetricReader[] = [...(options.metricReaders ?? [])];
 			if (endpoint) {
 				readers.push(
 					new PeriodicExportingMetricReader({
@@ -100,7 +110,10 @@ export class TelemetrySdk {
 			}
 			if (readers.length > 0) {
 				this.meterProvider = new MeterProvider({ resource, readers });
-				otelMetrics.setGlobalMeterProvider(this.meterProvider);
+				if (!otelMetrics.setGlobalMeterProvider(this.meterProvider)) {
+					otelMetrics.disable();
+					otelMetrics.setGlobalMeterProvider(this.meterProvider);
+				}
 			}
 		}
 	}
@@ -108,11 +121,13 @@ export class TelemetrySdk {
 	async shutdown(): Promise<void> {
 		if (!this.started) return;
 		this.started = false;
+		// Only this SDK's own providers are flushed and stopped. The API-level
+		// globals are left in place: they may be owned by the host process, and
+		// disabling them permanently unbinds anything already holding a handle.
+		await this.tracerProvider?.forceFlush();
 		await this.tracerProvider?.shutdown();
+		await this.meterProvider?.forceFlush();
 		await this.meterProvider?.shutdown();
-		otelTrace.disable();
-		otelMetrics.disable();
-		otelContext.disable();
 		this.tracerProvider = undefined;
 		this.meterProvider = undefined;
 	}

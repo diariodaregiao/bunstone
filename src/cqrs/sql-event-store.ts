@@ -23,9 +23,40 @@ interface SnapshotRow {
 	state: string;
 }
 
+function adapterOf(sql: SqlService): string | undefined {
+	const client = sql.client as unknown as { options?: { adapter?: string } };
+	return client.options?.adapter;
+}
+
+// Postgres rejects duplicates with SQLSTATE 23505, MySQL with ER_DUP_ENTRY and
+// SQLite with a SQLITE_CONSTRAINT_* code; older drivers only set the message.
+function isUniqueViolation(error: unknown): boolean {
+	if (!(error instanceof Error)) return false;
+	const code = String((error as { code?: unknown }).code ?? "");
+	if (
+		code === "23505" ||
+		code === "ER_DUP_ENTRY" ||
+		code.startsWith("SQLITE_CONSTRAINT")
+	) {
+		return true;
+	}
+	return /duplicate (key|entry)|unique constraint/i.test(error.message);
+}
+
 @Injectable()
 export class SqlEventStore implements EventStore, OnModuleInit {
-	constructor(private readonly sql: SqlService) {}
+	private readonly numberedPlaceholders: boolean;
+
+	constructor(private readonly sql: SqlService) {
+		this.numberedPlaceholders = adapterOf(sql) === "postgres";
+	}
+
+	// Statements are written with `?`; Bun's postgres driver only binds `$1, $2, ...`.
+	private bind(text: string): string {
+		if (!this.numberedPlaceholders) return text;
+		let index = 0;
+		return text.replace(/\?/g, () => `$${++index}`);
+	}
 
 	async onModuleInit(): Promise<void> {
 		await this.sql.query(
@@ -43,36 +74,64 @@ export class SqlEventStore implements EventStore, OnModuleInit {
 	): Promise<void> {
 		if (events.length === 0) return;
 
-		await this.sql.transaction(async (tx) => {
-			const rows = (await tx.unsafe(
+		try {
+			await this.sql.transaction(async (tx) => {
+				const rows = (await tx.unsafe(
+					this.bind(
+						"SELECT COALESCE(MAX(version), 0) AS v FROM events WHERE stream_id = ?",
+					),
+					[streamId],
+				)) as Array<{ v: number }>;
+				const current = Number(rows[0]?.v ?? 0);
+
+				if (current !== expectedVersion) {
+					throw EventStoreError.versionConflict(
+						streamId,
+						expectedVersion,
+						current,
+					);
+				}
+
+				const now = new Date().toISOString();
+				let version = current;
+				for (const event of events) {
+					version++;
+					await tx.unsafe(
+						this.bind(
+							"INSERT INTO events (stream_id, version, type, payload, created_at) VALUES (?, ?, ?, ?, ?)",
+						),
+						[streamId, version, event.type, JSON.stringify(event.payload), now],
+					);
+				}
+			});
+		} catch (error) {
+			if (error instanceof EventStoreError) throw error;
+			// The read-then-insert is not atomic: a concurrent writer is rejected by
+			// the (stream_id, version) primary key rather than by the check above.
+			if (!isUniqueViolation(error)) throw error;
+			throw EventStoreError.versionConflict(
+				streamId,
+				expectedVersion,
+				await this.currentVersion(streamId),
+			);
+		}
+	}
+
+	private async currentVersion(streamId: string): Promise<number> {
+		const rows = await this.sql.query<{ v: number }>(
+			this.bind(
 				"SELECT COALESCE(MAX(version), 0) AS v FROM events WHERE stream_id = ?",
-				[streamId],
-			)) as Array<{ v: number }>;
-			const current = Number(rows[0]?.v ?? 0);
-
-			if (current !== expectedVersion) {
-				throw EventStoreError.versionConflict(
-					streamId,
-					expectedVersion,
-					current,
-				);
-			}
-
-			const now = new Date().toISOString();
-			let version = current;
-			for (const event of events) {
-				version++;
-				await tx.unsafe(
-					"INSERT INTO events (stream_id, version, type, payload, created_at) VALUES (?, ?, ?, ?, ?)",
-					[streamId, version, event.type, JSON.stringify(event.payload), now],
-				);
-			}
-		});
+			),
+			[streamId],
+		);
+		return Number(rows[0]?.v ?? 0);
 	}
 
 	async read(streamId: string): Promise<EventRecord[]> {
 		const rows = await this.sql.query<EventRow>(
-			"SELECT stream_id, version, type, payload, created_at FROM events WHERE stream_id = ? ORDER BY version ASC",
+			this.bind(
+				"SELECT stream_id, version, type, payload, created_at FROM events WHERE stream_id = ? ORDER BY version ASC",
+			),
 			[streamId],
 		);
 		return rows.map((row) => ({
@@ -86,11 +145,13 @@ export class SqlEventStore implements EventStore, OnModuleInit {
 
 	async saveSnapshot<TState>(snapshot: Snapshot<TState>): Promise<void> {
 		await this.sql.transaction(async (tx) => {
-			await tx.unsafe("DELETE FROM snapshots WHERE stream_id = ?", [
+			await tx.unsafe(this.bind("DELETE FROM snapshots WHERE stream_id = ?"), [
 				snapshot.streamId,
 			]);
 			await tx.unsafe(
-				"INSERT INTO snapshots (stream_id, version, state) VALUES (?, ?, ?)",
+				this.bind(
+					"INSERT INTO snapshots (stream_id, version, state) VALUES (?, ?, ?)",
+				),
 				[snapshot.streamId, snapshot.version, JSON.stringify(snapshot.state)],
 			);
 		});
@@ -100,7 +161,9 @@ export class SqlEventStore implements EventStore, OnModuleInit {
 		streamId: string,
 	): Promise<Snapshot<TState> | null> {
 		const rows = await this.sql.query<SnapshotRow>(
-			"SELECT stream_id, version, state FROM snapshots WHERE stream_id = ?",
+			this.bind(
+				"SELECT stream_id, version, state FROM snapshots WHERE stream_id = ?",
+			),
 			[streamId],
 		);
 		const row = rows[0];

@@ -1,5 +1,6 @@
 import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
+import { ConfigurationError } from "@/errors";
 import {
 	assertOpenApiBasicAuth,
 	type OpenApiBasicAuth,
@@ -11,6 +12,7 @@ import { MemoryStorage, type RateLimitStorage } from "@/ratelimit/storage";
 import { Cors, type CorsOptions } from "./cors";
 import { getControllerGuards, getRouteGuards } from "./guard";
 import { type HealthOptions, resolveHealth } from "./health";
+import { RouteMatcher } from "./matcher";
 import { createRouteHandler } from "./pipeline";
 import {
 	getControllerPath,
@@ -50,7 +52,8 @@ export type RouteHandler = (
 	req: BunRequest,
 	server: BunServer,
 ) => Response | Promise<Response>;
-export type RoutesMap = Record<string, Record<string, RouteHandler>>;
+export type RouteMethods = Record<string, RouteHandler>;
+export type RoutesMap = Record<string, RouteMethods>;
 
 export class HttpServer {
 	private server?: BunServer;
@@ -58,6 +61,7 @@ export class HttpServer {
 	private readonly cors?: Cors;
 	private readonly staticFiles?: StaticFiles;
 	private readonly rateLimitStorage: RateLimitStorage;
+	private readonly matcher: RouteMatcher;
 
 	constructor(
 		container: Container,
@@ -77,21 +81,74 @@ export class HttpServer {
 		this.routes = this.buildRoutes(container, controllers);
 		if (options.openapi) this.addOpenApiRoutes(controllers, options.openapi);
 		this.addHealthRoutes();
+		this.addImplicitHeadRoutes();
+		this.wrapPreflightRoutes();
+		this.matcher = new RouteMatcher();
+		for (const path of Object.keys(this.routes)) this.matcher.add(path);
 	}
 
 	private addHealthRoutes(): void {
 		const health = resolveHealth(this.options.health);
 		if (!health) return;
 
-		this.routes[health.path] = {
+		this.reserve(health.path, "health", {
 			GET: () => Response.json({ status: "ok" }),
-		};
-		this.routes[health.readyPath] = {
+		});
+		this.reserve(health.readyPath, "health", {
 			GET: async () =>
 				(await this.isReady())
 					? Response.json({ status: "ready" })
 					: Response.json({ status: "not_ready" }, { status: 503 }),
-		};
+		});
+	}
+
+	/**
+	 * Built-in routes are registered after the controllers, so without this they
+	 * would silently replace a user route mounted on the same path.
+	 */
+	private reserve(path: string, feature: string, methods: RouteMethods): void {
+		if (this.routes[path]) {
+			throw new ConfigurationError(
+				`Cannot mount the built-in ${feature} route on "${path}": a controller already handles it.`,
+				"BNS-HTTP-002",
+				`Move the controller elsewhere or configure a different path for the ${feature} route.`,
+				{ path, feature },
+			);
+		}
+		this.routes[path] = methods;
+	}
+
+	/** HTTP requires HEAD wherever GET is served. */
+	private addImplicitHeadRoutes(): void {
+		for (const methods of Object.values(this.routes)) {
+			const get = methods.GET;
+			if (!get || methods.HEAD) continue;
+			methods.HEAD = async (req, server) => {
+				const response = await get(req, server);
+				return new Response(null, {
+					status: response.status,
+					headers: response.headers,
+				});
+			};
+		}
+	}
+
+	/**
+	 * A user-defined `@Options()` route would otherwise shadow the CORS
+	 * preflight, which lives in the fallback and never runs when a route matches.
+	 */
+	private wrapPreflightRoutes(): void {
+		const cors = this.cors;
+		if (!cors) return;
+		for (const methods of Object.values(this.routes)) {
+			const original = methods.OPTIONS;
+			if (!original) continue;
+			methods.OPTIONS = (req, server) => {
+				const ctx = createContext(req, server);
+				if (cors.isPreflight(ctx)) return cors.preflightResponse(ctx);
+				return original(req, server);
+			};
+		}
 	}
 
 	private addOpenApiRoutes(
@@ -105,14 +162,14 @@ export class HttpServer {
 			return assertOpenApiBasicAuth(req, options.auth) ?? next();
 		};
 
-		this.routes[specPath] = {
+		this.reserve(specPath, "OpenAPI spec", {
 			GET: (req) => guard(req, () => Response.json(document)),
-		};
+		});
 
 		if (options.ui) {
 			const uiPath = options.uiPath ?? "/docs";
 			const html = swaggerUiHtml(specPath);
-			this.routes[uiPath] = {
+			this.reserve(uiPath, "Swagger UI", {
 				GET: (req) =>
 					guard(
 						req,
@@ -121,7 +178,7 @@ export class HttpServer {
 								headers: { "content-type": "text/html; charset=utf-8" },
 							}),
 					),
-			};
+			});
 		}
 	}
 
@@ -150,6 +207,14 @@ export class HttpServer {
 					sse: getSseOptions(controller, route.handlerName),
 				});
 				const methods = map[path] ?? {};
+				if (methods[route.method]) {
+					throw new ConfigurationError(
+						`Duplicate route: ${route.method} ${path} is declared more than once.`,
+						"BNS-HTTP-001",
+						"Two controllers or handlers map to the same method and path; give one of them a different path.",
+						{ method: route.method, path, controller: controller.name },
+					);
+				}
 				methods[route.method] = handler;
 				map[path] = methods;
 			}
@@ -198,6 +263,21 @@ export class HttpServer {
 		}
 
 		const headers = this.cors ? this.cors.headers(ctx) : {};
+
+		// the router only falls through here when no method matched, so a known
+		// path means the method is unsupported rather than the route missing
+		const known = this.matcher.match(ctx.url.pathname);
+		const allowed = known ? Object.keys(this.routes[known.path] ?? {}) : [];
+		if (allowed.length > 0) {
+			return Response.json(
+				{ statusCode: 405, message: "Method Not Allowed" },
+				{
+					status: 405,
+					headers: { ...headers, allow: allowed.join(", ") },
+				},
+			);
+		}
+
 		return Response.json(
 			{ statusCode: 404, message: "Not Found" },
 			{ status: 404, headers },

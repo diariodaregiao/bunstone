@@ -60,13 +60,29 @@ export class TestApp {
 		const url = `http://test.local${path.startsWith("/") ? path : `/${path}`}`;
 		const req = new Request(url, { method, ...init }) as BunRequest;
 		const match = this.matcher.match(new URL(url).pathname);
-		if (!match) return Promise.resolve(errorResponse(404, "Not Found"));
+		const handler = match ? this.routes[match.path]?.[method] : undefined;
 
-		const handler = this.routes[match.path]?.[method];
-		if (!handler)
-			return Promise.resolve(errorResponse(405, "Method Not Allowed"));
+		// mirrors HttpServer.fallback: a known path with no handler for the method
+		// is 405 with an `Allow` header, anything else is 404
+		if (!handler) {
+			const allowed = match ? Object.keys(this.routes[match.path] ?? {}) : [];
+			if (allowed.length > 0) {
+				return Promise.resolve(
+					Response.json(
+						{ statusCode: 405, message: "Method Not Allowed" },
+						{ status: 405, headers: { allow: allowed.join(", ") } },
+					),
+				);
+			}
+			return Promise.resolve(
+				Response.json(
+					{ statusCode: 404, message: "Not Found" },
+					{ status: 404 },
+				),
+			);
+		}
 
-		req.params = match.params;
+		if (match) req.params = match.params;
 		return Promise.resolve(handler(req, fakeServer));
 	}
 }
@@ -77,8 +93,4 @@ function jsonInit(body: unknown, options?: TestRequestOptions): RequestInit {
 		headers: { "content-type": "application/json", ...options?.headers },
 		body: JSON.stringify(body),
 	};
-}
-
-function errorResponse(status: number, message: string): Response {
-	return Response.json({ statusCode: status, message }, { status });
 }

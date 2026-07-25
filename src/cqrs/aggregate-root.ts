@@ -1,6 +1,6 @@
 export abstract class AggregateRoot {
 	private currentVersion = 0;
-	private pending: object[] = [];
+	private readonly pending: object[] = [];
 
 	get version(): number {
 		return this.currentVersion;
@@ -23,8 +23,10 @@ export abstract class AggregateRoot {
 		}
 	}
 
-	commit(): void {
-		this.pending = [];
+	// Only the events that were actually persisted are dropped; anything applied
+	// while the append was in flight stays pending for the next save.
+	commit(count: number = this.pending.length): void {
+		this.pending.splice(0, count);
 	}
 
 	protected abstract when(event: object): void;
