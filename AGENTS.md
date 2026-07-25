@@ -208,6 +208,11 @@ Run it with Bun and open `http://localhost:3000`.
 - [Modules](./modules.md)
 - [Controllers](./controllers.md)
 - [Guards & JWT](./guards-jwt.md)
+- [Uploads & static files](./uploads-and-static.md)
+- [Database](./database.md) · [Cache](./cache.md) · [CQRS](./cqrs.md) · [Event sourcing](./event-sourcing.md)
+- [Messaging](./messaging.md) · [Scheduling](./scheduling.md) · [Realtime](./realtime.md)
+- [Rate limiting](./rate-limiting.md) · [Logging](./logging.md) · [Observability](./observability.md) · [Errors](./errors.md)
+- [Testing](./testing.md) · [OpenAPI](./openapi.md) · [CLI](./cli.md) · [Deployment](./deployment.md)
 
 ## docs/getting-started.md
 
@@ -880,6 +885,8 @@ export class AuthService {
 - `verify<T>(token)` — returns the decoded payload, or `null` if the token is invalid, tampered with, or expired.
 - `decode<T>(token)` — decodes the payload **without** verifying the signature.
 
+The module's configuration is available under the `JWT_OPTIONS` token, and `JwtGuard` is a normal provider you can list in `@UseGuards(JwtGuard)` if you prefer that over `@Jwt()`.
+
 ### Protecting routes
 
 `@Jwt()` is a built-in guard. It reads the `Authorization: Bearer <token>` header, verifies it with `JwtService`, and stores the payload on `ctx.state.jwt`. A missing or invalid token results in `401 Unauthorized`.
@@ -909,6 +916,112 @@ export class AdminController {}   // both guards enforced
 ```
 
 Class-level guards are also **inherited**: a controller that extends a guarded base class keeps the base's guards, so extending a protected controller cannot accidentally open it up.
+
+## docs/uploads-and-static.md
+
+# File uploads & static files
+
+## Uploads
+
+`@FormData()` parses a `multipart/form-data` request into text fields and files. The files are standard web `File` objects, so Bun's file APIs work on them directly.
+
+```ts
+import { Controller, FormData, Post } from "@grupodiariodaregiao/bunstone";
+import type { FormDataPayload } from "@grupodiariodaregiao/bunstone";
+
+@Controller("uploads")
+export class UploadsController {
+  @Post()
+  async upload(@FormData() form: FormDataPayload) {
+    for (const file of form.files) {
+      await Bun.write(`./storage/${file.name}`, file);
+    }
+    return { title: form.fields.title, count: form.files.length };
+  }
+}
+```
+
+```ts
+interface FormDataPayload {
+  fields: Record<string, string>;  // every non-file field, as text
+  files: File[];                   // every file part
+}
+```
+
+A request that is not valid multipart is rejected with `400 Expected multipart form data.` before your handler runs.
+
+Each `File` carries `name`, `type` and `size`, so you can enforce your own limits:
+
+```ts
+@Post()
+async upload(@FormData() form: FormDataPayload) {
+  const [file] = form.files;
+  if (!file) throw new BadRequestException("A file is required.");
+  if (file.size > 5_000_000) throw new BadRequestException("File too large.");
+  if (!file.type.startsWith("image/")) {
+    throw new UnprocessableEntityException("Only images are accepted.");
+  }
+  await Bun.write(`./storage/${crypto.randomUUID()}`, file);
+  return { ok: true };
+}
+```
+
+## Static files
+
+Serve a directory from disk with the `static` option:
+
+```ts
+const app = await Application.create(AppModule, {
+  static: { dir: "./public", prefix: "/public" },
+});
+```
+
+- `dir` — the directory to serve, resolved from the process working directory. Default `public`.
+- `prefix` — the URL prefix it is mounted on. Default `/public`.
+
+`GET /public/logo.png` serves `./public/logo.png`. A missing file is `404`; a malformed percent-escape is `400`.
+
+Static files are resolved **after** your controllers, so a route always wins over a file on the same path.
+
+### Path traversal
+
+Requests that try to escape the served directory are rejected with `403`, including encoded variants:
+
+```
+/public/../secret.txt      → 403
+/public/..%2fsecret.txt    → 403
+/public/%2e%2e/secret.txt  → 403
+/public/sub/../../etc      → 403
+```
+
+The check resolves the final absolute path and requires it to sit inside the served directory, so it holds regardless of how the traversal is spelled.
+
+## Request state
+
+Guards and handlers share a per-request `state` object, which is how a guard passes data to the handler it protected. `@State()` reads it.
+
+```ts
+@Injectable()
+export class TenantGuard implements GuardContract {
+  canActivate(ctx: RequestContext): boolean {
+    const tenant = ctx.headers.get("x-tenant");
+    if (!tenant) return false;
+    ctx.state.tenant = tenant;
+    return true;
+  }
+}
+
+@Controller("reports")
+export class ReportsController {
+  @Get()
+  @UseGuards(TenantGuard)
+  list(@State("tenant") tenant: string) {
+    return { tenant };
+  }
+}
+```
+
+`@State()` without a key returns the whole state object. State is allocated fresh per request and never shared between them. `@Jwt()` uses exactly this mechanism — it stores the verified payload on `ctx.state.jwt`, which is what `@JwtPayload()` reads.
 
 ## docs/database.md
 
@@ -998,6 +1111,20 @@ export class UsersRepository {
 - `transaction(fn)` — runs `fn` inside a transaction, committing on success and rolling back if it throws. The callback receives a transaction client whose `.unsafe(sql, params)` runs statements on the same transaction.
 - `client` — the underlying `Bun.SQL` instance for advanced use.
 
+### Raw client access
+
+`SqlService.client` is the underlying `Bun.SQL` instance. The same object is registered under the `SQL_CLIENT` token, so you can inject it directly when you want the driver without the wrapper:
+
+```ts
+import { Inject, Injectable, SQL_CLIENT } from "@grupodiariodaregiao/bunstone";
+import type { SQL } from "bun";
+
+@Injectable()
+export class Reports {
+  constructor(@Inject(SQL_CLIENT) private readonly sql: SQL) {}
+}
+```
+
 ### Parameterized queries
 
 Bind values with placeholders instead of string interpolation to stay safe from injection. MySQL, MariaDB, and SQLite use `?`:
@@ -1066,6 +1193,20 @@ export class UsersService {
   private loadFromDb(id: string) {
     return { id, name: "Ada" };
   }
+}
+```
+
+## Raw client access
+
+`CacheService.client` is the underlying Bun `RedisClient`, also registered under the `CACHE_CLIENT` token for direct injection when you need a command the service does not wrap:
+
+```ts
+import { CACHE_CLIENT, Inject, Injectable } from "@grupodiariodaregiao/bunstone";
+import type { RedisClient } from "bun";
+
+@Injectable()
+export class Leaderboard {
+  constructor(@Inject(CACHE_CLIENT) private readonly redis: RedisClient) {}
 }
 ```
 
@@ -1351,6 +1492,8 @@ export class AppModule {}
 - `retry` — `{ maxAttempts?, baseDelayMs?, maxDelayMs?, factor? }`. Defaults: `maxAttempts` 3, `baseDelayMs` 200, `factor` 2, `maxDelayMs` 30000.
 - `circuitBreaker` — `{ failureThreshold?, cooldownMs?, successThreshold? }`. Defaults: 5 failures to open, 10s cooldown, 1 success to close.
 
+The resolved configuration is available under the `RABBIT_OPTIONS` token, and `RabbitConnection` is injectable — its `isHealthy()` reports whether the link is currently up.
+
 ## Consuming
 
 A consumer is a class decorated with `@RabbitConsumer()`. Each `@RabbitSubscribe({ queue })` method receives a `RabbitMessage<T>` and is registered as a provider.
@@ -1405,6 +1548,24 @@ Delivery is at-least-once: a crash between a handler's side effect and its ack m
 Each subscription is wrapped in its own **circuit breaker**. After repeated failures it opens and **pauses consumption of that queue** for the cooldown — the consumer is cancelled and messages stay on the broker instead of burning through their retries against a dependency that is down. When the cooldown elapses the consumer re-registers and the next message decides whether the circuit closes or opens again. Defaults: 5 failures to open, 10s cooldown, 1 success to close.
 
 Because each subscription has its own breaker and its own channel, one misbehaving consumer never affects the others.
+
+`CircuitBreaker` is exported and usable on its own for any call you want to protect — an outbound HTTP dependency, for example:
+
+```ts
+import { CircuitBreaker, CircuitOpenError } from "@grupodiariodaregiao/bunstone";
+
+const breaker = new CircuitBreaker({ failureThreshold: 3, cooldownMs: 5000 });
+
+try {
+  const result = await breaker.execute(() => fetch(url));
+} catch (error) {
+  if (error instanceof CircuitOpenError) {
+    // short-circuited: the dependency is known to be down
+  }
+}
+```
+
+The retry helpers (`backoffDelay`, `shouldRetry`, `DEFAULT_RETRY`) and the topology helpers (`retryQueueName`, `retryDelays`) are exported too, which is what the module itself uses to derive queue names.
 
 ### Reconnection
 
@@ -1734,6 +1895,79 @@ await storage.hit("key", 1, 20); // { allowed: false, ... }
 
 Rate limiting runs **before guards** in the request pipeline. A blocked request is rejected with `429` before any guard, validation, or handler code executes, so abusive traffic never reaches your authorization logic.
 
+## docs/logging.md
+
+# Logging
+
+Bunstone ships a small structured logger. The framework uses it internally (startup, scheduled jobs, queue consumers, reconnections) and you can use the same class in your own providers.
+
+## Usage
+
+Give each logger a name so lines can be traced back to their source.
+
+```ts
+import { Injectable, Logger } from "@grupodiariodaregiao/bunstone";
+
+@Injectable()
+export class OrdersService {
+  private readonly logger = new Logger("Orders");
+
+  place(orderId: string) {
+    this.logger.info("placing order", { orderId });
+  }
+}
+```
+
+## Levels
+
+```ts
+enum LogLevel {
+  DEBUG = 0,
+  INFO  = 1,
+  WARN  = 2,
+  ERROR = 3,
+  FATAL = 4,
+}
+```
+
+Methods: `debug`, `info`, `log` (an alias of `info`), `warn`, `error`, `fatal`. Anything below the configured level is dropped.
+
+## Options
+
+```ts
+new Logger("Orders", {
+  level: LogLevel.DEBUG,   // minimum level to emit (default INFO)
+  timestamp: true,         // include an ISO timestamp
+  pretty: false,           // human-readable with colours, or JSON
+});
+```
+
+`pretty` defaults to whether stdout is a TTY: colourised output in a terminal, and single-line JSON when the process is piped or running in a container, which is what a log shipper wants.
+
+## Structured output
+
+In JSON mode each line is one object:
+
+```json
+{"timestamp":"2026-07-25T18:43:47.807Z","level":"INFO","name":"Orders","message":"placing order {\"orderId\":\"o-1\"}"}
+```
+
+Errors keep their identity instead of collapsing to `{}`:
+
+```ts
+logger.error("failed", new Error("boom", { cause: new Error("root cause") }));
+```
+
+```json
+{"level":"ERROR","name":"Orders","message":"failed {\"name\":\"Error\",\"message\":\"boom\",\"stack\":\"...\",\"cause\":{\"name\":\"Error\",\"message\":\"root cause\",\"stack\":\"...\"}}"}
+```
+
+Serialization is cycle-safe: an object that references itself logs `"[Circular]"` rather than throwing. A log statement can never crash the code path it was there to diagnose.
+
+## Trace correlation
+
+When [`TelemetryModule`](./observability.md) is registered and a span is active, every line automatically carries `trace_id` and `span_id`, so a log can be opened directly against its trace in Grafana, Jaeger or any OTLP backend. No configuration is required — it works as soon as telemetry is on, and adds nothing when it is off.
+
 ## docs/observability.md
 
 # Observability (OpenTelemetry)
@@ -1821,6 +2055,10 @@ TelemetryModule.register({
 })
 ```
 
+## Direct access
+
+`TelemetryService` is injectable, and the resolved configuration is registered under the `TELEMETRY_OPTIONS` token. `TelemetrySdk` is the lower-level object that owns the tracer and meter providers, if you need to reach them.
+
 ## Log correlation
 
 The built-in `Logger` automatically includes `trace_id` and `span_id` whenever a span is active for the current request, so log lines can be correlated with their trace in your backend. No configuration is required — it works as soon as `TelemetryModule` is registered.
@@ -1830,6 +2068,78 @@ The built-in `Logger` automatically includes `trace_id` and `span_id` whenever a
 `TelemetryModule` registers an `onModuleDestroy` hook that flushes all pending spans and metrics when the application closes, so nothing is lost on graceful shutdown.
 
 Only the SDK's own providers are shut down — the OpenTelemetry API globals are left intact. That means a process that creates a second `Application` after closing the first (integration test suites, hot-reload supervisors) keeps exporting traces and metrics normally.
+
+## docs/errors.md
+
+# Errors
+
+Bunstone throws typed errors with a stable code and, where possible, a suggestion telling you how to fix the problem. They are for *framework* failures — misconfiguration, a broken dependency graph, a queue that cannot be reached. For HTTP responses use [`HttpException` and its subclasses](./controllers.md#exceptions) instead.
+
+## The base class
+
+Every framework error extends `BunstoneError`:
+
+```ts
+abstract class BunstoneError extends Error {
+  readonly code: string;                          // e.g. "BNS-DI-003"
+  readonly suggestion?: string;                   // how to fix it
+  readonly context?: Record<string, unknown>;     // the offending token, module, queue…
+  readonly cause?: Error;                         // the original error, when wrapping one
+}
+```
+
+`instanceof` works correctly for every subclass, and `cause` chains are preserved, so a wrapped driver error is still reachable.
+
+```ts
+import { BunstoneError, DatabaseError } from "@grupodiariodaregiao/bunstone";
+
+try {
+  await repository.save(order);
+} catch (error) {
+  if (error instanceof DatabaseError) {
+    logger.error(`[${error.code}] ${error.message}`, error.cause);
+  }
+}
+```
+
+## Catching by area
+
+| Class | Raised by |
+|---|---|
+| `DependencyResolutionError` | the DI container — unresolvable, circular or out-of-scope dependencies |
+| `ModuleInitializationError` | `@Module` compilation — not a module, `undefined` entry |
+| `ConfigurationError` | invalid or conflicting application options, duplicate routes |
+| `DatabaseError` | the SQL layer |
+| `EventStoreError` | the event store, including optimistic-concurrency conflicts |
+| `CqrsError` | command/query/event buses — missing or duplicate handlers |
+| `RabbitMQError` | connection, topology and consumer failures |
+| `ScheduleError` | invalid cron expressions and scheduler failures |
+| `RateLimitError` | rate-limit storage failures |
+| `GuardError` | guard resolution failures |
+| `HttpParamError` | parameter extraction and validation |
+| `UploadError` | multipart handling |
+| `TestingError` | the testing module |
+| `ImportError`, `AdapterError`, `EmailError`, `BullMQError` | optional integrations |
+
+## Error codes
+
+Codes are stable and greppable — they are safe to alert on. The prefix identifies the area:
+
+| Prefix | Area | Examples |
+|---|---|---|
+| `BNS-DI-*` | dependency injection | `BNS-DI-001` undefined type (usually `import type` on an injected class), `BNS-DI-002` circular dependency, `BNS-DI-003` no provider registered, `BNS-DI-004` outside the module's boundary |
+| `BNS-MOD-*` | modules | `BNS-MOD-001` not a module, `BNS-MOD-002` `undefined` entry (usually a circular import) |
+| `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module |
+| `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller |
+| `BNS-DB-*`, `BNS-ES-*` | database, event store | connection, query and concurrency failures |
+| `BNS-CQRS-*` | CQRS buses | missing or duplicate handler |
+| `BNS-RMQ-*`, `BNS-MQ-*` | messaging | connection, topology and publish failures |
+| `BNS-SCHED-*` | scheduling | invalid cron expression |
+| `BNS-RL-*`, `BNS-GRD-*`, `BNS-TEST-*`, `BNS-IMP-*`, `BNS-ADP-*`, `BNS-EMAIL-*` | rate limiting, guards, testing, optional imports, adapters, email |
+
+## Failing fast
+
+Most of these are raised during `Application.create`, before the server accepts a single request: an unresolvable dependency, a duplicate route, an invalid cron expression or a module boundary violation stops the process at startup rather than surfacing on a rarely-hit endpoint later.
 
 ## docs/testing.md
 

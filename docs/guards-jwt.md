@@ -93,6 +93,8 @@ export class AuthService {
 - `verify<T>(token)` — returns the decoded payload, or `null` if the token is invalid, tampered with, or expired.
 - `decode<T>(token)` — decodes the payload **without** verifying the signature.
 
+The module's configuration is available under the `JWT_OPTIONS` token, and `JwtGuard` is a normal provider you can list in `@UseGuards(JwtGuard)` if you prefer that over `@Jwt()`.
+
 ### Protecting routes
 
 `@Jwt()` is a built-in guard. It reads the `Authorization: Bearer <token>` header, verifies it with `JwtService`, and stores the payload on `ctx.state.jwt`. A missing or invalid token results in `401 Unauthorized`.

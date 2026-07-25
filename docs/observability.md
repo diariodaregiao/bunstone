@@ -83,6 +83,10 @@ TelemetryModule.register({
 })
 ```
 
+## Direct access
+
+`TelemetryService` is injectable, and the resolved configuration is registered under the `TELEMETRY_OPTIONS` token. `TelemetrySdk` is the lower-level object that owns the tracer and meter providers, if you need to reach them.
+
 ## Log correlation
 
 The built-in `Logger` automatically includes `trace_id` and `span_id` whenever a span is active for the current request, so log lines can be correlated with their trace in your backend. No configuration is required — it works as soon as `TelemetryModule` is registered.

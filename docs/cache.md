@@ -42,6 +42,20 @@ export class UsersService {
 }
 ```
 
+## Raw client access
+
+`CacheService.client` is the underlying Bun `RedisClient`, also registered under the `CACHE_CLIENT` token for direct injection when you need a command the service does not wrap:
+
+```ts
+import { CACHE_CLIENT, Inject, Injectable } from "@grupodiariodaregiao/bunstone";
+import type { RedisClient } from "bun";
+
+@Injectable()
+export class Leaderboard {
+  constructor(@Inject(CACHE_CLIENT) private readonly redis: RedisClient) {}
+}
+```
+
 ## API
 
 - `get<T>(key)` — returns the parsed value or `null`.

@@ -49,6 +49,8 @@ export class AppModule {}
 - `retry` — `{ maxAttempts?, baseDelayMs?, maxDelayMs?, factor? }`. Defaults: `maxAttempts` 3, `baseDelayMs` 200, `factor` 2, `maxDelayMs` 30000.
 - `circuitBreaker` — `{ failureThreshold?, cooldownMs?, successThreshold? }`. Defaults: 5 failures to open, 10s cooldown, 1 success to close.
 
+The resolved configuration is available under the `RABBIT_OPTIONS` token, and `RabbitConnection` is injectable — its `isHealthy()` reports whether the link is currently up.
+
 ## Consuming
 
 A consumer is a class decorated with `@RabbitConsumer()`. Each `@RabbitSubscribe({ queue })` method receives a `RabbitMessage<T>` and is registered as a provider.
@@ -103,6 +105,24 @@ Delivery is at-least-once: a crash between a handler's side effect and its ack m
 Each subscription is wrapped in its own **circuit breaker**. After repeated failures it opens and **pauses consumption of that queue** for the cooldown — the consumer is cancelled and messages stay on the broker instead of burning through their retries against a dependency that is down. When the cooldown elapses the consumer re-registers and the next message decides whether the circuit closes or opens again. Defaults: 5 failures to open, 10s cooldown, 1 success to close.
 
 Because each subscription has its own breaker and its own channel, one misbehaving consumer never affects the others.
+
+`CircuitBreaker` is exported and usable on its own for any call you want to protect — an outbound HTTP dependency, for example:
+
+```ts
+import { CircuitBreaker, CircuitOpenError } from "@grupodiariodaregiao/bunstone";
+
+const breaker = new CircuitBreaker({ failureThreshold: 3, cooldownMs: 5000 });
+
+try {
+  const result = await breaker.execute(() => fetch(url));
+} catch (error) {
+  if (error instanceof CircuitOpenError) {
+    // short-circuited: the dependency is known to be down
+  }
+}
+```
+
+The retry helpers (`backoffDelay`, `shouldRetry`, `DEFAULT_RETRY`) and the topology helpers (`retryQueueName`, `retryDelays`) are exported too, which is what the module itself uses to derive queue names.
 
 ### Reconnection
 

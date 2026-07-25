@@ -84,6 +84,20 @@ export class UsersRepository {
 - `transaction(fn)` — runs `fn` inside a transaction, committing on success and rolling back if it throws. The callback receives a transaction client whose `.unsafe(sql, params)` runs statements on the same transaction.
 - `client` — the underlying `Bun.SQL` instance for advanced use.
 
+### Raw client access
+
+`SqlService.client` is the underlying `Bun.SQL` instance. The same object is registered under the `SQL_CLIENT` token, so you can inject it directly when you want the driver without the wrapper:
+
+```ts
+import { Inject, Injectable, SQL_CLIENT } from "@grupodiariodaregiao/bunstone";
+import type { SQL } from "bun";
+
+@Injectable()
+export class Reports {
+  constructor(@Inject(SQL_CLIENT) private readonly sql: SQL) {}
+}
+```
+
 ### Parameterized queries
 
 Bind values with placeholders instead of string interpolation to stay safe from injection. MySQL, MariaDB, and SQLite use `?`:
