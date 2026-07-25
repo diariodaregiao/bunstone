@@ -9,6 +9,8 @@ import { backoffDelay, type RetryOptions, shouldRetry } from "./retry";
 import { declareRetryTopology, retryQueueName } from "./topology";
 import type { RabbitMessage } from "./types";
 
+const RECONSUME_DELAY_MS = 1000;
+
 export interface QueueConsumerOptions {
 	queue: string;
 	handle: (message: RabbitMessage) => Promise<void>;
@@ -35,6 +37,7 @@ export class QueueConsumer {
 	private channel?: ConfirmChannel;
 	private consumerTag?: string;
 	private paused = false;
+	private stopped = false;
 	private resumeTimer?: ReturnType<typeof setTimeout>;
 	private readonly inFlight = new Set<Promise<void>>();
 	private readonly breaker: CircuitBreaker;
@@ -50,10 +53,13 @@ export class QueueConsumer {
 
 	/** Binds the consumer to a freshly established channel. */
 	async attach(channel: ConfirmChannel): Promise<void> {
+		if (this.stopped) return;
 		this.clearResumeTimer();
 		this.channel = channel;
 		this.consumerTag = undefined;
-		this.paused = false;
+		// an open circuit means the downstream is still down: reconnecting must
+		// not resume consumption behind its back
+		this.paused = this.breaker.current === "open";
 
 		if (this.options.declareQueue) {
 			await channel.assertQueue(this.queue, { durable: true });
@@ -101,6 +107,8 @@ export class QueueConsumer {
 	}
 
 	async close(timeoutMs: number): Promise<void> {
+		// sticky: a reconnect racing shutdown must not resurrect this consumer
+		this.stopped = true;
 		this.clearResumeTimer();
 		await this.cancel();
 		await this.drain(timeoutMs);
@@ -108,12 +116,17 @@ export class QueueConsumer {
 
 	private async consume(): Promise<void> {
 		const channel = this.channel;
-		if (!channel || this.consumerTag || this.paused) return;
+		if (!channel || this.consumerTag || this.paused || this.stopped) return;
 
 		const { consumerTag } = await channel.consume(this.queue, (raw) => {
 			if (!raw) {
-				// cancelled by the broker (queue deleted, node failover)
+				// cancelled by the broker (queue deleted, node failover): without
+				// this the consumer would stop forever while reporting healthy
 				this.consumerTag = undefined;
+				this.logger.warn(
+					`Consumption of "${this.queue}" was cancelled by the broker; re-registering.`,
+				);
+				this.scheduleReconsume();
 				return;
 			}
 			const task = this.dispatch(channel, raw).finally(() => {
@@ -155,11 +168,13 @@ export class QueueConsumer {
 		const target = this.failureTarget(attempt, error);
 
 		if (!target) {
+			// acking here would destroy the payload; reject instead so the queue's
+			// own dead-letter route (if any) takes it and it is never silently lost
 			this.logger.error(
-				`Message on "${this.queue}" failed after ${attempt} attempt(s) and no dead-letter queue is configured; dropping it.`,
+				`Message on "${this.queue}" failed after ${attempt} attempt(s); rejecting it. Configure \`deadLetterQueue\` to keep failures for inspection.`,
 				error,
 			);
-			this.settle(() => channel.ack(raw));
+			this.settle(() => channel.nack(raw, false, false));
 			return;
 		}
 
@@ -210,6 +225,15 @@ export class QueueConsumer {
 		this.resumeTimer = setTimeout(() => void this.resume(), wait);
 	}
 
+	/** Re-registers after a broker-side cancel, retrying while it keeps failing. */
+	private scheduleReconsume(): void {
+		if (this.stopped || this.resumeTimer) return;
+		this.resumeTimer = setTimeout(() => {
+			this.resumeTimer = undefined;
+			this.consume().catch(() => this.scheduleReconsume());
+		}, RECONSUME_DELAY_MS);
+	}
+
 	private async resume(): Promise<void> {
 		this.resumeTimer = undefined;
 		this.paused = false;
@@ -240,6 +264,11 @@ export class QueueConsumer {
 	}
 }
 
+/**
+ * The broker acks a publish it could not route, so a confirm alone does not
+ * prove the copy landed anywhere. `mandatory` makes it return the message
+ * instead, and the return is treated as a failure.
+ */
 function publishConfirmed(
 	channel: ConfirmChannel,
 	queue: string,
@@ -247,8 +276,27 @@ function publishConfirmed(
 	options: Options.Publish,
 ): Promise<void> {
 	return new Promise((resolve, reject) => {
-		channel.sendToQueue(queue, content, options, (error) =>
-			error ? reject(error) : resolve(),
+		let returned = false;
+		const onReturn = () => {
+			returned = true;
+		};
+		channel.once("return", onReturn);
+
+		channel.sendToQueue(
+			queue,
+			content,
+			{ ...options, mandatory: true },
+			(error) => {
+				channel.removeListener("return", onReturn);
+				if (error) return reject(error);
+				// the return arrives before the confirm for an unroutable message
+				if (returned) {
+					return reject(
+						new Error(`Queue "${queue}" did not accept the message.`),
+					);
+				}
+				resolve();
+			},
 		);
 	});
 }

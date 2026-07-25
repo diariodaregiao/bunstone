@@ -1527,7 +1527,7 @@ export class OrderConsumer {
 You do not ack manually. When the handler **resolves**, the message is acknowledged. When it **throws**:
 
 1. If `attempt` is below `retry.maxAttempts`, the message is moved to a **retry queue** that holds it for the backoff delay (`baseDelayMs * factor^(attempt-1)`, capped at `maxDelayMs`) and then dead-letters it back into the original queue with the attempt counter incremented.
-2. Once attempts are exhausted, the message is sent to the queue's `deadLetterQueue` if one is configured; otherwise the failure is logged and the message is dropped.
+2. Once attempts are exhausted, the message is sent to the queue's `deadLetterQueue` if one is configured. Without one it is **rejected** rather than acknowledged, so the queue's own dead-letter route still applies and the payload is never destroyed by the framework. Configure a `deadLetterQueue` if you want failures kept somewhere you can inspect them.
 
 The retry queues are declared for you, one per distinct delay, named `<queue>.retry.<delay>ms`. They carry `x-message-ttl` plus a dead-letter route back to the source queue, so **the backoff is broker state, not a timer in your process**.
 
@@ -1613,7 +1613,9 @@ export class OrderService {
 - `publish(exchange, routingKey, message, options?)` — publish to an exchange.
 - `sendToQueue(queue, message, options?)` — send straight to a queue.
 
-Both publish on a **confirm channel**: the promise resolves only once the broker has acknowledged the message, and rejects if it was refused. An `await` that returns means the message is durably on the broker, so a failed publish is something you can catch and react to rather than a silent loss.
+Both publish on a **confirm channel** with `mandatory` set: the promise resolves only once the broker has acknowledged the message *and* confirmed it was routed somewhere. A publish to an exchange with no matching binding, or to a queue that does not exist, **rejects** — the broker acknowledges unroutable messages, so without this they would vanish while your `await` reported success.
+
+Publishing while the broker is unreachable rejects after a timeout instead of hanging indefinitely, so an HTTP handler is never pinned for the length of an outage.
 
 ## docs/scheduling.md
 

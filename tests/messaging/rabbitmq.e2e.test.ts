@@ -98,6 +98,16 @@ describe.skipIf(!reachable)("RabbitMQ E2E", () => {
 		expect(received).toContainEqual({ id: 1 });
 	});
 
+	it("rejects a publish the broker cannot route", async () => {
+		const rabbit = app.resolve(RabbitMQService);
+
+		// the broker confirms an unroutable publish, so without `mandatory` this
+		// would resolve successfully and the message would simply cease to exist
+		await expect(
+			rabbit.sendToQueue(`${WORK_QUEUE}.does-not-exist`, { id: 9 }),
+		).rejects.toThrow(/did not accept/);
+	});
+
 	it("routes a failing message to the DLQ", async () => {
 		const rabbit = app.resolve(RabbitMQService);
 		await rabbit.sendToQueue(WORK_QUEUE, { id: 666 });

@@ -27,6 +27,19 @@ class FakeChannel {
 
 	private handler?: (message: ConsumeMessage | null) => void;
 	private tag = 0;
+	/** Set to make the broker "return" the publish as unroutable. */
+	unroutable = false;
+	private returnListeners = new Set<() => void>();
+
+	once(event: string, listener: () => void) {
+		if (event === "return") this.returnListeners.add(listener);
+		return this;
+	}
+
+	removeListener(event: string, listener: () => void) {
+		if (event === "return") this.returnListeners.delete(listener);
+		return this;
+	}
 
 	async assertQueue(queue: string, options?: unknown) {
 		this.declared.push({ queue, options });
@@ -65,6 +78,11 @@ class FakeChannel {
 	): boolean {
 		if (this.publishError) {
 			callback(this.publishError);
+			return true;
+		}
+		if (this.unroutable) {
+			for (const listener of this.returnListeners) listener();
+			callback(null);
 			return true;
 		}
 		this.published.push({
@@ -170,6 +188,41 @@ describe("QueueConsumer", () => {
 		expect(channel.published[0]?.headers["x-error"]).toContain("boom");
 	});
 
+	it("keeps the message on the queue when the copy is unroutable", async () => {
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				throw new Error("boom");
+			},
+		});
+		channel.unroutable = true;
+
+		channel.deliver({ id: 1 });
+		await consumer.drain(1000);
+
+		// the broker confirms an unroutable publish, so only the return tells us
+		// the copy landed nowhere; acking here would destroy the message
+		expect(channel.acked).toHaveLength(0);
+		expect(channel.nacked.at(-1)?.requeue).toBe(true);
+	});
+
+	it("rejects an exhausted message instead of destroying it", async () => {
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				throw new Error("boom");
+			},
+		});
+
+		channel.deliver({ id: 1 }, { "x-attempt": 3 });
+		await consumer.drain(1000);
+
+		// no DLQ configured: the payload must not be acked away
+		expect(channel.acked).toHaveLength(0);
+		expect(channel.nacked.at(-1)).toEqual({
+			message: expect.anything(),
+			requeue: false,
+		});
+	});
+
 	it("keeps the message on the queue when the retry publish fails", async () => {
 		const { channel, consumer } = await setup({
 			handle: async () => {
@@ -210,7 +263,7 @@ describe("QueueConsumer", () => {
 		]);
 	});
 
-	it("requeues without spending an attempt while the circuit is open", async () => {
+	it("does not resume consumption on reconnect while the circuit is open", async () => {
 		const { channel, consumer } = await setup({
 			handle: async () => {
 				throw new Error("boom");
@@ -220,15 +273,22 @@ describe("QueueConsumer", () => {
 
 		channel.deliver({ id: 1 });
 		await consumer.drain(1000);
-		const publishedAfterFirst = channel.published.length;
+		expect(channel.isConsuming).toBe(false);
 
-		// the breaker is open now; re-attach so a second delivery can arrive
+		// a reconnect must not put the consumer back to work against a
+		// dependency the breaker still considers down
 		await consumer.attach(channel.asChannel());
-		channel.deliver({ id: 2 });
-		await consumer.drain(1000);
 
-		expect(channel.published).toHaveLength(publishedAfterFirst);
-		expect(channel.nacked.at(-1)?.requeue).toBe(true);
+		expect(channel.isConsuming).toBe(false);
+	});
+
+	it("stays stopped when a reconnect races shutdown", async () => {
+		const { channel, consumer } = await setup({ handle: async () => {} });
+
+		await consumer.close(100);
+		await consumer.attach(channel.asChannel());
+
+		expect(channel.isConsuming).toBe(false);
 	});
 
 	it("treats a corrupted attempt header as the first attempt", async () => {

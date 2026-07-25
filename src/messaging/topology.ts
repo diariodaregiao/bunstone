@@ -20,11 +20,16 @@ export function retryQueueName(queue: string, delayMs: number): string {
  * allowed to retry. Equal delays collapse into a single queue, so a capped
  * `maxDelayMs` does not create one queue per attempt.
  */
+/** Each distinct delay becomes one durable queue, so the count is capped. */
+const MAX_RETRY_QUEUES = 32;
+
 export function retryDelays(retry: RetryOptions | undefined): number[] {
 	const delays: number[] = [];
 	for (let attempt = 1; shouldRetry(attempt, retry); attempt++) {
 		const delay = backoffDelay(attempt, retry);
 		if (!delays.includes(delay)) delays.push(delay);
+		// an unbounded `maxAttempts` would loop forever and never let the app boot
+		if (delays.length >= MAX_RETRY_QUEUES) break;
 	}
 	return delays;
 }

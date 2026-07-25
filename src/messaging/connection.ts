@@ -1,4 +1,5 @@
 import { type ChannelModel, type ConfirmChannel, connect } from "amqplib";
+import { RabbitMQError } from "@/errors";
 import { Logger } from "@/utils/logger";
 import type { QueueConsumer } from "./consumer";
 import type { RabbitReconnectOptions } from "./types";
@@ -14,6 +15,7 @@ type Setup = (channel: ConfirmChannel) => Promise<void>;
 const DEFAULT_PREFETCH = 10;
 const DEFAULT_RECONNECT_DELAY_MS = 2000;
 const DEFAULT_DRAIN_TIMEOUT_MS = 10_000;
+const DEFAULT_PUBLISH_TIMEOUT_MS = 10_000;
 
 export class RabbitConnection {
 	private connection?: ChannelModel;
@@ -44,14 +46,21 @@ export class RabbitConnection {
 
 	registerConsumer(consumer: QueueConsumer): void {
 		this.consumers.push(consumer);
-		if (this.connection) {
-			this.attachConsumer(this.connection, consumer).catch((error) =>
+		const connection = this.connection;
+		if (!connection) return;
+
+		this.attachConsumer(connection, consumer)
+			.then((channel) => {
+				// tracked and watched, so a failure on it still triggers recovery
+				this.consumerChannels.push(channel);
+				this.watch(connection, [channel], this.generation);
+			})
+			.catch((error) =>
 				this.logger.error(
 					`Could not start consuming "${consumer.queue}":`,
 					error,
 				),
 			);
-		}
 	}
 
 	async start(): Promise<void> {
@@ -63,9 +72,22 @@ export class RabbitConnection {
 		}
 	}
 
-	/** The shared publisher channel, awaiting reconnection when necessary. */
-	getChannel(): Promise<ConfirmChannel> {
-		return this.channel ? Promise.resolve(this.channel) : this.ready;
+	/**
+	 * The shared publisher channel. Waiting is bounded: an unbounded wait would
+	 * pin an HTTP handler for as long as the broker stays down.
+	 */
+	getChannel(timeoutMs = DEFAULT_PUBLISH_TIMEOUT_MS): Promise<ConfirmChannel> {
+		if (this.channel) return Promise.resolve(this.channel);
+		return Promise.race([
+			this.ready,
+			Bun.sleep(timeoutMs).then<never>(() => {
+				throw new RabbitMQError(
+					"Timed out waiting for a RabbitMQ connection.",
+					"BNS-RMQ-001",
+					"The broker is unreachable. Check the connection and consider queueing the publish yourself.",
+				);
+			}),
+		]);
 	}
 
 	/** False while the link is down; suitable as a readiness check. */
@@ -121,17 +143,29 @@ export class RabbitConnection {
 
 		try {
 			const channel = await connection.createConfirmChannel();
+			// listeners go on before any setup runs: a topology conflict during
+			// `establish` would otherwise be an unhandled 'error' event
+			this.watch(connection, [channel], generation);
 			for (const setup of this.setups) await setup(channel);
 
 			const consumerChannels: ConfirmChannel[] = [];
 			for (const consumer of this.consumers) {
-				consumerChannels.push(await this.attachConsumer(connection, consumer));
+				const consumerChannel = await connection.createConfirmChannel();
+				this.watch(connection, [consumerChannel], generation);
+				await consumerChannel.prefetch(this.prefetch);
+				await consumer.attach(consumerChannel);
+				consumerChannels.push(consumerChannel);
+			}
+
+			// `close()` may have run while we were connecting
+			if (this.closing) {
+				await closeQuietly(connection);
+				return;
 			}
 
 			this.connection = connection;
 			this.channel = channel;
 			this.consumerChannels = consumerChannels;
-			this.watch(connection, [channel, ...consumerChannels], generation);
 			this.resolveReady(channel);
 		} catch (error) {
 			for (const consumer of this.consumers) consumer.detach();
@@ -208,8 +242,11 @@ export class RabbitConnection {
 					await this.establish();
 					this.logger.log("Reconnected to RabbitMQ.");
 					return;
-				} catch {
-					this.logger.warn(`RabbitMQ reconnect attempt ${attempt} failed.`);
+				} catch (error) {
+					this.logger.warn(
+						`RabbitMQ reconnect attempt ${attempt} failed:`,
+						error,
+					);
 					if (maxRetries > 0 && attempt >= maxRetries) {
 						this.logger.error("Giving up reconnecting to RabbitMQ.");
 						return;
