@@ -1618,6 +1618,8 @@ When `deadLetterQueue` is set, the queue is also declared with a dead-letter rou
 
 You can consume the dead-letter queue like any other queue by adding a `@RabbitSubscribe({ queue: "orders.created.dlq" })` handler.
 
+Note that a consumed dead-letter queue gets a dead-letter queue of its own (`orders.created.dlq.dlq`) — the guarantee that a failed message is never destroyed applies to every consumer, including the one draining your DLQ. Keep DLQ handlers simple so that second level stays empty.
+
 ### Restart safety
 
 Stopping the app — a deploy, `SIGTERM`, a crash — and starting it again resumes exactly where it left off:
