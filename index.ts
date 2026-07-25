@@ -158,6 +158,8 @@ export {
 	wireRabbit,
 } from "@/messaging";
 export {
+	injectTraceContext,
+	instrumentConsume,
 	instrumentRequest,
 	TELEMETRY_OPTIONS,
 	TelemetryModule,

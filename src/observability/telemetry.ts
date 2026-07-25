@@ -1,9 +1,11 @@
 import {
 	context as otelContext,
 	metrics as otelMetrics,
+	propagation as otelPropagation,
 	trace as otelTrace,
 } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
@@ -61,6 +63,9 @@ export class TelemetrySdk {
 		// Registering a context manager is a no-op when the host process (or a
 		// previous SDK instance) already installed one, and that existing manager
 		// keeps working — so it is never torn down on shutdown.
+		// without a propagator, `traceparent` is neither read nor written and
+		// every service starts its own disconnected trace
+		otelPropagation.setGlobalPropagator(new W3CTraceContextPropagator());
 		otelContext.setGlobalContextManager(
 			new AsyncLocalStorageContextManager().enable(),
 		);

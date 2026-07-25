@@ -1,4 +1,5 @@
 import type { ConfirmChannel, ConsumeMessage, Options } from "amqplib";
+import { instrumentConsume } from "@/observability/instrumentation";
 import { Logger } from "@/utils/logger";
 import {
 	CircuitBreaker,
@@ -160,7 +161,9 @@ export class QueueConsumer {
 		const message: RabbitMessage = { data: decode(raw), raw, attempt };
 
 		try {
-			await this.breaker.execute(() => this.options.handle(message));
+			await instrumentConsume(this.queue, attempt, raw.properties.headers, () =>
+				this.breaker.execute(() => this.options.handle(message)),
+			);
 			this.settle(() => channel.ack(raw));
 		} catch (error) {
 			if (error instanceof CircuitOpenError) {

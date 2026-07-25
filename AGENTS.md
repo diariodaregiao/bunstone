@@ -8,7 +8,7 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (129)
+## Public exports (131)
 
 - `AdapterError`
 - `AggregateRoot`
@@ -129,6 +129,8 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `getRateLimit`
 - `getSchedules`
 - `getSubscriptions`
+- `injectTraceContext`
+- `instrumentConsume`
 - `instrumentRequest`
 - `isInjectable`
 - `isRabbitConsumer`
@@ -1620,6 +1622,10 @@ You can consume the dead-letter queue like any other queue by adding a `@RabbitS
 
 Note that a consumed dead-letter queue gets a dead-letter queue of its own (`orders.created.dlq.dlq`) — the guarantee that a failed message is never destroyed applies to every consumer, including the one draining your DLQ. Keep DLQ handlers simple so that second level stays empty.
 
+### Tracing
+
+When `TelemetryModule` is registered, the trace context of whoever published a message travels with it and the consumer continues that trace, so the HTTP request that produced a message and the consumer that handled it appear together instead of as two unrelated traces. Each message also gets a `process {queue}` span and a `messaging.consumed.messages` counter. See [Observability](./observability.md).
+
 ### Restart safety
 
 Stopping the app — a deploy, `SIGTERM`, a crash — and starting it again resumes exactly where it left off:
@@ -2101,6 +2107,38 @@ Every HTTP request produces:
 
 - A span named `{METHOD} {route}` (e.g. `GET /users/:id`) with `http.request.method`, `http.route`, and `http.response.status_code`. Responses with status `>= 500` are marked as error spans.
 - A `http.server.request.duration` histogram (milliseconds), tagged with method and route.
+
+Every queue message produces:
+
+- A span named `process {queue}` with `messaging.system`, `messaging.destination.name` and `messaging.attempt`. A handler that throws marks the span as an error.
+- A `messaging.consumed.messages` counter, tagged with the queue and the outcome (`ok` or `error`).
+
+## Distributed tracing
+
+Bunstone reads the W3C `traceparent` header on incoming requests, so a call from another service **continues that trace** instead of starting a new one. The same context is written into every message published to RabbitMQ and read back by the consumer.
+
+The practical effect is a single trace across a hop that is usually invisible:
+
+```
+POST /orders                    (service A, span kind SERVER)
+└── process orders.created      (service B, span kind CONSUMER)
+```
+
+Nothing to configure — registering `TelemetryModule` installs the W3C propagator.
+
+To continue the trace into a service Bunstone does not call for you (an outbound `fetch`, a third-party SDK), inject the context into your own carrier:
+
+```ts
+import { injectTraceContext } from "@grupodiariodaregiao/bunstone";
+
+const headers: Record<string, string> = {};
+injectTraceContext(headers);           // adds `traceparent` when a span is active
+await fetch(url, { headers });
+```
+
+## Everything here is optional
+
+Instrumentation is inert until `TelemetryModule` is registered. Without it there is no exporter, no span and no measurable cost — extraction and injection resolve to the OpenTelemetry no-op implementations (about 0.1 ns per call), and a request carrying a `traceparent` is served exactly as any other. An application that wants nothing to do with tracing simply does not import the module.
 
 ## Options
 

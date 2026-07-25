@@ -1,5 +1,6 @@
 import type { ConfirmChannel } from "amqplib";
 import { RabbitMQError } from "@/errors";
+import { injectTraceContext } from "@/observability/instrumentation";
 
 /** Correlates a `basic.return` with the publish that caused it. */
 export const PUBLISH_ID_HEADER = "x-bunstone-publish";
@@ -49,8 +50,10 @@ export function publishConfirmed(
 	) => boolean,
 ): Promise<void> {
 	if (!options.mandatory) {
+		const headers: Record<string, unknown> = {};
+		injectTraceContext(headers);
 		return new Promise((resolve, reject) => {
-			send({}, false, (error) => (error ? reject(error) : resolve()));
+			send(headers, false, (error) => (error ? reject(error) : resolve()));
 		});
 	}
 
@@ -63,7 +66,10 @@ export function publishConfirmed(
 			returned = true;
 		});
 
-		send({ [PUBLISH_ID_HEADER]: id }, true, (error) => {
+		const headers: Record<string, unknown> = { [PUBLISH_ID_HEADER]: id };
+		injectTraceContext(headers);
+
+		send(headers, true, (error) => {
 			pending.delete(id);
 			if (error) return reject(error);
 			// the return always arrives before the confirm for the same message

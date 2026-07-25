@@ -92,6 +92,10 @@ You can consume the dead-letter queue like any other queue by adding a `@RabbitS
 
 Note that a consumed dead-letter queue gets a dead-letter queue of its own (`orders.created.dlq.dlq`) — the guarantee that a failed message is never destroyed applies to every consumer, including the one draining your DLQ. Keep DLQ handlers simple so that second level stays empty.
 
+### Tracing
+
+When `TelemetryModule` is registered, the trace context of whoever published a message travels with it and the consumer continues that trace, so the HTTP request that produced a message and the consumer that handled it appear together instead of as two unrelated traces. Each message also gets a `process {queue}` span and a `messaging.consumed.messages` counter. See [Observability](./observability.md).
+
 ### Restart safety
 
 Stopping the app — a deploy, `SIGTERM`, a crash — and starting it again resumes exactly where it left off:
