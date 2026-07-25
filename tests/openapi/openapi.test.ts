@@ -5,6 +5,7 @@ import { Application } from "@/core/application";
 import { Module } from "@/core/module";
 import { Body, Param, Query } from "@/http/params";
 import { Controller, Get, Post } from "@/http/routing";
+import { assertOpenApiBasicAuth } from "@/openapi/basic-auth";
 import { ApiOperation, ApiResponse, ApiTags } from "@/openapi/decorators";
 
 const CreateUser = z.object({ name: z.string().min(2), age: z.number() });
@@ -126,7 +127,9 @@ describe("OpenAPI basic auth", () => {
 	it("rejects unauthenticated access to the spec and ui", async () => {
 		const spec = await fetch(`${securedBase}/openapi.json`);
 		expect(spec.status).toBe(401);
-		expect(spec.headers.get("www-authenticate")).toContain('Basic realm="API Docs"');
+		expect(spec.headers.get("www-authenticate")).toContain(
+			'Basic realm="API Docs"',
+		);
 
 		const ui = await fetch(`${securedBase}/docs`);
 		expect(ui.status).toBe(401);
@@ -152,5 +155,33 @@ describe("OpenAPI basic auth", () => {
 			headers: { authorization: `Basic ${btoa("docs:wrong")}` },
 		});
 		expect(res.status).toBe(401);
+	});
+
+	it("accepts non-ascii credentials", () => {
+		const auth = { username: "usuário", password: "sênha-çom-acento" };
+		const encode = (value: string) =>
+			Buffer.from(value, "utf8").toString("base64");
+
+		const ok = new Request("http://localhost/openapi.json", {
+			headers: {
+				authorization: `Basic ${encode(`${auth.username}:${auth.password}`)}`,
+			},
+		});
+		expect(assertOpenApiBasicAuth(ok, auth)).toBeNull();
+
+		const wrong = new Request("http://localhost/openapi.json", {
+			headers: {
+				authorization: `Basic ${encode(`${auth.username}:senha-sem-acento`)}`,
+			},
+		});
+		expect(assertOpenApiBasicAuth(wrong, auth)?.status).toBe(401);
+	});
+
+	it("rejects a malformed authorization header", () => {
+		const auth = { username: "docs", password: "s3cret" };
+		const req = new Request("http://localhost/openapi.json", {
+			headers: { authorization: "Basic not-base64!!" },
+		});
+		expect(assertOpenApiBasicAuth(req, auth)?.status).toBe(401);
 	});
 });

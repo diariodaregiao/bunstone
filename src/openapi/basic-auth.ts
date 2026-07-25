@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 export interface OpenApiBasicAuth {
 	username: string;
@@ -17,11 +17,8 @@ function unauthorized(realm: string): Response {
 }
 
 function safeEqual(a: string, b: string): boolean {
-	const left = Buffer.from(a);
-	const right = Buffer.from(b);
-	if (left.length !== right.length) {
-		return timingSafeEqual(left, left) && false;
-	}
+	const left = createHash("sha256").update(a, "utf8").digest();
+	const right = createHash("sha256").update(b, "utf8").digest();
 	return timingSafeEqual(left, right);
 }
 
@@ -35,12 +32,10 @@ export function assertOpenApiBasicAuth(
 		return unauthorized(realm);
 	}
 
-	let decoded: string;
-	try {
-		decoded = atob(header.slice("Basic ".length).trim());
-	} catch {
-		return unauthorized(realm);
-	}
+	const decoded = Buffer.from(
+		header.slice("Basic ".length).trim(),
+		"base64",
+	).toString("utf8");
 
 	const separator = decoded.indexOf(":");
 	if (separator < 0) {
