@@ -1327,6 +1327,8 @@ The retry queues are declared for you, one per distinct delay, named `<queue>.re
 
 The original message is acknowledged only after the broker confirms it has taken the copy. If the process dies in between, the message is still unacked and gets redelivered — nothing is lost.
 
+When `deadLetterQueue` is set, the queue is also declared with a dead-letter route to it, so rejections the broker decides on its own — a queue TTL, a `max-length` overflow — end up in the DLQ instead of disappearing.
+
 You can consume the dead-letter queue like any other queue by adding a `@RabbitSubscribe({ queue: "orders.created.dlq" })` handler.
 
 ### Restart safety
@@ -1349,7 +1351,11 @@ Because each subscription has its own breaker and its own channel, one misbehavi
 
 Each consumer runs on its own channel, and both connection-level and channel-level failures trigger a full re-establish: the module reconnects and **re-registers all consumers and topology** (exchanges, queues, bindings, retry queues), so subscriptions resume without manual intervention. Reconnect attempts are jittered to avoid a stampede when many replicas restart at once.
 
-`RabbitConnection` exposes `isHealthy()`, which you can wire into your readiness probe so a broker outage takes the instance out of rotation:
+`RabbitConnection` exposes `isHealthy()`, reporting whether the link is currently up.
+
+Be deliberate about where you use it. Under an orchestrator that **restarts** unhealthy containers — a Docker Swarm `healthcheck`, for instance — pointing the check at broker connectivity turns a broker outage into a restart loop across every replica, and restarting does not bring the broker back. The built-in reconnect already handles the outage, so keep the container healthcheck on `/health` and let the app stay up while it retries.
+
+Wire `isHealthy()` in only where "not ready" means *stop sending me traffic* rather than *kill me* — for example a readiness endpoint an external load balancer polls:
 
 ```ts
 const app = await Application.create(AppModule, {

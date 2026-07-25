@@ -29,6 +29,23 @@ export function retryDelays(retry: RetryOptions | undefined): number[] {
 	return delays;
 }
 
+/**
+ * Points the queue at its dead-letter queue through the default exchange, so
+ * rejections the broker itself decides — a queue TTL, a `max-length` overflow,
+ * a `nack` without requeue — land in the DLQ instead of disappearing.
+ */
+function deadLetterArguments(deadLetterQueue: string | undefined): {
+	arguments?: Record<string, unknown>;
+} {
+	if (!deadLetterQueue) return {};
+	return {
+		arguments: {
+			"x-dead-letter-exchange": "",
+			"x-dead-letter-routing-key": deadLetterQueue,
+		},
+	};
+}
+
 export async function declareTopology(
 	channel: Channel,
 	options: TopologyOptions,
@@ -39,12 +56,16 @@ export async function declareTopology(
 		});
 	}
 	for (const queue of options.queues ?? []) {
-		await channel.assertQueue(queue.name, { durable: queue.durable ?? true });
-		for (const binding of queue.bindings ?? []) {
-			await channel.bindQueue(queue.name, binding.exchange, binding.routingKey);
-		}
+		// the dead-letter target has to exist before the queue that points at it
 		if (queue.deadLetterQueue) {
 			await channel.assertQueue(queue.deadLetterQueue, { durable: true });
+		}
+		await channel.assertQueue(queue.name, {
+			durable: queue.durable ?? true,
+			...deadLetterArguments(queue.deadLetterQueue),
+		});
+		for (const binding of queue.bindings ?? []) {
+			await channel.bindQueue(queue.name, binding.exchange, binding.routingKey);
 		}
 	}
 }
