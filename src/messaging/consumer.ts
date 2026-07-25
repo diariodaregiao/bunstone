@@ -1,5 +1,10 @@
 import type { ConfirmChannel, ConsumeMessage, Options } from "amqplib";
 import { instrumentConsume } from "@/observability/instrumentation";
+import {
+	getInstruments,
+	registerConsumerState,
+	unregisterConsumerState,
+} from "@/observability/metrics";
 import { Logger } from "@/utils/logger";
 import {
 	CircuitBreaker,
@@ -12,6 +17,11 @@ import { declareRetryTopology, retryDelays, retryQueueName } from "./topology";
 import type { RabbitMessage } from "./types";
 
 const RECONSUME_DELAY_MS = 1000;
+const CIRCUIT_STATES: Record<string, number> = {
+	closed: 0,
+	"half-open": 1,
+	open: 2,
+};
 const HOP_FAILURE_PAUSE_MS = 5000;
 
 export interface QueueConsumerOptions {
@@ -64,6 +74,11 @@ export class QueueConsumer {
 
 	/** Binds the consumer to a freshly established channel. */
 	async attach(channel: ConfirmChannel): Promise<void> {
+		registerConsumerState(this.queue, () => ({
+			circuit: CIRCUIT_STATES[this.breaker.current] ?? 0,
+			paused: this.paused,
+			inFlight: this.inFlight.size,
+		}));
 		if (this.stopped) return;
 		this.clearResumeTimer();
 		this.channel = channel;
@@ -122,6 +137,7 @@ export class QueueConsumer {
 	async close(timeoutMs: number): Promise<void> {
 		// sticky: a reconnect racing shutdown must not resurrect this consumer
 		this.stopped = true;
+		unregisterConsumerState(this.queue);
 		this.clearResumeTimer();
 		await this.cancel();
 		await this.drain(timeoutMs);
@@ -185,6 +201,8 @@ export class QueueConsumer {
 	): Promise<void> {
 		const target = this.failureTarget(attempt, error);
 
+		const { retried, deadLettered } = getInstruments();
+
 		try {
 			await publishConfirmed(
 				channel,
@@ -207,6 +225,11 @@ export class QueueConsumer {
 						callback,
 					),
 			);
+			if (target.queue === this.deadLetterQueue) {
+				deadLettered.add(1, { queue: this.queue });
+			} else {
+				retried.add(1, { queue: this.queue });
+			}
 			this.settle(() => channel.ack(raw));
 		} catch (publishError) {
 			// requeueing alone would spin: the same hop fails again immediately.

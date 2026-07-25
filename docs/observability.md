@@ -26,15 +26,31 @@ Start the app as usual — telemetry begins immediately.
 
 ## What gets instrumented
 
-Every HTTP request produces:
+### Spans
 
-- A span named `{METHOD} {route}` (e.g. `GET /users/:id`) with `http.request.method`, `http.route`, and `http.response.status_code`. Responses with status `>= 500` are marked as error spans.
-- A `http.server.request.duration` histogram (milliseconds), tagged with method and route.
+- **HTTP** — `{METHOD} {route}` (e.g. `GET /users/:id`) with `http.request.method`, `http.route` and `http.response.status_code`. Responses `>= 500` are marked as errors.
+- **Queue** — `process {queue}` with `messaging.system`, `messaging.destination.name` and `messaging.attempt`. A handler that throws marks the span as an error.
 
-Every queue message produces:
+### Metrics
 
-- A span named `process {queue}` with `messaging.system`, `messaging.destination.name` and `messaging.attempt`. A handler that throws marks the span as an error.
-- A `messaging.consumed.messages` counter, tagged with the queue and the outcome (`ok` or `error`).
+| Metric | Type | Attributes |
+|---|---|---|
+| `http.server.request.duration` | histogram (ms) | `http.request.method`, `http.route` |
+| `http.server.requests` | counter | `http.request.method`, `http.route`, `http.response.status_class` |
+| `http.server.active_requests` | up/down counter | `http.route` |
+| `messaging.consumed.messages` | counter | `queue`, `outcome` (`ok` / `error`) |
+| `messaging.published.messages` | counter | `target`, `outcome` (`ok` / `unroutable` / `error`) |
+| `messaging.retried.messages` | counter | `queue` |
+| `messaging.dead_lettered.messages` | counter | `queue` |
+| `messaging.circuit_breaker.state` | gauge | `queue` — 0 closed, 1 half-open, 2 open |
+| `messaging.consumer.paused` | gauge | `queue` — 1 while paused |
+| `messaging.consumer.in_flight` | gauge | `queue` |
+
+Status is recorded as a **class** (`2xx`, `4xx`, `5xx`) rather than an exact code, and routes are recorded as templates, so label cardinality stays bounded however many distinct URLs you serve.
+
+The gauges are observable: consumers report their own state only when a collector asks, so nothing is computed while no backend is listening.
+
+These cover the questions you usually reach for first: error rate per route (`http.server.requests` split by `status_class`), whether a queue is being retried into the ground (`messaging.retried` vs `messaging.dead_lettered`), and whether a consumer has stopped because its circuit opened (`messaging.circuit_breaker.state` with `messaging.consumer.paused`).
 
 ## Distributed tracing
 

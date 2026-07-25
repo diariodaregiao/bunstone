@@ -14,6 +14,7 @@ import {
 	type TracerProvider,
 	trace,
 } from "@opentelemetry/api";
+import { getInstruments } from "./metrics";
 
 const INSTRUMENTATION_NAME = "bunstone.http";
 
@@ -23,9 +24,6 @@ const INSTRUMENTATION_NAME = "bunstone.http";
 // is what happens when a new TelemetrySdk claims the slot after a shutdown.
 let tracerProvider: TracerProvider | undefined;
 let cachedTracer: Tracer | undefined;
-let meterProvider: MeterProvider | undefined;
-let cachedRequestDuration: Histogram | undefined;
-let cachedConsumed: Counter | undefined;
 
 function getTracer(): Tracer {
 	const provider = trace.getTracerProvider();
@@ -34,33 +32,6 @@ function getTracer(): Tracer {
 		cachedTracer = provider.getTracer(INSTRUMENTATION_NAME);
 	}
 	return cachedTracer;
-}
-
-function getRequestDuration(): Histogram {
-	const provider = metrics.getMeterProvider();
-	if (!cachedRequestDuration || provider !== meterProvider) {
-		meterProvider = provider;
-		cachedRequestDuration = provider
-			.getMeter(INSTRUMENTATION_NAME)
-			.createHistogram("http.server.request.duration", {
-				unit: "ms",
-				description: "Duration of inbound HTTP requests.",
-			});
-	}
-	return cachedRequestDuration;
-}
-
-function getConsumedCounter(): Counter {
-	const provider = metrics.getMeterProvider();
-	if (!cachedConsumed || provider !== meterProvider) {
-		meterProvider = provider;
-		cachedConsumed = provider
-			.getMeter(INSTRUMENTATION_NAME)
-			.createCounter("messaging.consumed.messages", {
-				description: "Messages handled by a queue consumer.",
-			});
-	}
-	return cachedConsumed;
 }
 
 const headersGetter: TextMapGetter<Headers> = {
@@ -97,7 +68,8 @@ export function instrumentRequest(
 	headers?: Headers,
 ): Promise<Response> {
 	const start = performance.now();
-	const requestDuration = getRequestDuration();
+	const { requestDuration, requests, activeRequests } = getInstruments();
+	activeRequests.add(1, { "http.route": route });
 	// continue the caller's trace when it sent one, instead of starting a new
 	// root span and severing the request from the service that made it
 	const parent: Context = headers
@@ -111,18 +83,27 @@ export function instrumentRequest(
 		async (span) => {
 			span.setAttribute("http.request.method", method);
 			span.setAttribute("http.route", route);
+			// the class keeps cardinality low while still separating failures
+			let statusClass = "5xx";
 			try {
 				const response = await handle();
 				span.setAttribute("http.response.status_code", response.status);
+				statusClass = `${Math.floor(response.status / 100)}xx`;
 				if (response.status >= 500) {
 					span.setStatus({ code: SpanStatusCode.ERROR });
 				}
 				return response;
 			} finally {
-				requestDuration.record(performance.now() - start, {
+				const attributes = {
 					"http.request.method": method,
 					"http.route": route,
+				};
+				requestDuration.record(performance.now() - start, attributes);
+				requests.add(1, {
+					...attributes,
+					"http.response.status_class": statusClass,
 				});
+				activeRequests.add(-1, { "http.route": route });
 				span.end();
 			}
 		},
@@ -140,7 +121,7 @@ export function instrumentConsume<T>(
 	headers: Record<string, unknown> | undefined,
 	handle: () => Promise<T>,
 ): Promise<T> {
-	const consumed = getConsumedCounter();
+	const { consumed } = getInstruments();
 	const parent = headers
 		? propagation.extract(context.active(), headers, recordGetter)
 		: context.active();

@@ -1,6 +1,7 @@
 import type { ConfirmChannel } from "amqplib";
 import { RabbitMQError } from "@/errors";
 import { injectTraceContext } from "@/observability/instrumentation";
+import { getInstruments } from "@/observability/metrics";
 
 /** Correlates a `basic.return` with the publish that caused it. */
 export const PUBLISH_ID_HEADER = "x-bunstone-publish";
@@ -49,11 +50,17 @@ export function publishConfirmed(
 		callback: (error: Error | null) => void,
 	) => boolean,
 ): Promise<void> {
+	const { published } = getInstruments();
+
 	if (!options.mandatory) {
 		const headers: Record<string, unknown> = {};
 		injectTraceContext(headers);
 		return new Promise((resolve, reject) => {
-			send(headers, false, (error) => (error ? reject(error) : resolve()));
+			send(headers, false, (error) => {
+				published.add(1, { target, outcome: error ? "error" : "ok" });
+				if (error) reject(error);
+				else resolve();
+			});
 		});
 	}
 
@@ -71,9 +78,13 @@ export function publishConfirmed(
 
 		send(headers, true, (error) => {
 			pending.delete(id);
-			if (error) return reject(error);
+			if (error) {
+				published.add(1, { target, outcome: "error" });
+				return reject(error);
+			}
 			// the return always arrives before the confirm for the same message
 			if (returned) {
+				published.add(1, { target, outcome: "unroutable" });
 				return reject(
 					new RabbitMQError(
 						`"${target}" did not accept the message: it was not routed to any queue.`,
@@ -83,6 +94,7 @@ export function publishConfirmed(
 					),
 				);
 			}
+			published.add(1, { target, outcome: "ok" });
 			resolve();
 		});
 	});
