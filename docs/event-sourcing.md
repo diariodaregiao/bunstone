@@ -27,6 +27,8 @@ export class AppModule {}
 
 On startup the store creates two tables if they do not exist: `events` (composite primary key `stream_id + version`) and `snapshots`.
 
+The store adapts its bind-parameter style to the configured adapter, so the same code works on PostgreSQL (`$1, $2, …`) as on MySQL, MariaDB and SQLite (`?`).
+
 ## Aggregates
 
 Extend `AggregateRoot`. Mutations call the protected `apply(event)`, which invokes your `when(event)` reducer, records the event as uncommitted, and bumps the version. Domain events are plain objects carrying a `type` field.
@@ -63,7 +65,7 @@ export class Account extends AggregateRoot {
 - `apply(event)` — protected; apply and record a new event.
 - `when(event)` — abstract; your reducer that mutates state from an event.
 - `loadFromHistory(events)` — replay past events to rebuild state (does not mark them uncommitted).
-- `commit()` — clear the uncommitted events after persisting.
+- `commit(count?)` — drop the events that were persisted. `EventSourcedRepository` passes the number it appended, so an event applied while the append was in flight stays pending for the next save instead of being lost.
 - `version` — number of events applied.
 - `uncommittedEvents` — events applied since the last commit.
 
@@ -95,9 +97,11 @@ console.log(rebuilt?.version); // 2
 
 `SqlEventStore` implements the `EventStore` interface:
 
-- `append(streamId, events, expectedVersion)` — appends events in a transaction. If the stream's current version differs from `expectedVersion`, it throws a concurrency conflict (optimistic concurrency, enforced by the composite primary key).
+- `append(streamId, events, expectedVersion)` — appends events in a transaction. If the stream's current version differs from `expectedVersion`, it throws `EventStoreError` (optimistic concurrency, ultimately enforced by the composite primary key). A conflict that only surfaces at insert time — two writers racing past the version check — is mapped to the same typed error, so `catch (e) { if (e instanceof EventStoreError) retry() }` covers both paths.
 - `read(streamId)` — returns the ordered event records.
-- `saveSnapshot(snapshot)` / `loadSnapshot(streamId)` — store and retrieve a `{ streamId, version, state }` snapshot to avoid replaying long streams.
+- `saveSnapshot(snapshot)` / `loadSnapshot(streamId)` — store and retrieve a `{ streamId, version, state }` snapshot.
+
+> **Note:** snapshots are storage only. `EventSourcedRepository.load` always replays the full stream and does not consult them — take and read them yourself if you need to shorten a long replay.
 
 ```ts
 await store.saveSnapshot({ streamId: "acc-1", version: 3, state: { balance: 70 } });
