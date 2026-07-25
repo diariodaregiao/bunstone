@@ -8,7 +8,7 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (123)
+## Public exports (124)
 
 - `AdapterError`
 - `AggregateRoot`
@@ -118,6 +118,7 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `UploadError`
 - `UseGuards`
 - `WebSocketGateway`
+- `assertOpenApiBasicAuth`
 - `backoffDelay`
 - `buildOpenApiDocument`
 - `compileModules`
@@ -1843,8 +1844,32 @@ interface OpenApiServeOptions {
   ui?: boolean;      // serve Swagger UI (default: off)
   path?: string;     // spec path (default: "/openapi.json")
   uiPath?: string;   // UI path (default: "/docs")
+  auth?: {
+    username: string;
+    password: string;
+    realm?: string;
+  };
 }
 ```
+
+### Protecting the docs
+
+By default `/openapi.json` and `/docs` are public. Pass `auth` to require HTTP Basic Auth on both routes:
+
+```ts
+const app = await Application.create(AppModule, {
+  openapi: {
+    info: { title: "My API", version: "1.0.0" },
+    ui: true,
+    auth: {
+      username: process.env.DOCS_USER ?? "admin",
+      password: process.env.DOCS_PASSWORD ?? "secret",
+    },
+  },
+});
+```
+
+Unauthenticated requests receive `401` with a `WWW-Authenticate: Basic` challenge (the browser shows a login prompt for `/docs`). The same credentials are required for `/openapi.json`, so the Swagger UI can load the spec after you sign in.
 
 ## Decorators
 
