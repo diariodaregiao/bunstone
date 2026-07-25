@@ -1,3 +1,4 @@
+import { ConfigurationError } from "@/errors";
 import type { RequestContext } from "./types";
 
 export interface CorsOptions {
@@ -16,8 +17,25 @@ export interface CorsOptions {
 
 const DEFAULT_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
 
+/** `origin: true` reflects whatever the caller sent, which is also a wildcard. */
+function isWildcardOrigin(origin: CorsOptions["origin"]): boolean {
+	return origin === undefined || origin === "*" || origin === true;
+}
+
 export class Cors {
-	constructor(private readonly options: CorsOptions = {}) {}
+	constructor(private readonly options: CorsOptions = {}) {
+		// Reflecting an arbitrary origin *with credentials* is strictly worse
+		// than the wildcard the browser would have rejected: it would let any
+		// site read authenticated responses. Refuse the combination outright.
+		if (options.credentials === true && isWildcardOrigin(options.origin)) {
+			throw new ConfigurationError(
+				"`cors.credentials` requires an explicit `origin` allowlist.",
+				"BNS-CFG-003",
+				'Set `origin` to the exact origins you trust, for example `origin: ["https://app.example.com"]`. A wildcard origin cannot be combined with credentials.',
+				{ origin: options.origin ?? "*" },
+			);
+		}
+	}
 
 	private resolveOrigin(requestOrigin: string | null): string | null {
 		const { origin = "*" } = this.options;
@@ -35,16 +53,12 @@ export class Cors {
 		// the answer depends on the origin, so caches must key on it either way
 		if (resolved === null) return { vary: "Origin" };
 
-		// `*` is illegal alongside credentials, so echo the caller instead
-		const credentials = this.options.credentials === true;
-		const allowOrigin =
-			credentials && resolved === "*" ? (requestOrigin ?? "*") : resolved;
-
 		const headers: Record<string, string> = {
-			"access-control-allow-origin": allowOrigin,
+			"access-control-allow-origin": resolved,
 		};
-		if (allowOrigin !== "*") headers.vary = "Origin";
-		if (credentials && allowOrigin !== "*") {
+		if (resolved !== "*") headers.vary = "Origin";
+		// the constructor guarantees credentials never pairs with a wildcard
+		if (this.options.credentials === true) {
 			headers["access-control-allow-credentials"] = "true";
 		}
 		if (this.options.exposedHeaders?.length) {

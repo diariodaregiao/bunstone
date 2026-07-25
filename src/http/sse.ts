@@ -1,5 +1,8 @@
 import "reflect-metadata";
 import type { Constructor } from "@/core/injectable";
+import { Logger } from "@/utils/logger";
+
+const logger = new Logger("SSE");
 
 export interface SseMessage {
 	data: unknown;
@@ -58,7 +61,8 @@ export function formatEvent(message: SseMessage): string {
 		typeof message.data === "string"
 			? message.data
 			: (JSON.stringify(message.data) ?? "");
-	for (const line of data.split("\n")) frame += `data: ${line}\n`;
+	// the SSE spec ends a line on CR, LF or CRLF, so a lone CR would forge fields
+	for (const line of data.split(/\r\n|\r|\n/)) frame += `data: ${line}\n`;
 	return `${frame}\n`;
 }
 
@@ -84,7 +88,10 @@ export function sseResponse(
 		finished = true;
 		if (heartbeat) clearInterval(heartbeat);
 		if (onAbort) options.signal?.removeEventListener("abort", onAbort);
-		void iterator.return?.(undefined);
+		// a generator whose `finally` throws must not become an unhandled rejection
+		Promise.resolve(iterator.return?.(undefined)).catch((error) =>
+			logger.warn("SSE generator failed to finalize:", error),
+		);
 	};
 
 	const stream = new ReadableStream<Uint8Array>({
@@ -119,7 +126,16 @@ export function sseResponse(
 					safeClose(controller);
 					return;
 				}
-				safeEnqueue(controller, encoder.encode(formatEvent(normalize(value))));
+				// a failed enqueue means the consumer is gone even without an abort
+				if (
+					!safeEnqueue(
+						controller,
+						encoder.encode(formatEvent(normalize(value))),
+					)
+				) {
+					cleanup();
+					safeClose(controller);
+				}
 			} catch {
 				cleanup();
 				safeClose(controller);
@@ -143,10 +159,13 @@ export function sseResponse(
 function safeEnqueue(
 	controller: ReadableStreamDefaultController<Uint8Array>,
 	chunk: Uint8Array,
-): void {
+): boolean {
 	try {
 		controller.enqueue(chunk);
-	} catch {}
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function safeClose(

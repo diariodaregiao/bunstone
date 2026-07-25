@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { DependencyResolutionError } from "@/errors";
+import { Logger } from "@/utils/logger";
 import {
 	type Constructor,
 	INJECT_TOKENS_METADATA,
@@ -26,6 +27,8 @@ type NormalizedProvider =
 			inject: Token[];
 	  };
 
+const logger = new Logger("DI");
+
 export class Container {
 	private readonly providers = new Map<Token, NormalizedProvider>();
 	private readonly instances = new Map<Token, unknown>();
@@ -38,6 +41,13 @@ export class Container {
 
 	register(provider: Provider, owner?: Constructor): void {
 		const normalized = normalize(provider);
+		const previous = this.owners.get(normalized.provide);
+		// silently overwriting would make the winner depend on import order
+		if (owner && previous && previous !== owner) {
+			logger.warn(
+				`\`${tokenName(normalized.provide)}\` is provided by both \`${previous.name}\` and \`${owner.name}\`; the latter wins.`,
+			);
+		}
 		this.providers.set(normalized.provide, normalized);
 		if (owner) this.owners.set(normalized.provide, owner);
 	}

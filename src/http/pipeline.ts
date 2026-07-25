@@ -48,6 +48,7 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 	} = config;
 	const prototype = controller.prototype;
 	const setHeaderEntries = Object.entries(setHeaders);
+	const controllerModule = container.ownerOf(controller);
 
 	return (req: BunRequest, server: BunServer): Promise<Response> =>
 		instrumentRequest(req.method, route, async () => {
@@ -61,7 +62,9 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 				}
 
 				for (const GuardClass of guards) {
-					const guard = container.resolve(GuardClass);
+					// scoped to the controller's module so strict boundaries apply
+					// to guards exactly as they do to constructor injection
+					const guard = container.resolve(GuardClass, controllerModule);
 					if (!(await guard.canActivate(ctx))) {
 						throw new ForbiddenException();
 					}

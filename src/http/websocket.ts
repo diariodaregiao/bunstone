@@ -62,23 +62,33 @@ const logger = new Logger("WebSocket");
  * Errors are caught and logged per event, the way scheduled jobs are, instead
  * of vanishing into a discarded promise.
  */
-function guard(event: string, run: () => void | Promise<void>): void {
-	try {
-		const result = run();
-		if (result instanceof Promise) {
-			result.catch((error) =>
-				logger.error(`WebSocket "${event}" handler failed:`, error),
-			);
-		}
-	} catch (error) {
+function guard(
+	event: string,
+	run: () => void | Promise<void>,
+	onFailure?: () => void,
+): void {
+	const fail = (error: unknown) => {
 		logger.error(`WebSocket "${event}" handler failed:`, error);
+		onFailure?.();
+	};
+	try {
+		// `Promise.resolve` also covers a non-native thenable
+		Promise.resolve(run()).catch(fail);
+	} catch (error) {
+		fail(error);
 	}
 }
 
 export function buildWebSocketHandler(gateways: Map<string, WebSocketHandler>) {
 	return {
 		open(socket: Socket) {
-			guard("open", () => gateways.get(socket.data.path)?.open?.(socket));
+			// a gateway that rejects the connection in `open` must not be left
+			// with a live socket that keeps receiving messages
+			guard(
+				"open",
+				() => gateways.get(socket.data.path)?.open?.(socket),
+				() => socket.close(1011, "handler failed"),
+			);
 		},
 		message(socket: Socket, message: string | Buffer) {
 			guard("message", () =>

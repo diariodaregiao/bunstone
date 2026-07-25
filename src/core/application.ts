@@ -41,13 +41,15 @@ const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
 
 /** Best-effort teardown of a bootstrap that never finished. */
 async function unwind(
-	disposables: DisposableRegistry,
+	intake: DisposableRegistry,
+	resources: DisposableRegistry,
 	instances: readonly unknown[],
 ): Promise<void> {
-	await disposables.disposeAll().catch(() => undefined);
+	await intake.disposeAll().catch(() => undefined);
 	await runLifecycle(instances, "onModuleDestroy", true, true).catch(
 		() => undefined,
 	);
+	await resources.disposeAll().catch(() => undefined);
 }
 
 export class Application {
@@ -58,7 +60,10 @@ export class Application {
 	private constructor(
 		readonly container: Container,
 		private readonly httpServer: HttpServer,
-		private readonly disposables: DisposableRegistry,
+		/** Stopped before destroy hooks: schedulers, queue consumers, the server. */
+		private readonly intake: DisposableRegistry,
+		/** Released after destroy hooks: connections a hook may still need. */
+		private readonly resources: DisposableRegistry,
 		private readonly instances: readonly unknown[],
 		private readonly options: ApplicationOptions,
 		private readonly readiness: ReadinessState,
@@ -72,7 +77,8 @@ export class Application {
 			rootModule,
 			options.strictModuleBoundaries === true,
 		);
-		const disposables = new DisposableRegistry();
+		const intake = new DisposableRegistry();
+		const resources = new DisposableRegistry();
 		let instances: readonly unknown[] = [];
 
 		// every resource is registered for disposal *before* it is started, so a
@@ -85,12 +91,20 @@ export class Application {
 			wireCqrs(container, instances);
 
 			if (container.has(RabbitConnection)) {
-				disposables.add(
+				// consumers stop first; the connection itself closes after the
+				// destroy hooks, so a hook can still publish a final message
+				intake.add(
 					() =>
 						container
 							.resolve(RabbitConnection)
-							.close(options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS),
-					"rabbit",
+							.stopConsuming(
+								options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS,
+							),
+					"rabbit-consumers",
+				);
+				resources.add(
+					() => container.resolve(RabbitConnection).close(0),
+					"rabbit-connection",
 				);
 			}
 			await wireRabbit(container, instances);
@@ -110,23 +124,24 @@ export class Application {
 				gateways,
 				isReady,
 			);
-			disposables.add(() => httpServer.stop(0), "http-server");
+			intake.add(() => httpServer.stop(0), "http-server");
 			await runLifecycle(instances, "onApplicationBootstrap");
 
 			const scheduler = new Scheduler();
-			disposables.add(() => scheduler.stopAll(), "scheduler");
+			intake.add(() => scheduler.stopAll(), "scheduler");
 			scheduler.start(instances);
 
 			return new Application(
 				container,
 				httpServer,
-				disposables,
+				intake,
+				resources,
 				instances,
 				options,
 				readiness,
 			);
 		} catch (error) {
-			await unwind(disposables, instances);
+			await unwind(intake, resources, instances);
 			throw error;
 		}
 	}
@@ -171,13 +186,15 @@ export class Application {
 			}
 		};
 
+		// 1. stop taking in work, so nothing new can run against a closing resource
 		await step(() => this.httpServer.stop(this.options.shutdownTimeoutMs));
-		// framework resources stop producing work first, so a scheduled job or a
-		// queue handler cannot fire against a pool a destroy hook already closed
-		await step(() => this.disposables.disposeAll());
+		await step(() => this.intake.disposeAll());
+		// 2. user hooks run while their connections are still usable
 		await step(() =>
 			runLifecycle(this.instances, "onModuleDestroy", true, true),
 		);
+		// 3. release what the hooks were still allowed to use
+		await step(() => this.resources.disposeAll());
 
 		if (errors.length > 0) {
 			throw new AggregateError(errors, "Errors occurred during shutdown.");

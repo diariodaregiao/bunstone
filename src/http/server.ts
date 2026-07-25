@@ -52,6 +52,11 @@ export type RouteHandler = (
 	req: BunRequest,
 	server: BunServer,
 ) => Response | Promise<Response>;
+/** Two paths that differ only in parameter names match the same requests. */
+function routeShape(path: string): string {
+	return path.replace(/:[^/]+/g, ":param");
+}
+
 export type RouteMethods = Record<string, RouteHandler>;
 export type RoutesMap = Record<string, RouteMethods>;
 
@@ -125,6 +130,9 @@ export class HttpServer {
 			if (!get || methods.HEAD) continue;
 			methods.HEAD = async (req, server) => {
 				const response = await get(req, server);
+				// the body is discarded, so it has to be cancelled: an SSE route
+				// would otherwise leave its generator and heartbeat running forever
+				await response.body?.cancel().catch(() => undefined);
 				return new Response(null, {
 					status: response.status,
 					headers: response.headers,
@@ -187,6 +195,7 @@ export class HttpServer {
 		controllers: Constructor[],
 	): RoutesMap {
 		const map: RoutesMap = {};
+		const shapes = new Map<string, string>();
 		for (const controller of controllers) {
 			const base = getControllerPath(controller);
 			for (const route of getRoutes(controller)) {
@@ -206,6 +215,18 @@ export class HttpServer {
 					rateLimitStorage: this.rateLimitStorage,
 					sse: getSseOptions(controller, route.handlerName),
 				});
+				const shape = routeShape(path);
+				const clash = shapes.get(`${route.method} ${shape}`);
+				if (clash && clash !== path) {
+					throw new ConfigurationError(
+						`Conflicting routes: ${route.method} ${path} and ${route.method} ${clash} match the same requests.`,
+						"BNS-HTTP-001",
+						"Two routes differ only in their parameter names, so one can never be reached. Give them distinct paths.",
+						{ method: route.method, path, conflictsWith: clash },
+					);
+				}
+				shapes.set(`${route.method} ${shape}`, path);
+
 				const methods = map[path] ?? {};
 				if (methods[route.method]) {
 					throw new ConfigurationError(
@@ -294,12 +315,15 @@ export class HttpServer {
 		if (!server) return;
 
 		let timer: ReturnType<typeof setTimeout> | undefined;
-		const forced = new Promise<void>((resolve) => {
-			timer = setTimeout(() => resolve(server.stop(true)), timeoutMs);
+		const deadline = new Promise<void>((resolve) => {
+			timer = setTimeout(resolve, timeoutMs);
 			timer.unref?.();
 		});
-		await Promise.race([server.stop(false), forced]);
+		await Promise.race([server.stop(false), deadline]);
 		if (timer) clearTimeout(timer);
+		// draining leaves idle keep-alive sockets open, so a client holding a
+		// pooled connection could still be served after shutdown "finished"
+		await server.stop(true);
 	}
 
 	get raw(): BunServer | undefined {

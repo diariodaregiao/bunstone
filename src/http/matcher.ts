@@ -21,7 +21,9 @@ export class RouteMatcher {
 				params.push(name);
 				return "([^/]+)";
 			})
-			.replace(/\*/g, "(.*)");
+			// Bun only treats a trailing `*` as a catch-all; anywhere else it is a
+			// literal, so matching it as `.*` would claim paths Bun would 404
+			.replace(/\*$/, "(.*)");
 		this.routes.push({
 			path,
 			regex: new RegExp(`^${pattern}$`),

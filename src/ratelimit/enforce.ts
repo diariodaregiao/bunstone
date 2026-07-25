@@ -10,7 +10,9 @@ import type { RateLimitStorage } from "./storage";
  */
 function defaultKey(ctx: RequestContext, route: string): string {
 	const ip = ctx.server.requestIP(ctx.req)?.address ?? "unknown";
-	return `${ip}:${ctx.req.method}:${route}`;
+	// HEAD runs the GET handler, so it must not get a budget of its own
+	const method = ctx.req.method === "HEAD" ? "GET" : ctx.req.method;
+	return `${ip}:${method}:${route}`;
 }
 
 export async function enforceRateLimit(

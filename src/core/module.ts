@@ -61,7 +61,9 @@ export function compileModules(
 	const container = new Container();
 	const modules: Constructor[] = [];
 	const controllers: Constructor[] = [];
-	const seen = new Set<ModuleImport | Constructor>();
+	// entries dedupe configurations; classes dedupe the static @Module metadata
+	const seenEntries = new Set<ModuleImport>();
+	const seenClasses = new Set<Constructor>();
 	const scopes = new Map<Constructor, ModuleScope>();
 
 	const visit = (entry: ModuleImport): void => {
@@ -74,12 +76,10 @@ export function compileModules(
 			);
 		}
 
-		const moduleClass = isDynamicModule(entry) ? entry.module : entry;
-		// dedupe by the entry itself: two `Module.register(...)` calls are two
-		// distinct configurations and both must contribute their providers
-		if (seen.has(entry)) return;
-		if (!isDynamicModule(entry) && seen.has(moduleClass)) return;
+		if (seenEntries.has(entry)) return;
+		seenEntries.add(entry);
 
+		const moduleClass = isDynamicModule(entry) ? entry.module : entry;
 		const staticMetadata = getModuleMetadata(moduleClass);
 		const dynamic = isDynamicModule(entry) ? entry : undefined;
 		if (!staticMetadata && !dynamic) {
@@ -91,31 +91,34 @@ export function compileModules(
 			);
 		}
 
-		seen.add(entry);
-		seen.add(moduleClass);
-		if (!modules.includes(moduleClass)) modules.push(moduleClass);
+		// two `Module.register(...)` calls are two configurations of ONE module:
+		// each contributes its own providers, but the class's static metadata
+		// must only ever be applied once or its controllers register twice
+		const firstVisit = !seenClasses.has(moduleClass);
+		if (firstVisit) {
+			seenClasses.add(moduleClass);
+			modules.push(moduleClass);
+		}
+		const own = firstVisit ? staticMetadata : undefined;
 
-		const imports = [
-			...(staticMetadata?.imports ?? []),
-			...(dynamic?.imports ?? []),
-		];
+		const imports = [...(own?.imports ?? []), ...(dynamic?.imports ?? [])];
 		const providers = [
-			...(staticMetadata?.providers ?? []),
+			...(own?.providers ?? []),
 			...(dynamic?.providers ?? []),
 		];
 		const moduleControllers = [
-			...(staticMetadata?.controllers ?? []),
+			...(own?.controllers ?? []),
 			...(dynamic?.controllers ?? []),
 		];
 
 		const scope = scopeOf(scopes, moduleClass);
-		if (staticMetadata?.global || dynamic?.global) scope.global = true;
-		const declaredExports = [
-			...(staticMetadata?.exports ?? []),
-			...(dynamic?.exports ?? []),
-		];
-		if (staticMetadata?.exports || dynamic?.exports) {
-			scope.exports = [...(scope.exports ?? []), ...declaredExports];
+		if (own?.global || dynamic?.global) scope.global = true;
+		if (own?.exports || dynamic?.exports) {
+			scope.exports = [
+				...(scope.exports ?? []),
+				...(own?.exports ?? []),
+				...(dynamic?.exports ?? []),
+			];
 		}
 
 		for (const imported of imports) {
@@ -165,20 +168,29 @@ function scopeOf(
 function publicTokens(
 	scopes: Map<Constructor, ModuleScope>,
 	moduleClass: Constructor,
-	seen = new Set<Constructor>(),
+	memo: Map<Constructor, Set<Token>>,
+	inProgress = new Set<Constructor>(),
 ): Set<Token> {
+	const cached = memo.get(moduleClass);
+	if (cached) return cached;
+
 	const scope = scopes.get(moduleClass);
-	if (!scope || seen.has(moduleClass)) return new Set();
-	seen.add(moduleClass);
+	// `inProgress` breaks export cycles; `memo` is what keeps the surface of a
+	// diamond import graph independent of the order modules are visited in
+	if (!scope || inProgress.has(moduleClass)) return new Set();
+	inProgress.add(moduleClass);
 
 	if (!scope.exports) {
-		return scope.global ? new Set(scope.ownTokens) : new Set();
+		const surface = scope.global ? new Set(scope.ownTokens) : new Set<Token>();
+		inProgress.delete(moduleClass);
+		memo.set(moduleClass, surface);
+		return surface;
 	}
 
 	// an exported token may be re-exported from something this module imports
 	const reExportable = new Set<Token>();
 	for (const imported of scope.imports) {
-		for (const token of publicTokens(scopes, imported, seen)) {
+		for (const token of publicTokens(scopes, imported, memo, inProgress)) {
 			reExportable.add(token);
 		}
 	}
@@ -189,23 +201,30 @@ function publicTokens(
 			surface.add(token);
 		}
 	}
+	inProgress.delete(moduleClass);
+	memo.set(moduleClass, surface);
 	return surface;
 }
 
 function buildVisibility(
 	scopes: Map<Constructor, ModuleScope>,
 ): Map<Constructor, ReadonlySet<Token>> {
+	const memo = new Map<Constructor, Set<Token>>();
 	const globals = new Set<Token>();
 	for (const [moduleClass, scope] of scopes) {
 		if (!scope.global) continue;
-		for (const token of publicTokens(scopes, moduleClass)) globals.add(token);
+		for (const token of publicTokens(scopes, moduleClass, memo)) {
+			globals.add(token);
+		}
 	}
 
 	const visibility = new Map<Constructor, ReadonlySet<Token>>();
 	for (const [moduleClass, scope] of scopes) {
 		const visible = new Set<Token>([...scope.ownTokens, ...globals]);
 		for (const imported of scope.imports) {
-			for (const token of publicTokens(scopes, imported)) visible.add(token);
+			for (const token of publicTokens(scopes, imported, memo)) {
+				visible.add(token);
+			}
 		}
 		visibility.set(moduleClass, visible);
 	}

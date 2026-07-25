@@ -73,14 +73,23 @@ export class RabbitConnection {
 		return !this.closing && Boolean(this.connection && this.channel);
 	}
 
+	/**
+	 * Stops deliveries and waits for in-flight handlers, leaving the connection
+	 * open so shutdown hooks can still publish. `close()` releases it.
+	 */
+	async stopConsuming(
+		drainTimeoutMs = DEFAULT_DRAIN_TIMEOUT_MS,
+	): Promise<void> {
+		await Promise.all(
+			this.consumers.map((consumer) => consumer.close(drainTimeoutMs)),
+		);
+	}
+
 	async close(drainTimeoutMs = DEFAULT_DRAIN_TIMEOUT_MS): Promise<void> {
 		this.closing = true;
 		this.generation++;
 
-		// stop deliveries and let in-flight handlers ack before the channels go
-		await Promise.all(
-			this.consumers.map((consumer) => consumer.close(drainTimeoutMs)),
-		);
+		await this.stopConsuming(drainTimeoutMs);
 
 		for (const channel of [this.channel, ...this.consumerChannels]) {
 			try {

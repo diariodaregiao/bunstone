@@ -6,6 +6,7 @@ import { Application } from "@/core/application";
 import { Injectable } from "@/core/injectable";
 import { Module } from "@/core/module";
 import { type GuardContract, UseGuards } from "@/http/guard";
+import { Cors } from "@/http/cors";
 import { Controller, Get, Options } from "@/http/routing";
 
 @Injectable()
@@ -79,7 +80,7 @@ beforeAll(async () => {
 	app = await Application.create(AppModule, {
 		gracefulShutdown: false,
 		logStartup: false,
-		cors: { credentials: true },
+		cors: { credentials: true, origin: ["http://client.test"] },
 	});
 	app.listen(0);
 	base = app.getServer()?.url.href.replace(/\/$/, "") ?? "";
@@ -147,7 +148,7 @@ describe("method handling", () => {
 });
 
 describe("CORS with credentials", () => {
-	it("echoes the origin instead of the illegal wildcard", async () => {
+	it("allows a listed origin and sends the credentials header", async () => {
 		const res = await fetch(`${base}/t/me`, {
 			headers: { Origin: "http://client.test" },
 		});
@@ -157,5 +158,20 @@ describe("CORS with credentials", () => {
 		);
 		expect(res.headers.get("access-control-allow-credentials")).toBe("true");
 		expect(res.headers.get("vary")).toBe("Origin");
+	});
+
+	it("never reflects an unlisted origin", async () => {
+		const res = await fetch(`${base}/t/me`, {
+			headers: { Origin: "https://evil.example" },
+		});
+
+		expect(res.headers.get("access-control-allow-origin")).toBeNull();
+		expect(res.headers.get("access-control-allow-credentials")).toBeNull();
+	});
+
+	it("refuses credentials paired with a wildcard origin at startup", () => {
+		expect(() => new Cors({ credentials: true })).toThrow(/allowlist/);
+		expect(() => new Cors({ credentials: true, origin: "*" })).toThrow();
+		expect(() => new Cors({ credentials: true, origin: true })).toThrow();
 	});
 });
