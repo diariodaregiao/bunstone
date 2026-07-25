@@ -7,21 +7,9 @@ import { RabbitConsumer, RabbitSubscribe } from "@/messaging/decorators";
 import { RabbitMQService } from "@/messaging/rabbitmq.service";
 import { RabbitMQModule } from "@/messaging/rabbitmq-module";
 import type { RabbitMessage } from "@/messaging/types";
+import { rabbitReachable, RABBITMQ_URI as URI } from "../support/services";
 
-const URI = process.env.RABBITMQ_URI ?? "amqp://guest:guest@localhost:5672";
-
-async function brokerReachable(): Promise<boolean> {
-	try {
-		const amqp = await import("amqplib");
-		const conn = await amqp.connect(URI);
-		await conn.close();
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-const reachable = await brokerReachable();
+const reachable = await rabbitReachable(URI);
 const suffix = crypto.randomUUID().slice(0, 8);
 const WORK_QUEUE = `bunstone.work.${suffix}`;
 const DLQ = `bunstone.work.dlq.${suffix}`;
