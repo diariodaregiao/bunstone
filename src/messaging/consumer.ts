@@ -5,7 +5,7 @@ import {
 	type CircuitBreakerOptions,
 	CircuitOpenError,
 } from "./circuit-breaker";
-import { publishConfirmed } from "./publish";
+import { PUBLISH_ID_HEADER, publishConfirmed } from "./publish";
 import { backoffDelay, type RetryOptions, shouldRetry } from "./retry";
 import { declareRetryTopology, retryDelays, retryQueueName } from "./topology";
 import type { RabbitMessage } from "./types";
@@ -154,6 +154,9 @@ export class QueueConsumer {
 		raw: ConsumeMessage,
 	): Promise<void> {
 		const attempt = readAttempt(raw);
+		// the publish correlation id is framework plumbing, not application data
+		if (raw.properties.headers)
+			delete raw.properties.headers[PUBLISH_ID_HEADER];
 		const message: RabbitMessage = { data: decode(raw), raw, attempt };
 
 		try {
@@ -209,8 +212,8 @@ export class QueueConsumer {
 				`Could not move a message from "${this.queue}" to "${target.queue}"; leaving it on the queue.`,
 				publishError,
 			);
-			this.settle(() => channel.nack(raw, false, true));
 			this.pause(HOP_FAILURE_PAUSE_MS);
+			this.settle(() => channel.nack(raw, false, true));
 		}
 	}
 

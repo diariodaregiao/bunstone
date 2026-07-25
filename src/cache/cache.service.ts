@@ -22,7 +22,8 @@ export class CacheService implements OnModuleDestroy {
 	 * Stores `value` as JSON. Values that JSON cannot represent (`undefined`, a
 	 * function, a symbol) are stored as `null` and read back as `null`. A
 	 * `ttlSeconds` of `0` or less means "already expired" and removes the key;
-	 * a fractional TTL is rounded down.
+	 * a fractional TTL is rounded to whole seconds, with any positive value
+	 * kept alive for at least one second.
 	 */
 	async set(
 		key: string,

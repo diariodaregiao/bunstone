@@ -4,6 +4,8 @@ interface CompiledRoute {
 	params: string[];
 	/** Per-segment specificity, compared left to right. */
 	segments: number[];
+	/** Declaration index: later declarations win an exact tie, as Bun does. */
+	order: number;
 }
 
 export interface RouteMatch {
@@ -13,30 +15,45 @@ export interface RouteMatch {
 
 export class RouteMatcher {
 	private readonly routes: CompiledRoute[] = [];
+	private declared = 0;
 
 	add(path: string): void {
 		const params: string[] = [];
-		const catchAll = path.endsWith("*");
-		const body = catchAll ? path.slice(0, -1) : path;
-		// every `*` is escaped; only a trailing one is a catch-all, matching how
-		// Bun's router treats it. Left unescaped it would become a quantifier and
-		// claim paths the real server answers 404 for.
-		const pattern =
-			body
-				.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-				.replace(/:([^/]+)/g, (_match, name: string) => {
-					params.push(name);
-					return "([^/]+)";
-				}) + (catchAll ? "(.*)" : "");
+		const segments = path.split("/").filter(Boolean);
+		const ranks: number[] = [];
+		let pattern = "";
+
+		segments.forEach((segment, index) => {
+			const last = index === segments.length - 1;
+
+			// only a whole trailing segment is a catch-all; `/files*` is a literal
+			// path Bun serves verbatim, not a prefix match
+			if (last && (segment === "*" || segment === "**")) {
+				pattern += "/(.*)";
+				params.push("*");
+				ranks.push(0);
+				return;
+			}
+			if (segment.startsWith(":")) {
+				pattern += "/([^/]+)";
+				params.push(segment.slice(1));
+				ranks.push(1);
+				return;
+			}
+			pattern += `/${escapeLiteral(segment)}`;
+			ranks.push(2);
+		});
+
 		this.routes.push({
 			path,
-			regex: new RegExp(`^${pattern}$`),
+			regex: new RegExp(`^${pattern || "/"}$`),
 			params,
-			segments: rank(path),
+			segments: ranks,
+			order: this.declared++,
 		});
 		// Bun's router prefers whichever route is static earliest, regardless of
 		// declaration order; match the same way so tests mirror production
-		this.routes.sort((a, b) => compare(a, b));
+		this.routes.sort(compare);
 	}
 
 	match(pathname: string): RouteMatch | undefined {
@@ -53,22 +70,15 @@ export class RouteMatcher {
 	}
 }
 
-/** Static beats `:param`, which beats a catch-all `*`. */
-function rank(path: string): number[] {
-	return path
-		.split("/")
-		.filter(Boolean)
-		.map((segment) => {
-			if (segment === "*") return 0;
-			if (segment.startsWith(":")) return 1;
-			return 2;
-		});
+/** Escapes a static segment; params and wildcards are handled before this. */
+function escapeLiteral(segment: string): string {
+	return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
  * Compares left to right, so the route that is static earliest wins — a summed
  * score would let a later static segment outrank an earlier one, which is not
- * how Bun resolves it.
+ * how Bun resolves it. An exact tie goes to the later declaration.
  */
 function compare(a: CompiledRoute, b: CompiledRoute): number {
 	const length = Math.max(a.segments.length, b.segments.length);
@@ -77,7 +87,10 @@ function compare(a: CompiledRoute, b: CompiledRoute): number {
 		const right = b.segments[index] ?? -1;
 		if (left !== right) return right - left;
 	}
-	return b.segments.length - a.segments.length;
+	if (a.segments.length !== b.segments.length) {
+		return b.segments.length - a.segments.length;
+	}
+	return b.order - a.order;
 }
 
 /** A malformed percent-escape must not blow up routing. */

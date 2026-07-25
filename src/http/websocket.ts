@@ -79,9 +79,22 @@ function guard(
 	}
 }
 
+/** Open sockets, so shutdown can close them instead of leaving them dangling. */
+const openSockets = new Set<Socket>();
+
+export function closeOpenSockets(code = 1001, reason = "server shutting down") {
+	for (const socket of openSockets) {
+		try {
+			socket.close(code, reason);
+		} catch {}
+	}
+	openSockets.clear();
+}
+
 export function buildWebSocketHandler(gateways: Map<string, WebSocketHandler>) {
 	return {
 		open(socket: Socket) {
+			openSockets.add(socket);
 			// a gateway that rejects the connection in `open` must not be left
 			// with a live socket that keeps receiving messages
 			guard(
@@ -96,6 +109,7 @@ export function buildWebSocketHandler(gateways: Map<string, WebSocketHandler>) {
 			);
 		},
 		close(socket: Socket, code: number, reason: string) {
+			openSockets.delete(socket);
 			guard("close", () =>
 				gateways.get(socket.data.path)?.close?.(socket, code, reason),
 			);

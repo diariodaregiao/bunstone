@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { z } from "zod/v4";
 import { Application } from "@/core/application";
 import { Module } from "@/core/module";
+import { RouteMatcher } from "@/http/matcher";
 import { Body } from "@/http/params";
 import { Controller, Post } from "@/http/routing";
 import { buildOpenApiDocument } from "@/openapi/builder";
@@ -109,5 +110,50 @@ describe("recursive request schemas", () => {
 
 		expect(schema.type).toBe("object");
 		expect(schema.$schema).toBeUndefined();
+	});
+});
+
+describe("route matching parity", () => {
+	it("treats a whole trailing segment as a catch-all", () => {
+		const matcher = new RouteMatcher();
+		matcher.add("/a/**");
+
+		expect(matcher.match("/a/b")?.path).toBe("/a/**");
+		expect(matcher.match("/a/b/c")?.path).toBe("/a/**");
+	});
+
+	it("treats a glued asterisk as a literal, not a prefix", () => {
+		const matcher = new RouteMatcher();
+		matcher.add("/files*");
+
+		// Bun serves this path verbatim and 404s /filesx
+		expect(matcher.match("/filesx")).toBeUndefined();
+		expect(matcher.match("/files*")?.path).toBe("/files*");
+	});
+
+	it("prefers the route that is static earliest, whatever the order", () => {
+		for (const routes of [
+			["/:x/b", "/a/:y"],
+			["/a/:y", "/:x/b"],
+		]) {
+			const matcher = new RouteMatcher();
+			for (const route of routes) matcher.add(route);
+			expect(matcher.match("/a/b")?.path).toBe("/a/:y");
+		}
+	});
+
+	it("gives an exact tie to the last declaration", () => {
+		const matcher = new RouteMatcher();
+		matcher.add("/:a");
+		matcher.add("/:b");
+
+		expect(matcher.match("/x")?.path).toBe("/:b");
+	});
+
+	it("keeps a dot inside a parameter name", () => {
+		const matcher = new RouteMatcher();
+		matcher.add("/f/:name.json");
+
+		expect(matcher.match("/f/a.json")?.params["name.json"]).toBe("a.json");
 	});
 });

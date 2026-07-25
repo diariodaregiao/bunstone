@@ -98,25 +98,30 @@ export class SqlEventStore implements EventStore, OnModuleInit {
 	private async warnOnLegacySchema(): Promise<void> {
 		try {
 			const columns = await this.sql.query<{
+				TABLE_NAME: string;
 				COLUMN_NAME: string;
 				COLLATION_NAME: string | null;
 				DATA_TYPE: string;
 			}>(
-				"SELECT COLUMN_NAME, COLLATION_NAME, DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'events' AND COLUMN_NAME IN ('stream_id','payload')",
+				"SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME, DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('events','snapshots') AND COLUMN_NAME IN ('stream_id','payload','state')",
 			);
 
-			const streamId = columns.find((c) => c.COLUMN_NAME === "stream_id");
-			const payload = columns.find((c) => c.COLUMN_NAME === "payload");
+			for (const table of ["events", "snapshots"] as const) {
+				const of = (name: string) =>
+					columns.find((c) => c.TABLE_NAME === table && c.COLUMN_NAME === name);
+				const streamId = of("stream_id");
+				const json = of(table === "events" ? "payload" : "state");
 
-			if (streamId && !streamId.COLLATION_NAME?.endsWith("_bin")) {
-				logger.warn(
-					"`events.stream_id` uses a case-insensitive collation: two stream ids differing only in case will be treated as one aggregate. Fix with: ALTER TABLE events MODIFY stream_id VARCHAR(255) COLLATE utf8mb4_bin NOT NULL;",
-				);
-			}
-			if (payload && payload.DATA_TYPE.toLowerCase() === "text") {
-				logger.warn(
-					"`events.payload` is TEXT and caps at 64KB. Fix with: ALTER TABLE events MODIFY payload LONGTEXT NOT NULL;",
-				);
+				if (streamId && !streamId.COLLATION_NAME?.endsWith("_bin")) {
+					logger.warn(
+						`\`${table}.stream_id\` uses a case-insensitive collation: two stream ids differing only in case will be treated as one aggregate. Fix with: ALTER TABLE ${table} MODIFY stream_id VARCHAR(255) COLLATE utf8mb4_bin NOT NULL;`,
+					);
+				}
+				if (json && json.DATA_TYPE.toLowerCase() === "text") {
+					logger.warn(
+						`\`${table}.${json.COLUMN_NAME}\` is TEXT and caps at 64KB. Fix with: ALTER TABLE ${table} MODIFY ${json.COLUMN_NAME} LONGTEXT NOT NULL;`,
+					);
+				}
 			}
 		} catch {
 			// information_schema is not reachable everywhere; the check is advisory

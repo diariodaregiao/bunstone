@@ -2598,8 +2598,11 @@ await Application.create(AppModule, {
 
 - `shutdownGraceMs` — delay between marking the app not-ready and draining
   (gives the orchestrator time to stop sending traffic). Default `0`.
-- `shutdownTimeoutMs` — maximum drain time before connections are force-closed
-  (long-lived WebSocket connections are closed at this point). Default `10000`.
+- `shutdownTimeoutMs` — maximum drain time before connections are force-closed.
+  Default `10000`. Open WebSockets are closed explicitly at this point. A
+  response that is still streaming when the deadline passes (an SSE endpoint
+  with no client disconnect) is abandoned rather than waited on: shutdown always
+  completes within the timeout instead of hanging on it.
 
 For zero-downtime rolling deploys, set `shutdownGraceMs` to a couple of seconds
 and configure your orchestrator's `preStop` / termination grace period to match.

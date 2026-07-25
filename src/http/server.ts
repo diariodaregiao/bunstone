@@ -24,7 +24,11 @@ import {
 import { getSseOptions } from "./sse";
 import { StaticFiles, type StaticOptions } from "./static";
 import { type BunRequest, type BunServer, createContext } from "./types";
-import { buildWebSocketHandler, type WebSocketHandler } from "./websocket";
+import {
+	buildWebSocketHandler,
+	closeOpenSockets,
+	type WebSocketHandler,
+} from "./websocket";
 
 export interface HttpServerOptions {
 	port?: number;
@@ -349,12 +353,13 @@ export class HttpServer {
 			timer.unref?.();
 		});
 
-		// Drain in-flight work, then force the rest: idle keep-alive sockets
-		// survive a graceful stop and would otherwise still be served. Both
-		// phases race the same deadline — a long-lived response (an open SSE
-		// stream) never resolves a forced stop, and waiting on it would hang
-		// shutdown forever instead of timing out.
+		// Drain in-flight work, then force the rest. Both phases race the same
+		// deadline: a long-lived response (an open SSE stream) never resolves a
+		// forced stop, and waiting on it would hang shutdown rather than time out.
 		await Promise.race([server.stop(false), deadline]);
+		// Bun does not close WebSockets on `stop`, so they are closed explicitly
+		// before the forced phase.
+		closeOpenSockets();
 		await Promise.race([server.stop(true), deadline]);
 		if (timer) clearTimeout(timer);
 	}

@@ -2,7 +2,7 @@ import type { ConfirmChannel } from "amqplib";
 import { RabbitMQError } from "@/errors";
 
 /** Correlates a `basic.return` with the publish that caused it. */
-const RETURN_ID_HEADER = "x-bunstone-publish";
+export const PUBLISH_ID_HEADER = "x-bunstone-publish";
 
 type Pending = Map<string, () => void>;
 
@@ -22,7 +22,7 @@ function pendingFor(channel: ConfirmChannel): Pending {
 	const pending: Pending = new Map();
 	trackers.set(channel, pending);
 	channel.on("return", (message) => {
-		const id = message.properties?.headers?.[RETURN_ID_HEADER];
+		const id = message.properties?.headers?.[PUBLISH_ID_HEADER];
 		if (typeof id === "string") pending.get(id)?.();
 	});
 	return pending;
@@ -63,7 +63,7 @@ export function publishConfirmed(
 			returned = true;
 		});
 
-		send({ [RETURN_ID_HEADER]: id }, true, (error) => {
+		send({ [PUBLISH_ID_HEADER]: id }, true, (error) => {
 			pending.delete(id);
 			if (error) return reject(error);
 			// the return always arrives before the confirm for the same message
