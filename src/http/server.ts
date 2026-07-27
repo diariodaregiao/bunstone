@@ -8,6 +8,7 @@ import {
 import { buildOpenApiDocument, type OpenApiInfo } from "@/openapi/builder";
 import { swaggerUiHtml } from "@/openapi/ui";
 import { getRateLimit } from "@/ratelimit/decorator";
+import type { TrustProxy } from "@/ratelimit/enforce";
 import { MemoryStorage, type RateLimitStorage } from "@/ratelimit/storage";
 import { Logger } from "@/utils/logger";
 import { Cors, type CorsOptions } from "./cors";
@@ -39,6 +40,13 @@ export interface HttpServerOptions {
 	static?: StaticOptions;
 
 	rateLimitStorage?: RateLimitStorage;
+
+	/**
+	 * Number of reverse proxies in front of the app (`true` means one). Enable
+	 * it when the app only ever receives traffic through them: rate limiting
+	 * otherwise buckets every client under the proxy's address.
+	 */
+	trustProxy?: TrustProxy;
 
 	openapi?: OpenApiServeOptions;
 
@@ -226,6 +234,7 @@ export class HttpServer {
 					cors: this.cors,
 					rateLimit: getRateLimit(controller, route.handlerName),
 					rateLimitStorage: this.rateLimitStorage,
+					trustProxy: this.options.trustProxy,
 					sse: getSseOptions(controller, route.handlerName),
 				});
 				const shape = routeShape(path);

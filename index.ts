@@ -195,12 +195,14 @@ export {
 	swaggerUiHtml,
 } from "@/openapi";
 export {
+	clientAddress,
 	getRateLimit,
 	MemoryStorage,
 	RateLimit,
 	type RateLimitConfig,
 	type RateLimitResult,
 	type RateLimitStorage,
+	type TrustProxy,
 } from "@/ratelimit";
 export {
 	Cron,

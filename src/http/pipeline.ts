@@ -2,7 +2,7 @@ import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
 import { instrumentRequest } from "@/observability/instrumentation";
 import type { RateLimitConfig } from "@/ratelimit/decorator";
-import { enforceRateLimit } from "@/ratelimit/enforce";
+import { enforceRateLimit, type TrustProxy } from "@/ratelimit/enforce";
 import type { RateLimitStorage } from "@/ratelimit/storage";
 import type { Cors } from "./cors";
 import { errorToResponse } from "./errors";
@@ -28,6 +28,7 @@ export interface RouteHandlerConfig {
 	cors?: Cors;
 	rateLimit?: RateLimitConfig;
 	rateLimitStorage?: RateLimitStorage;
+	trustProxy?: TrustProxy;
 	sse?: SseOptions;
 }
 
@@ -44,6 +45,7 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 		cors,
 		rateLimit,
 		rateLimitStorage,
+		trustProxy,
 		sse,
 	} = config;
 	const prototype = controller.prototype;
@@ -61,7 +63,13 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 
 				try {
 					if (rateLimit && rateLimitStorage) {
-						await enforceRateLimit(ctx, rateLimit, rateLimitStorage, route);
+						await enforceRateLimit(
+							ctx,
+							rateLimit,
+							rateLimitStorage,
+							route,
+							trustProxy,
+						);
 					}
 
 					for (const GuardClass of guards) {

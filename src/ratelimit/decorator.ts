@@ -6,7 +6,11 @@ export interface RateLimitConfig {
 	max: number;
 	windowMs: number;
 	message?: string;
-	keyGenerator?: (ctx: RequestContext) => string;
+	/**
+	 * `clientAddress` is already resolved through `trustProxy`, so a custom key
+	 * stays correct behind a reverse proxy without re-reading the headers.
+	 */
+	keyGenerator?: (ctx: RequestContext, clientAddress: string) => string;
 }
 
 export const RATE_LIMIT_METADATA = "bunstone:rate-limit";
