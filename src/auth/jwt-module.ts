@@ -13,6 +13,7 @@ export class JwtModule {
 				JwtService,
 				JwtGuard,
 			],
+			exports: [JWT_OPTIONS, JwtService, JwtGuard],
 		};
 	}
 }

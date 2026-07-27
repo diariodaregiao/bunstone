@@ -5,7 +5,11 @@ export {
 	RateLimit,
 	type RateLimitConfig,
 } from "./decorator";
-export { enforceRateLimit } from "./enforce";
+export {
+	clientAddress,
+	enforceRateLimit,
+	type TrustProxy,
+} from "./enforce";
 export {
 	MemoryStorage,
 	type RateLimitResult,

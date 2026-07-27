@@ -6,26 +6,16 @@ import { Module } from "@/core/module";
 import { RabbitConsumer, RabbitSubscribe } from "@/messaging/decorators";
 import { RabbitMQService } from "@/messaging/rabbitmq.service";
 import { RabbitMQModule } from "@/messaging/rabbitmq-module";
+import { retryDelays, retryQueueName } from "@/messaging/topology";
 import type { RabbitMessage } from "@/messaging/types";
+import { rabbitReachable, RABBITMQ_URI as URI } from "../support/services";
 
-const URI = process.env.RABBITMQ_URI ?? "amqp://guest:guest@localhost:5672";
 const CONTAINER = process.env.RABBITMQ_CONTAINER;
-
-async function brokerReachable(): Promise<boolean> {
-	try {
-		const amqp = await import("amqplib");
-		const conn = await amqp.connect(URI);
-		await conn.close();
-		return true;
-	} catch {
-		return false;
-	}
-}
 
 const canRun =
 	process.env.RABBITMQ_CHAOS === "1" &&
 	Boolean(CONTAINER) &&
-	(await brokerReachable());
+	(await rabbitReachable(URI));
 const QUEUE = `bunstone.reconnect.${crypto.randomUUID().slice(0, 8)}`;
 const received: number[] = [];
 
@@ -61,7 +51,21 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	if (canRun) await app.close();
+	if (!canRun) return;
+	await app.close();
+	const amqp = await import("amqplib");
+	const connection = await amqp.connect(URI);
+	const channel = await connection.createChannel();
+	for (const queue of [
+		QUEUE,
+		`${QUEUE}.dlq`,
+		...retryDelays(undefined).map((delay) => retryQueueName(QUEUE, delay)),
+	]) {
+		try {
+			await channel.deleteQueue(queue);
+		} catch {}
+	}
+	await connection.close();
 });
 
 async function waitFor(id: number, timeoutMs: number): Promise<void> {

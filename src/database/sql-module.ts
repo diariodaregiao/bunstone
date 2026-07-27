@@ -22,6 +22,7 @@ export class SqlModule {
 				{ provide: SQL_CLIENT, useFactory: () => createSqlClient(input) },
 				SqlService,
 			],
+			exports: [SQL_CLIENT, SqlService],
 		};
 	}
 }

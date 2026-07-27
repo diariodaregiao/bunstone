@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { ModuleInitializationError } from "@/errors";
-import { Container, type Provider } from "./container";
+import { Container, type Provider, providerToken } from "./container";
 import type { Constructor, Token } from "./injectable";
 
 export interface ModuleMetadata {
@@ -46,16 +46,40 @@ export interface CompiledModules {
 	modules: Constructor[];
 }
 
-export function compileModules(root: ModuleImport): CompiledModules {
+/** What one module contributes to, and may see in, the dependency graph. */
+interface ModuleScope {
+	ownTokens: Set<Token>;
+	exports: Token[] | undefined;
+	imports: Set<Constructor>;
+	global: boolean;
+}
+
+export function compileModules(
+	root: ModuleImport,
+	strict = false,
+): CompiledModules {
 	const container = new Container();
 	const modules: Constructor[] = [];
 	const controllers: Constructor[] = [];
-	const seen = new Set<Constructor>();
+	// entries dedupe configurations; classes dedupe the static @Module metadata
+	const seenEntries = new Set<ModuleImport>();
+	const seenClasses = new Set<Constructor>();
+	const scopes = new Map<Constructor, ModuleScope>();
 
 	const visit = (entry: ModuleImport): void => {
-		const moduleClass = isDynamicModule(entry) ? entry.module : entry;
-		if (seen.has(moduleClass)) return;
+		if (entry === undefined || entry === null) {
+			throw new ModuleInitializationError(
+				"An import, provider or controller entry is `undefined`.",
+				"BNS-MOD-002",
+				"This is almost always a circular import or an `import type` used as a value. Import the module as a value and break the cycle.",
+				{},
+			);
+		}
 
+		if (seenEntries.has(entry)) return;
+		seenEntries.add(entry);
+
+		const moduleClass = isDynamicModule(entry) ? entry.module : entry;
 		const staticMetadata = getModuleMetadata(moduleClass);
 		const dynamic = isDynamicModule(entry) ? entry : undefined;
 		if (!staticMetadata && !dynamic) {
@@ -67,30 +91,142 @@ export function compileModules(root: ModuleImport): CompiledModules {
 			);
 		}
 
-		seen.add(moduleClass);
-		modules.push(moduleClass);
+		// two `Module.register(...)` calls are two configurations of ONE module:
+		// each contributes its own providers, but the class's static metadata
+		// must only ever be applied once or its controllers register twice
+		const firstVisit = !seenClasses.has(moduleClass);
+		if (firstVisit) {
+			seenClasses.add(moduleClass);
+			modules.push(moduleClass);
+		}
+		const own = firstVisit ? staticMetadata : undefined;
 
-		const imports = [
-			...(staticMetadata?.imports ?? []),
-			...(dynamic?.imports ?? []),
-		];
+		const imports = [...(own?.imports ?? []), ...(dynamic?.imports ?? [])];
 		const providers = [
-			...(staticMetadata?.providers ?? []),
+			...(own?.providers ?? []),
 			...(dynamic?.providers ?? []),
 		];
 		const moduleControllers = [
-			...(staticMetadata?.controllers ?? []),
+			...(own?.controllers ?? []),
 			...(dynamic?.controllers ?? []),
 		];
 
-		for (const imported of imports) visit(imported);
-		for (const provider of providers) container.register(provider);
+		const scope = scopeOf(scopes, moduleClass);
+		if (own?.global || dynamic?.global) scope.global = true;
+		if (own?.exports || dynamic?.exports) {
+			scope.exports = [
+				...(scope.exports ?? []),
+				...(own?.exports ?? []),
+				...(dynamic?.exports ?? []),
+			];
+		}
+
+		for (const imported of imports) {
+			scope.imports.add(isDynamicModule(imported) ? imported.module : imported);
+			visit(imported);
+		}
+		for (const provider of providers) {
+			container.register(provider, moduleClass);
+			scope.ownTokens.add(providerToken(provider));
+		}
 		for (const controller of moduleControllers) {
 			controllers.push(controller);
-			container.register(controller);
+			container.register(controller, moduleClass);
+			scope.ownTokens.add(controller);
 		}
 	};
 
 	visit(root);
+
+	if (strict) {
+		container.enforceBoundaries(buildVisibility(scopes));
+	}
 	return { container, controllers, modules };
+}
+
+function scopeOf(
+	scopes: Map<Constructor, ModuleScope>,
+	moduleClass: Constructor,
+): ModuleScope {
+	const existing = scopes.get(moduleClass);
+	if (existing) return existing;
+	const created: ModuleScope = {
+		ownTokens: new Set(),
+		exports: undefined,
+		imports: new Set(),
+		global: false,
+	};
+	scopes.set(moduleClass, created);
+	return created;
+}
+
+/**
+ * A module's public surface. An explicit `exports` list is the surface; a
+ * global module that declares none exposes everything it provides, since
+ * "global with nothing visible" is never what the author meant.
+ */
+function publicTokens(
+	scopes: Map<Constructor, ModuleScope>,
+	moduleClass: Constructor,
+	memo: Map<Constructor, Set<Token>>,
+	inProgress = new Set<Constructor>(),
+): Set<Token> {
+	const cached = memo.get(moduleClass);
+	if (cached) return cached;
+
+	const scope = scopes.get(moduleClass);
+	// `inProgress` breaks export cycles; `memo` is what keeps the surface of a
+	// diamond import graph independent of the order modules are visited in
+	if (!scope || inProgress.has(moduleClass)) return new Set();
+	inProgress.add(moduleClass);
+
+	if (!scope.exports) {
+		const surface = scope.global ? new Set(scope.ownTokens) : new Set<Token>();
+		inProgress.delete(moduleClass);
+		memo.set(moduleClass, surface);
+		return surface;
+	}
+
+	// an exported token may be re-exported from something this module imports
+	const reExportable = new Set<Token>();
+	for (const imported of scope.imports) {
+		for (const token of publicTokens(scopes, imported, memo, inProgress)) {
+			reExportable.add(token);
+		}
+	}
+
+	const surface = new Set<Token>();
+	for (const token of scope.exports) {
+		if (scope.ownTokens.has(token) || reExportable.has(token)) {
+			surface.add(token);
+		}
+	}
+	inProgress.delete(moduleClass);
+	memo.set(moduleClass, surface);
+	return surface;
+}
+
+function buildVisibility(
+	scopes: Map<Constructor, ModuleScope>,
+): Map<Constructor, ReadonlySet<Token>> {
+	const memo = new Map<Constructor, Set<Token>>();
+	const globals = new Set<Token>();
+	for (const [moduleClass, scope] of scopes) {
+		if (!scope.global) continue;
+		for (const token of publicTokens(scopes, moduleClass, memo)) {
+			globals.add(token);
+		}
+	}
+
+	const visibility = new Map<Constructor, ReadonlySet<Token>>();
+	for (const [moduleClass, scope] of scopes) {
+		const visible = new Set<Token>([...scope.ownTokens, ...globals]);
+		for (const imported of scope.imports) {
+			for (const token of publicTokens(scopes, imported, memo)) {
+				visible.add(token);
+			}
+		}
+		visibility.set(moduleClass, visible);
+	}
+	return visibility;
 }

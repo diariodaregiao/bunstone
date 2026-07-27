@@ -19,7 +19,12 @@ export function backoffDelay(
 	const base = options.baseDelayMs ?? DEFAULT_RETRY.baseDelayMs;
 	const factor = options.factor ?? DEFAULT_RETRY.factor;
 	const max = options.maxDelayMs ?? DEFAULT_RETRY.maxDelayMs;
-	return Math.min(max, base * factor ** Math.max(0, attempt - 1));
+	// the delay becomes an `x-message-ttl`, which the broker requires to be an
+	// integer, and part of the retry queue's name
+	return Math.max(
+		1,
+		Math.round(Math.min(max, base * factor ** Math.max(0, attempt - 1))),
+	);
 }
 
 export function shouldRetry(

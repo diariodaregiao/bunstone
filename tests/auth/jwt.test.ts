@@ -71,6 +71,17 @@ describe("@Jwt guard", () => {
 		expect(res.status).toBe(401);
 	});
 
+	it("accepts a case-insensitive bearer scheme", async () => {
+		const token = await jwt.sign({ sub: "user-7" });
+		for (const scheme of ["bearer", "BEARER", "BeArEr"]) {
+			const res = await fetch(`${base}/me`, {
+				headers: { authorization: `${scheme} ${token}` },
+			});
+			expect(res.status).toBe(200);
+			expect(await res.json()).toEqual({ sub: "user-7" });
+		}
+	});
+
 	it("allows a valid token and exposes the payload", async () => {
 		const token = await jwt.sign({ sub: "user-42" });
 		const res = await fetch(`${base}/me`, {

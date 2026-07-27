@@ -22,10 +22,50 @@ The metadata fields are all optional:
 - `imports` — other modules (or dynamic modules) whose providers are added to the graph.
 - `controllers` — controller classes whose routes are registered.
 - `providers` — injectable classes or provider objects (see [Dependency Injection](./dependency-injection.md)).
-- `exports` — tokens made available to modules that import this one.
-- `global` — when `true`, this module's providers are available everywhere without being imported explicitly.
+- `exports` — the module's public surface: the tokens modules that import it may resolve.
+- `global` — when `true`, this module's public surface is available everywhere without being imported.
 
-Because the container is a single shared graph, an imported provider is the same singleton everywhere it is used.
+Providers are singletons across the whole application: an imported provider is the same instance everywhere it is used.
+
+## Module boundaries
+
+By default any provider can resolve any other, whether or not it was exported. Turn on `strictModuleBoundaries` to have the container enforce the boundaries you declared:
+
+```ts
+const app = await Application.create(AppModule, {
+  strictModuleBoundaries: true,
+});
+```
+
+With it on, a provider declared in module `M` may resolve:
+
+- providers declared in `M` itself,
+- whatever the modules `M` imports list in their `exports`,
+- and the public surface of any `global` module.
+
+Anything else fails **at startup**, not at request time, with the token, the module that asked for it and the module that owns it:
+
+```
+`OrdersService` cannot resolve `UsersRepository`: it is not part of any module it imports.
+  Add `UsersRepository` to the `exports` array of the module that provides it (`UsersModule`),
+  and make sure `OrdersModule` lists that module in its `imports`.
+```
+
+A module that declares no `exports` keeps everything private:
+
+```ts
+@Module({
+  providers: [UsersRepository, UsersService],
+  exports: [UsersService],       // UsersRepository stays internal
+})
+export class UsersModule {}
+```
+
+Re-exporting works too — a module may export a token it received from one of its own imports, which lets an aggregate module present a single public surface.
+
+### Migrating an existing application
+
+The option is off by default because enabling it can reject an application that today resolves across a boundary it never declared. Turn it on one service at a time: every failure names exactly which `exports` entry or `imports` entry is missing, and nothing fails silently. Once a service boots cleanly with it on, leave it on — the boundary is then enforced rather than merely documented.
 
 ## Dynamic modules
 
@@ -98,6 +138,10 @@ Order of execution:
 1. `onModuleInit` — after the container instantiates every provider.
 2. `onApplicationBootstrap` — after CQRS/messaging wiring and server setup.
 3. `onModuleDestroy` — during `app.close()`, in reverse registration order.
+
+`onModuleDestroy` hooks are **isolated**: if one throws, the remaining hooks still run and the failures are reported together as an `AggregateError` once shutdown finishes. Framework resources (scheduler, queue consumers, HTTP server) are stopped *before* these hooks run, so a scheduled job cannot fire against a connection pool your hook has just closed.
+
+If bootstrap fails part-way through `Application.create`, everything already started is torn down before the error propagates — no orphaned timers or open connections.
 
 ## Bootstrapping the application
 

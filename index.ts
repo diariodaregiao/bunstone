@@ -42,6 +42,7 @@ export {
 } from "@/core";
 export {
 	AggregateRoot,
+	assertEventStoreWiring,
 	CommandBus,
 	CommandHandler,
 	CqrsModule,
@@ -56,14 +57,28 @@ export {
 	type ICommandHandler,
 	type IEventHandler,
 	type IQueryHandler,
+	MONGO_EVENT_STORE_OPTIONS,
+	MongoEventStore,
+	MongoEventStoreModule,
+	type MongoEventStoreOptions,
+	provideEventStore,
 	QueryBus,
 	QueryHandler,
+	type RepositoryOptions,
 	type Snapshot,
+	type Snapshottable,
 	SqlEventStore,
+	SqlEventStoreModule,
 	wireCqrs,
 } from "@/cqrs";
 export {
 	createSqlClient,
+	MONGO_OPTIONS,
+	type MongoClientLike,
+	type MongoConnectionOptions,
+	MongoModule,
+	type MongoModuleInput,
+	MongoService,
 	SQL_CLIENT,
 	type SqlConnectionOptions,
 	SqlModule,
@@ -130,8 +145,12 @@ export {
 	CircuitOpenError,
 	type CircuitState,
 	DEFAULT_RETRY,
+	declareRetryTopology,
+	declareTopology,
 	getSubscriptions,
 	isRabbitConsumer,
+	QueueConsumer,
+	type QueueConsumerOptions,
 	RABBIT_OPTIONS,
 	type RabbitBinding,
 	RabbitConnection,
@@ -146,11 +165,16 @@ export {
 	type RabbitReconnectOptions,
 	RabbitSubscribe,
 	type RetryOptions,
+	retryDelays,
+	retryQueueName,
 	type SubscribeConfig,
 	shouldRetry,
+	type TopologyOptions,
 	wireRabbit,
 } from "@/messaging";
 export {
+	injectTraceContext,
+	instrumentConsume,
 	instrumentRequest,
 	TELEMETRY_OPTIONS,
 	TelemetryModule,
@@ -159,27 +183,26 @@ export {
 	TelemetryService,
 } from "@/observability";
 export {
-	Logger,
-	type LoggerOptions,
-	LogLevel,
-} from "@/utils/logger";
-export {
 	ApiOperation,
 	type ApiOperationInfo,
 	ApiResponse,
 	type ApiResponseInfo,
 	ApiTags,
+	assertOpenApiBasicAuth,
 	buildOpenApiDocument,
+	type OpenApiBasicAuth,
 	type OpenApiInfo,
 	swaggerUiHtml,
 } from "@/openapi";
 export {
+	clientAddress,
 	getRateLimit,
 	MemoryStorage,
 	RateLimit,
 	type RateLimitConfig,
 	type RateLimitResult,
 	type RateLimitStorage,
+	type TrustProxy,
 } from "@/ratelimit";
 export {
 	Cron,
@@ -197,3 +220,8 @@ export {
 	TestingModuleBuilder,
 	type TestRequestOptions,
 } from "@/testing";
+export {
+	Logger,
+	type LoggerOptions,
+	LogLevel,
+} from "@/utils/logger";

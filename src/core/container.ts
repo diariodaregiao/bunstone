@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { DependencyResolutionError } from "@/errors";
+import { Logger } from "@/utils/logger";
 import {
 	type Constructor,
 	INJECT_TOKENS_METADATA,
@@ -26,14 +27,44 @@ type NormalizedProvider =
 			inject: Token[];
 	  };
 
+const logger = new Logger("DI");
+
 export class Container {
 	private readonly providers = new Map<Token, NormalizedProvider>();
 	private readonly instances = new Map<Token, unknown>();
 	private readonly resolving: Token[] = [];
+	/** Which module declared each token, so resolution can descend into it. */
+	private readonly owners = new Map<Token, Constructor>();
+	/** Tokens each module is allowed to resolve. Empty until strict mode is on. */
+	private readonly visibility = new Map<Constructor, ReadonlySet<Token>>();
+	private strict = false;
 
-	register(provider: Provider): void {
+	register(provider: Provider, owner?: Constructor): void {
 		const normalized = normalize(provider);
+		const previous = this.owners.get(normalized.provide);
+		// silently overwriting would make the winner depend on import order
+		if (owner && previous && previous !== owner) {
+			logger.warn(
+				`\`${tokenName(normalized.provide)}\` is provided by both \`${previous.name}\` and \`${owner.name}\`; the latter wins.`,
+			);
+		}
 		this.providers.set(normalized.provide, normalized);
+		if (owner) this.owners.set(normalized.provide, owner);
+	}
+
+	/**
+	 * Turns on module boundaries. Without it every provider is resolvable from
+	 * everywhere, which is the historical behaviour.
+	 */
+	enforceBoundaries(visibility: Map<Constructor, ReadonlySet<Token>>): void {
+		this.strict = true;
+		for (const [module, tokens] of visibility) {
+			this.visibility.set(module, tokens);
+		}
+	}
+
+	ownerOf(token: Token): Constructor | undefined {
+		return this.owners.get(token);
 	}
 
 	registerValue<T>(token: Token<T>, value: T): void {
@@ -45,7 +76,14 @@ export class Container {
 		return this.providers.has(token) || this.instances.has(token);
 	}
 
-	resolve<T>(token: Token<T>): T {
+	/**
+	 * `scope` is the module asking. It is set automatically while descending
+	 * into a provider's own dependencies; a bare `resolve` from application
+	 * code is outside any module and therefore unrestricted.
+	 */
+	resolve<T>(token: Token<T>, scope?: Constructor): T {
+		if (this.strict && scope) this.assertVisible(token, scope);
+
 		const cached = this.instances.get(token);
 		if (cached !== undefined || this.instances.has(token)) {
 			return cached as T;
@@ -65,7 +103,7 @@ export class Container {
 
 		this.resolving.push(token);
 		try {
-			const instance = this.instantiate(provider);
+			const instance = this.instantiate(provider, this.owners.get(token));
 			this.instances.set(token, instance);
 			return instance as T;
 		} finally {
@@ -79,20 +117,35 @@ export class Container {
 		}
 	}
 
+	private assertVisible(token: Token, scope: Constructor): void {
+		const visible = this.visibility.get(scope);
+		if (visible?.has(token)) return;
+		throw DependencyResolutionError.notVisible(
+			tokenName(token),
+			scope.name,
+			tokenName(
+				(this.owners.get(token) as Token | undefined) ?? (token as Token),
+			),
+		);
+	}
+
 	getInstances(): unknown[] {
 		return [...new Set(this.instances.values())];
 	}
 
-	private instantiate(provider: NormalizedProvider): unknown {
+	private instantiate(
+		provider: NormalizedProvider,
+		scope?: Constructor,
+	): unknown {
 		if ("useValue" in provider) return provider.useValue;
 		if ("useFactory" in provider) {
-			const deps = provider.inject.map((token) => this.resolve(token));
+			const deps = provider.inject.map((token) => this.resolve(token, scope));
 			return provider.useFactory(...deps);
 		}
-		return this.construct(provider.useClass);
+		return this.construct(provider.useClass, scope);
 	}
 
-	private construct(cls: Constructor): unknown {
+	private construct(cls: Constructor, scope?: Constructor): unknown {
 		const paramTypes: unknown[] =
 			Reflect.getMetadata("design:paramtypes", cls) ?? [];
 
@@ -103,7 +156,9 @@ export class Container {
 			);
 		}
 
-		const overrides: Map<number, Token> | undefined = Reflect.getOwnMetadata(
+		// inherited, to match `design:paramtypes` above — otherwise a subclass
+		// keeps the base's constructor signature but loses its @Inject tokens
+		const overrides: Map<number, Token> | undefined = Reflect.getMetadata(
 			INJECT_TOKENS_METADATA,
 			cls,
 		);
@@ -116,7 +171,7 @@ export class Container {
 			if ((token as unknown) === Object) {
 				throw DependencyResolutionError.objectType(this.chain(cls));
 			}
-			return this.resolve(token);
+			return this.resolve(token, scope);
 		});
 
 		return new cls(...args);
@@ -125,6 +180,11 @@ export class Container {
 	private chain(token: Token): string {
 		return [...this.resolving, token].map(tokenName).join(" -> ");
 	}
+}
+
+/** The token a provider will be registered under. */
+export function providerToken(provider: Provider): Token {
+	return normalize(provider).provide;
 }
 
 function normalize(provider: Provider): NormalizedProvider {

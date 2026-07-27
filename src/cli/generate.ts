@@ -1,4 +1,10 @@
-export type GenerateKind = "controller" | "service" | "module";
+export const GENERATE_KINDS = ["controller", "service", "module"] as const;
+
+export type GenerateKind = (typeof GENERATE_KINDS)[number];
+
+export function isGenerateKind(value: unknown): value is GenerateKind {
+	return (GENERATE_KINDS as readonly unknown[]).includes(value);
+}
 
 export interface GeneratedFile {
 	path: string;
@@ -40,6 +46,12 @@ export function generate(kind: GenerateKind, name: string): GeneratedFile {
 				path: `${kebab}.module.ts`,
 				content: moduleTemplate(pascal),
 			};
+		default:
+			// callers may hand us unvalidated argv, and falling through used to
+			// return undefined and crash on `file.path`
+			throw new Error(
+				`Unknown generate kind "${kind}". Expected ${GENERATE_KINDS.join("|")}.`,
+			);
 	}
 }
 

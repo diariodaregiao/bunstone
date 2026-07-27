@@ -16,6 +16,7 @@ export class CacheModule {
 				},
 				CacheService,
 			],
+			exports: [CACHE_CLIENT, CacheService],
 		};
 	}
 }

@@ -8,7 +8,7 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (123)
+## Public exports (141)
 
 - `AdapterError`
 - `AggregateRoot`
@@ -70,9 +70,15 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `JwtService`
 - `LogLevel`
 - `Logger`
+- `MONGO_EVENT_STORE_OPTIONS`
+- `MONGO_OPTIONS`
 - `MemoryStorage`
 - `Module`
 - `ModuleInitializationError`
+- `MongoEventStore`
+- `MongoEventStoreModule`
+- `MongoModule`
+- `MongoService`
 - `NotFoundException`
 - `Options`
 - `Param`
@@ -82,6 +88,7 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `Query`
 - `QueryBus`
 - `QueryHandler`
+- `QueueConsumer`
 - `RABBIT_OPTIONS`
 - `RabbitConnection`
 - `RabbitConsumer`
@@ -97,6 +104,7 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `Scheduler`
 - `SetHeader`
 - `SqlEventStore`
+- `SqlEventStoreModule`
 - `SqlModule`
 - `SqlService`
 - `Sse`
@@ -118,16 +126,26 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `UploadError`
 - `UseGuards`
 - `WebSocketGateway`
+- `assertEventStoreWiring`
+- `assertOpenApiBasicAuth`
 - `backoffDelay`
 - `buildOpenApiDocument`
+- `clientAddress`
 - `compileModules`
 - `createSqlClient`
+- `declareRetryTopology`
+- `declareTopology`
 - `getRateLimit`
 - `getSchedules`
 - `getSubscriptions`
+- `injectTraceContext`
+- `instrumentConsume`
 - `instrumentRequest`
 - `isInjectable`
 - `isRabbitConsumer`
+- `provideEventStore`
+- `retryDelays`
+- `retryQueueName`
 - `shouldRetry`
 - `sseResponse`
 - `swaggerUiHtml`
@@ -202,6 +220,11 @@ Run it with Bun and open `http://localhost:3000`.
 - [Modules](./modules.md)
 - [Controllers](./controllers.md)
 - [Guards & JWT](./guards-jwt.md)
+- [Uploads & static files](./uploads-and-static.md) · [CORS](./cors.md)
+- [Database & MongoDB](./database.md) · [Cache](./cache.md) · [CQRS](./cqrs.md) · [Event sourcing](./event-sourcing.md)
+- [Messaging](./messaging.md) · [Scheduling](./scheduling.md) · [Realtime](./realtime.md)
+- [Rate limiting](./rate-limiting.md) · [Logging](./logging.md) · [Observability](./observability.md) · [Errors](./errors.md)
+- [Testing](./testing.md) · [OpenAPI](./openapi.md) · [CLI](./cli.md) · [Deployment](./deployment.md)
 
 ## docs/getting-started.md
 
@@ -435,10 +458,50 @@ The metadata fields are all optional:
 - `imports` — other modules (or dynamic modules) whose providers are added to the graph.
 - `controllers` — controller classes whose routes are registered.
 - `providers` — injectable classes or provider objects (see [Dependency Injection](./dependency-injection.md)).
-- `exports` — tokens made available to modules that import this one.
-- `global` — when `true`, this module's providers are available everywhere without being imported explicitly.
+- `exports` — the module's public surface: the tokens modules that import it may resolve.
+- `global` — when `true`, this module's public surface is available everywhere without being imported.
 
-Because the container is a single shared graph, an imported provider is the same singleton everywhere it is used.
+Providers are singletons across the whole application: an imported provider is the same instance everywhere it is used.
+
+## Module boundaries
+
+By default any provider can resolve any other, whether or not it was exported. Turn on `strictModuleBoundaries` to have the container enforce the boundaries you declared:
+
+```ts
+const app = await Application.create(AppModule, {
+  strictModuleBoundaries: true,
+});
+```
+
+With it on, a provider declared in module `M` may resolve:
+
+- providers declared in `M` itself,
+- whatever the modules `M` imports list in their `exports`,
+- and the public surface of any `global` module.
+
+Anything else fails **at startup**, not at request time, with the token, the module that asked for it and the module that owns it:
+
+```
+`OrdersService` cannot resolve `UsersRepository`: it is not part of any module it imports.
+  Add `UsersRepository` to the `exports` array of the module that provides it (`UsersModule`),
+  and make sure `OrdersModule` lists that module in its `imports`.
+```
+
+A module that declares no `exports` keeps everything private:
+
+```ts
+@Module({
+  providers: [UsersRepository, UsersService],
+  exports: [UsersService],       // UsersRepository stays internal
+})
+export class UsersModule {}
+```
+
+Re-exporting works too — a module may export a token it received from one of its own imports, which lets an aggregate module present a single public surface.
+
+### Migrating an existing application
+
+The option is off by default because enabling it can reject an application that today resolves across a boundary it never declared. Turn it on one service at a time: every failure names exactly which `exports` entry or `imports` entry is missing, and nothing fails silently. Once a service boots cleanly with it on, leave it on — the boundary is then enforced rather than merely documented.
 
 ## Dynamic modules
 
@@ -511,6 +574,10 @@ Order of execution:
 1. `onModuleInit` — after the container instantiates every provider.
 2. `onApplicationBootstrap` — after CQRS/messaging wiring and server setup.
 3. `onModuleDestroy` — during `app.close()`, in reverse registration order.
+
+`onModuleDestroy` hooks are **isolated**: if one throws, the remaining hooks still run and the failures are reported together as an `AggregateError` once shutdown finishes. Framework resources (scheduler, queue consumers, HTTP server) are stopped *before* these hooks run, so a scheduled job cannot fire against a connection pool your hook has just closed.
+
+If bootstrap fails part-way through `Application.create`, everything already started is torn down before the error propagates — no orphaned timers or open connections.
 
 ## Bootstrapping the application
 
@@ -601,6 +668,12 @@ export class PostsController {
   remove() {}
 }
 ```
+
+`HEAD` is served automatically wherever `GET` is: Bunstone registers a `HEAD` handler that returns the same status and headers with no body, unless you declare your own.
+
+A request to a known path with a method no handler covers gets `405 Method Not Allowed` with an `Allow` header listing the supported methods. Only an unknown path returns `404`.
+
+Declaring the same method and path twice raises a configuration error at startup rather than silently letting one handler shadow the other.
 
 ## Parameters
 
@@ -824,6 +897,8 @@ export class AuthService {
 - `verify<T>(token)` — returns the decoded payload, or `null` if the token is invalid, tampered with, or expired.
 - `decode<T>(token)` — decodes the payload **without** verifying the signature.
 
+The module's configuration is available under the `JWT_OPTIONS` token, and `JwtGuard` is a normal provider you can list in `@UseGuards(JwtGuard)` if you prefer that over `@Jwt()`.
+
 ### Protecting routes
 
 `@Jwt()` is a built-in guard. It reads the `Authorization: Bearer <token>` header, verifies it with `JwtService`, and stores the payload on `ctx.state.jwt`. A missing or invalid token results in `401 Unauthorized`.
@@ -843,7 +918,194 @@ export class MeController {
 }
 ```
 
-`@Jwt()` composes cleanly with other guards — stack it alongside `@UseGuards(RoleGuard)` to require both a valid token and a custom check.
+`@Jwt()` composes cleanly with other guards — stack it alongside `@UseGuards(RoleGuard)` to require both a valid token and a custom check. Guard decorators applied to the same class are merged, so every one of them runs:
+
+```ts
+@UseGuards(RoleGuard)
+@Jwt()
+@Controller("admin")
+export class AdminController {}   // both guards enforced
+```
+
+Class-level guards are also **inherited**: a controller that extends a guarded base class keeps the base's guards, so extending a protected controller cannot accidentally open it up.
+
+## docs/uploads-and-static.md
+
+# File uploads & static files
+
+## Uploads
+
+`@FormData()` parses a `multipart/form-data` request into text fields and files. The files are standard web `File` objects, so Bun's file APIs work on them directly.
+
+```ts
+import { Controller, FormData, Post } from "@grupodiariodaregiao/bunstone";
+import type { FormDataPayload } from "@grupodiariodaregiao/bunstone";
+
+@Controller("uploads")
+export class UploadsController {
+  @Post()
+  async upload(@FormData() form: FormDataPayload) {
+    for (const file of form.files) {
+      await Bun.write(`./storage/${file.name}`, file);
+    }
+    return { title: form.fields.title, count: form.files.length };
+  }
+}
+```
+
+```ts
+interface FormDataPayload {
+  fields: Record<string, string>;  // every non-file field, as text
+  files: File[];                   // every file part
+}
+```
+
+A request that is not valid multipart is rejected with `400 Expected multipart form data.` before your handler runs.
+
+Each `File` carries `name`, `type` and `size`, so you can enforce your own limits:
+
+```ts
+@Post()
+async upload(@FormData() form: FormDataPayload) {
+  const [file] = form.files;
+  if (!file) throw new BadRequestException("A file is required.");
+  if (file.size > 5_000_000) throw new BadRequestException("File too large.");
+  if (!file.type.startsWith("image/")) {
+    throw new UnprocessableEntityException("Only images are accepted.");
+  }
+  await Bun.write(`./storage/${crypto.randomUUID()}`, file);
+  return { ok: true };
+}
+```
+
+## Static files
+
+Serve a directory from disk with the `static` option:
+
+```ts
+const app = await Application.create(AppModule, {
+  static: { dir: "./public", prefix: "/public" },
+});
+```
+
+- `dir` — the directory to serve, resolved from the process working directory. Default `public`.
+- `prefix` — the URL prefix it is mounted on. Default `/public`.
+
+`GET /public/logo.png` serves `./public/logo.png`. A missing file is `404`; a malformed percent-escape is `400`.
+
+Static files are resolved **after** your controllers, so a route always wins over a file on the same path.
+
+### Path traversal
+
+Requests that try to escape the served directory are rejected with `403`, including encoded variants:
+
+```
+/public/../secret.txt      → 403
+/public/..%2fsecret.txt    → 403
+/public/%2e%2e/secret.txt  → 403
+/public/sub/../../etc      → 403
+```
+
+The check resolves the final absolute path and requires it to sit inside the served directory, so it holds regardless of how the traversal is spelled.
+
+## Request state
+
+Guards and handlers share a per-request `state` object, which is how a guard passes data to the handler it protected. `@State()` reads it.
+
+```ts
+@Injectable()
+export class TenantGuard implements GuardContract {
+  canActivate(ctx: RequestContext): boolean {
+    const tenant = ctx.headers.get("x-tenant");
+    if (!tenant) return false;
+    ctx.state.tenant = tenant;
+    return true;
+  }
+}
+
+@Controller("reports")
+export class ReportsController {
+  @Get()
+  @UseGuards(TenantGuard)
+  list(@State("tenant") tenant: string) {
+    return { tenant };
+  }
+}
+```
+
+`@State()` without a key returns the whole state object. State is allocated fresh per request and never shared between them. `@Jwt()` uses exactly this mechanism — it stores the verified payload on `ctx.state.jwt`, which is what `@JwtPayload()` reads.
+
+## docs/cors.md
+
+# CORS
+
+Enable CORS with the `cors` option. `true` uses the defaults; an object configures it.
+
+```ts
+const app = await Application.create(AppModule, { cors: true });
+```
+
+```ts
+const app = await Application.create(AppModule, {
+  cors: {
+    origin: ["https://app.example.com", "https://admin.example.com"],
+    methods: ["GET", "POST"],
+    allowedHeaders: ["content-type", "authorization"],
+    exposedHeaders: ["x-request-id"],
+    credentials: true,
+    maxAge: 86_400,
+  },
+});
+```
+
+## Options
+
+| Option | Type | Meaning |
+|---|---|---|
+| `origin` | `string \| string[] \| boolean` | Allowed origins. `"*"` (default) allows any; `true` reflects the caller's origin; `false` disables CORS; a string is a fixed origin; an array is an allowlist. |
+| `methods` | `string[]` | Methods advertised in the preflight response. Defaults to the common set. |
+| `allowedHeaders` | `string[]` | Request headers the browser may send. Defaults to echoing what the client asked for. |
+| `exposedHeaders` | `string[]` | Response headers JavaScript is allowed to read. |
+| `credentials` | `boolean` | Allow cookies and `Authorization` on cross-origin requests. |
+| `maxAge` | `number` | How long the browser may cache the preflight, in seconds. |
+
+## Credentials require an explicit origin
+
+`credentials: true` combined with a wildcard origin is refused **at startup**:
+
+```ts
+// throws BNS-CFG-003
+Application.create(AppModule, { cors: { credentials: true } });
+```
+
+```
+`cors.credentials` requires an explicit `origin` allowlist.
+  Set `origin` to the exact origins you trust, for example
+  `origin: ["https://app.example.com"]`. A wildcard origin cannot be
+  combined with credentials.
+```
+
+This is not a limitation of the framework but of the CORS specification: a browser rejects `Access-Control-Allow-Origin: *` alongside `Access-Control-Allow-Credentials: true`, so the combination never works. Reflecting the caller's origin instead would be worse — it would let *any* site read authenticated responses. Failing at startup makes the misconfiguration obvious instead of leaving credentialed requests mysteriously blocked in the browser.
+
+The fix is always to list the origins you actually trust:
+
+```ts
+cors: { credentials: true, origin: ["https://app.example.com"] }
+```
+
+## Preflight
+
+`OPTIONS` requests carrying `Access-Control-Request-Method` are answered with `204` and the configured methods, headers and max-age. This happens **before** guards and rate limiting, as the specification requires — a preflight carries no credentials and must not be rejected by your authorization logic.
+
+A preflight is answered even when the route defines its own `@Options()` handler; the handler still runs for non-preflight `OPTIONS` requests.
+
+## Vary
+
+Responses whose CORS headers depend on the request origin carry `Vary: Origin`, including responses to origins that were **rejected**. Without that, a shared cache could serve a rejected-origin response to an allowed origin and break legitimate cross-origin calls.
+
+## Where CORS headers apply
+
+CORS headers are applied to every response the application produces: successful handlers, errors, rate-limit `429`s, `404`s and `405`s from the router, static files, and Server-Sent Events streams. A cross-origin `EventSource` works with the same configuration as the rest of the API.
 
 ## docs/database.md
 
@@ -933,6 +1195,20 @@ export class UsersRepository {
 - `transaction(fn)` — runs `fn` inside a transaction, committing on success and rolling back if it throws. The callback receives a transaction client whose `.unsafe(sql, params)` runs statements on the same transaction.
 - `client` — the underlying `Bun.SQL` instance for advanced use.
 
+### Raw client access
+
+`SqlService.client` is the underlying `Bun.SQL` instance. The same object is registered under the `SQL_CLIENT` token, so you can inject it directly when you want the driver without the wrapper:
+
+```ts
+import { Inject, Injectable, SQL_CLIENT } from "@grupodiariodaregiao/bunstone";
+import type { SQL } from "bun";
+
+@Injectable()
+export class Reports {
+  constructor(@Inject(SQL_CLIENT) private readonly sql: SQL) {}
+}
+```
+
 ### Parameterized queries
 
 Bind values with placeholders instead of string interpolation to stay safe from injection. MySQL, MariaDB, and SQLite use `?`:
@@ -957,6 +1233,66 @@ await this.sql.transaction(async (tx) => {
 ```
 
 If the callback throws, the whole transaction is rolled back.
+
+## MongoDB
+
+`MongoModule` connects to MongoDB for use by [the event store](./event-sourcing.md) or by your own read models. The `mongodb` driver is an **optional peer dependency**: install it only if you use this module.
+
+```bash
+bun add mongodb
+```
+
+```ts
+import { Module, MongoModule } from "@grupodiariodaregiao/bunstone";
+
+@Module({
+  imports: [MongoModule.register("mongodb://localhost:27017/app")],
+})
+export class AppModule {}
+```
+
+Or with options:
+
+```ts
+MongoModule.register({
+  uri: "mongodb://localhost:27017",
+  database: "app",
+  client: { maxPoolSize: 20 },      // passed verbatim to the driver
+});
+```
+
+You can also hand over a client you built yourself — Bunstone will use it and never close it:
+
+```ts
+MongoModule.register({ client: myMongoClient, database: "app" });
+```
+
+### MongoService
+
+```ts
+import { Inject, Injectable, MongoService } from "@grupodiariodaregiao/bunstone";
+import type { Db } from "mongodb";
+
+@Injectable()
+export class OrdersReadModel {
+  constructor(private readonly mongo: MongoService) {}
+
+  async recent() {
+    const db = await this.mongo.db<Db>();
+    return db.collection("orders").find().limit(20).toArray();
+  }
+}
+```
+
+- `db<TDb>(name?)` — the configured database, or another one by name.
+- `client<TClient>()` — the underlying `MongoClient`.
+- `connected` — whether the link is up; suitable as a readiness check.
+
+The database name comes from `database`, else the path in the URI, else `bunstone`. The connection is opened during startup, so a bad URI fails the boot rather than the first query, and it is closed on shutdown.
+
+Bunstone's own types never name `mongodb`, so a project that only uses SQL typechecks without the driver installed. Pass your own generic (`db<Db>()`) to get the driver's types where you want them.
+
+> **Bundling:** if you bundle with dependencies inlined, pass `--packages external` (or `--external mongodb`), otherwise the bundler tries to resolve the optional driver even on the SQL backend.
 
 ## docs/cache.md
 
@@ -1004,14 +1340,33 @@ export class UsersService {
 }
 ```
 
+## Raw client access
+
+`CacheService.client` is the underlying Bun `RedisClient`, also registered under the `CACHE_CLIENT` token for direct injection when you need a command the service does not wrap:
+
+```ts
+import { CACHE_CLIENT, Inject, Injectable } from "@grupodiariodaregiao/bunstone";
+import type { RedisClient } from "bun";
+
+@Injectable()
+export class Leaderboard {
+  constructor(@Inject(CACHE_CLIENT) private readonly redis: RedisClient) {}
+}
+```
+
 ## API
 
 - `get<T>(key)` — returns the parsed value or `null`.
-- `set(key, value, { ttlSeconds? })` — stores a JSON value, optionally with a TTL.
+- `set(key, value, { ttlSeconds? })` — stores a JSON value, optionally with a TTL. A fractional TTL is rounded down; `0` or a negative TTL means "already expired" and removes the key; a non-finite TTL (a `NaN` from a computed expiry, for example) is ignored and the value is stored without expiry rather than silently deleted.
 - `has(key)` — `true` if the key exists.
 - `delete(key)` — removes a key.
 - `getOrSet<T>(key, factory, { ttlSeconds? })` — returns the cached value, or
-  computes it with `factory`, caches it, and returns it.
+  computes it with `factory`, caches it, and returns it. A cached `null` counts
+  as a hit, so negative results are cached too. A value that is not valid JSON
+  (written by something other than this service) is treated as a miss and
+  recomputed rather than throwing on every read.
+
+`getOrSet` does not lock: concurrent callers on a cold key each run the factory. Add your own coordination if the factory is expensive enough that a stampede matters.
 - `client` — the underlying Bun `RedisClient` for advanced commands.
 
 ## docs/cqrs.md
@@ -1129,32 +1484,68 @@ Every handler registered for an event runs. Handlers are **isolated**: if one th
 
 # Event Sourcing
 
-Bunstone ships an event-sourcing layer built on top of the SQL module: an `AggregateRoot` base class, an append-only `EventStore` (`SqlEventStore`) with optimistic concurrency and snapshots, and an `EventSourcedRepository` that rebuilds aggregates by replaying their events.
+Bunstone ships an event-sourcing layer with a pluggable store: an `AggregateRoot` base class, an append-only `EventStore` with optimistic concurrency and snapshots, and an `EventSourcedRepository` that rebuilds aggregates by replaying their events.
+
+Two backends are included — **relational** (PostgreSQL, MySQL, MariaDB, SQLite) and **document** (MongoDB) — and you can plug in your own. Everything above the store, from the aggregate to the repository, is identical whichever you choose.
 
 ## Registration
 
-`EventSourcingModule` needs `SqlModule` to be registered too. Both are global.
+A backend is two modules: the connection, and the store that uses it.
+
+### Relational
 
 ```ts
-import { Module, SqlModule, EventSourcingModule } from "@grupodiariodaregiao/bunstone";
+import { Module, SqlEventStoreModule, SqlModule } from "@grupodiariodaregiao/bunstone";
 
 @Module({
   imports: [
     SqlModule.register({
-      adapter: "mysql",
+      adapter: "mariadb",
       hostname: "localhost",
       port: 3306,
       username: "root",
       password: "secret",
       database: "app",
     }),
-    EventSourcingModule.register(),
+    SqlEventStoreModule.register(),
   ],
 })
 export class AppModule {}
 ```
 
-On startup the store creates two tables if they do not exist: `events` (composite primary key `stream_id + version`) and `snapshots`.
+### MongoDB
+
+The driver is an optional peer dependency — a project on another backend never installs it.
+
+```bash
+bun add mongodb
+```
+
+```ts
+import { Module, MongoEventStoreModule, MongoModule } from "@grupodiariodaregiao/bunstone";
+
+@Module({
+  imports: [
+    MongoModule.register("mongodb://localhost:27017/app"),
+    MongoEventStoreModule.register(),
+  ],
+})
+export class AppModule {}
+```
+
+`MongoEventStoreModule.register()` accepts `{ eventsCollection, snapshotsCollection, database, maxCommitBytes }`.
+
+Registering a store without its connection module fails at startup naming the module you forgot, rather than reporting an unresolvable token.
+
+> `EventSourcingModule.register()` still works and is an alias for the SQL backend. Prefer `SqlEventStoreModule.register()` in new code.
+
+On startup the SQL store creates two tables if they do not exist: `events` (composite primary key `stream_id + version`) and `snapshots`. The Mongo store creates a unique index on `{ streamId, version }` with the `simple` collation.
+
+The store adapts its bind-parameter style to the configured adapter, so the same code works on PostgreSQL (`$1, $2, …`) as on MySQL, MariaDB and SQLite (`?`).
+
+On MySQL and MariaDB the key column is created with a binary collation — the server default is case-insensitive, which would merge two stream ids differing only in case into a single aggregate — and payloads use `LONGTEXT` rather than `TEXT`, which caps at 64 KB.
+
+> **Upgrading:** `CREATE TABLE IF NOT EXISTS` cannot change a table that already exists. If your `events` table predates this, startup logs the exact `ALTER TABLE` statements to run.
 
 ## Aggregates
 
@@ -1192,7 +1583,7 @@ export class Account extends AggregateRoot {
 - `apply(event)` — protected; apply and record a new event.
 - `when(event)` — abstract; your reducer that mutates state from an event.
 - `loadFromHistory(events)` — replay past events to rebuild state (does not mark them uncommitted).
-- `commit()` — clear the uncommitted events after persisting.
+- `commit(count?)` — drop the events that were persisted. `EventSourcedRepository` passes the number it appended, so an event applied while the append was in flight stays pending for the next save instead of being lost.
 - `version` — number of events applied.
 - `uncommittedEvents` — events applied since the last commit.
 
@@ -1218,15 +1609,101 @@ console.log(rebuilt?.version); // 2
 ```
 
 - `save(streamId, aggregate)` — appends the aggregate's uncommitted events (at its expected version) and commits. A no-op when there is nothing uncommitted.
-- `load(streamId)` — reads the stream and replays it into a fresh aggregate; returns `null` if the stream has no events.
+- `load(streamId)` — rebuilds the aggregate; returns `null` if the stream has no events.
+
+## Snapshots
+
+Replaying a long stream on every load gets expensive. A snapshot records the aggregate's state at a version so a load only has to replay what happened after it.
+
+Turn it on with `snapshotEvery`, and make the aggregate `Snapshottable`:
+
+```ts
+import type { Snapshottable } from "@grupodiariodaregiao/bunstone";
+
+interface AccountState { balance: number }
+
+export class Account extends AggregateRoot implements Snapshottable<AccountState> {
+  balance = 0;
+  // ...deposit / withdraw / when as above
+
+  snapshotState(): AccountState {
+    return { balance: this.balance };
+  }
+
+  restoreFromState(state: AccountState): void {
+    this.balance = state.balance;
+  }
+}
+```
+
+```ts
+const accounts = new EventSourcedRepository(store, () => new Account(), {
+  snapshotEvery: 100,
+});
+```
+
+- `snapshotEvery: 0` (the default) — nothing is read or written, exactly a full replay every time.
+- `snapshotEvery: n` — a snapshot is written on the save that carries the stream **across** a multiple of `n`, and `load` starts from the latest snapshot and replays only the tail.
+
+One knob drives both halves on purpose: a repository that writes snapshots without reading them is pure cost, and one that reads snapshots written under a different rule is a configuration hazard. Configure every repository for a given stream identically.
+
+Both methods are required. An aggregate with `snapshotState` but no `restoreFromState` would rehydrate empty and stamped with the snapshot's version — a silent corruption — so the repository rejects it with `BNS-ES-003` **before** appending anything.
+
+`snapshotState()` must return a JSON-round-trippable value: `Date`, `Map`, `Set` and class instances do not survive the trip through either backend. The state is detached the moment the version is stamped, so mutating the aggregate while the snapshot is being written cannot store a state the version never had.
+
+A snapshot is written monotonically on both backends: a stale writer can never overwrite a newer snapshot.
+
+A snapshot is a cache. If writing one fails the save still succeeds and a warning is logged — you pay a longer replay, never a lost event.
+
+## Choosing a backend
+
+|  | Relational | MongoDB |
+|---|---|---|
+| Concurrency | `SELECT MAX(version)` plus a composite primary key | head check plus a unique index on `{streamId, version}` |
+| Atomicity of a multi-event append | transaction | one document per commit — a torn append is structurally impossible |
+| Topology requirements | none | none: works on a standalone `mongod`, no replica set needed |
+| Payload limit | `LONGTEXT` on MySQL, unbounded elsewhere | 16 MB per commit; the store rejects at 15 MB with `BNS-ES-002` |
+| Stream id length | `VARCHAR(255)`; longer ids are rejected | no practical limit |
+| `Date` in a payload | read back as an ISO string | read back as a `Date` |
+| `undefined` in a payload | rejected | stored as `null` |
+
+Those last three are why a `when()` reducer should treat its event payloads as plain JSON. Write it so it works on either backend and switching one is a configuration change rather than a migration of your domain code.
+
+> A snapshot whose version is **ahead** of the stream head — only reachable if events were deleted out of band — is trusted as written, and the next `save` then fails with `BNS-ES-001`. If you run a retention or GDPR-deletion job over `events`, delete the matching snapshot in the same operation.
+
+The Mongo store stores **one document per `append()`**, not per event. Multi-document transactions require a replica set, and an ordered `insertMany` that fails halfway leaves earlier events permanently committed with no rollback — replay would then produce a state that never legally existed. Batching the commit removes that failure mode on every topology.
+
+## A custom store
+
+`EventStore` is a plain interface, so any backend works:
+
+```ts
+import { EVENT_STORE, Injectable, Module, provideEventStore } from "@grupodiariodaregiao/bunstone";
+import type { EventRecord, EventStore, Snapshot } from "@grupodiariodaregiao/bunstone";
+
+@Injectable()
+export class InMemoryEventStore implements EventStore {
+  private readonly streams = new Map<string, EventRecord[]>();
+  // append / read / saveSnapshot / loadSnapshot
+}
+
+@Module({ providers: provideEventStore(InMemoryEventStore), exports: [EVENT_STORE] })
+export class InMemoryEventStoreModule {}
+```
+
+`provideEventStore` registers the class under its own token and aliases `EVENT_STORE` to the *same instance*, so the store has one lifecycle rather than being constructed twice.
+
+Implement the optional `readFrom(streamId, afterVersion)` to support snapshot-accelerated loads. A store without it still works — the repository falls back to a full replay rather than risk double-applying events already folded into the snapshot.
 
 ## Event store
 
 `SqlEventStore` implements the `EventStore` interface:
 
-- `append(streamId, events, expectedVersion)` — appends events in a transaction. If the stream's current version differs from `expectedVersion`, it throws a concurrency conflict (optimistic concurrency, enforced by the composite primary key).
+- `append(streamId, events, expectedVersion)` — appends events in a transaction. If the stream's current version differs from `expectedVersion`, it throws `EventStoreError` (optimistic concurrency, ultimately enforced by the composite primary key). A conflict that only surfaces at insert time — two writers racing past the version check — is mapped to the same typed error, so `catch (e) { if (e instanceof EventStoreError) retry() }` covers both paths.
 - `read(streamId)` — returns the ordered event records.
-- `saveSnapshot(snapshot)` / `loadSnapshot(streamId)` — store and retrieve a `{ streamId, version, state }` snapshot to avoid replaying long streams.
+- `saveSnapshot(snapshot)` / `loadSnapshot(streamId)` — store and retrieve a `{ streamId, version, state }` snapshot.
+
+> **Note:** snapshots are storage only. `EventSourcedRepository.load` always replays the full stream and does not consult them — take and read them yourself if you need to shorten a long replay.
 
 ```ts
 await store.saveSnapshot({ streamId: "acc-1", version: 3, state: { balance: 70 } });
@@ -1279,11 +1756,14 @@ export class AppModule {}
 ### Options
 
 - `uri` — AMQP connection string.
-- `prefetch` — max unacknowledged messages per channel.
-- `reconnect` — `{ enabled?, delayMs?, maxRetries? }`. Reconnection is on by default (`delayMs` 2000, `maxRetries` 0 = unlimited).
+- `prefetch` — max unacknowledged messages per consumer, which is also the handler concurrency. Default `10`. Set `0` for unlimited (not recommended: the broker will push the whole queue at once).
+- `reconnect` — `{ enabled?, delayMs?, maxRetries? }`. Reconnection is on by default (`delayMs` 2000 with ±20% jitter, `maxRetries` 0 = unlimited).
 - `exchanges` — `{ name, type?, durable? }[]`. `type` defaults to `"topic"`, `durable` to `true`.
 - `queues` — `{ name, durable?, bindings?, deadLetterQueue? }[]`. `bindings` is `{ exchange, routingKey }[]`. When `deadLetterQueue` is set, failed messages are routed there after retries are exhausted.
 - `retry` — `{ maxAttempts?, baseDelayMs?, maxDelayMs?, factor? }`. Defaults: `maxAttempts` 3, `baseDelayMs` 200, `factor` 2, `maxDelayMs` 30000.
+- `circuitBreaker` — `{ failureThreshold?, cooldownMs?, successThreshold? }`. Defaults: 5 failures to open, 10s cooldown, 1 success to close.
+
+The resolved configuration is available under the `RABBIT_OPTIONS` token, and `RabbitConnection` is injectable — its `isHealthy()` reports whether the link is currently up.
 
 ## Consuming
 
@@ -1313,18 +1793,76 @@ export class OrderConsumer {
 
 You do not ack manually. When the handler **resolves**, the message is acknowledged. When it **throws**:
 
-1. If `attempt` is below `retry.maxAttempts`, the message is re-enqueued after a backoff delay (`baseDelayMs * factor^(attempt-1)`, capped at `maxDelayMs`), with the attempt counter incremented.
-2. Once attempts are exhausted, the message is sent to the queue's `deadLetterQueue` if one is configured; otherwise the failure is logged.
+1. If `attempt` is below `retry.maxAttempts`, the message is moved to a **retry queue** that holds it for the backoff delay (`baseDelayMs * factor^(attempt-1)`, capped at `maxDelayMs`) and then dead-letters it back into the original queue with the attempt counter incremented.
+2. Once attempts are exhausted, the message is moved to the queue's dead-letter queue. If you did not configure one, `<queue>.dlq` is created and used, so an exhausted message is never destroyed — set `deadLetterQueue` when you want a specific name or want several queues to share one.
+
+The retry queues are declared for you, one per distinct delay, named `<queue>.retry.<delay>ms`. They carry `x-message-ttl` plus a dead-letter route back to the source queue, so **the backoff is broker state, not a timer in your process**.
+
+The original message is acknowledged only after the broker confirms it has taken the copy. If the process dies in between, the message is still unacked and gets redelivered — nothing is lost.
+
+When `deadLetterQueue` is set, the queue is also declared with a dead-letter route to it, so rejections the broker decides on its own — a queue TTL, a `max-length` overflow — end up in the DLQ instead of disappearing.
 
 You can consume the dead-letter queue like any other queue by adding a `@RabbitSubscribe({ queue: "orders.created.dlq" })` handler.
 
+Note that a consumed dead-letter queue gets a dead-letter queue of its own (`orders.created.dlq.dlq`) — the guarantee that a failed message is never destroyed applies to every consumer, including the one draining your DLQ. Keep DLQ handlers simple so that second level stays empty.
+
+### Tracing
+
+When `TelemetryModule` is registered, the trace context of whoever published a message travels with it and the consumer continues that trace, so the HTTP request that produced a message and the consumer that handled it appear together instead of as two unrelated traces. Each message also gets a `process {queue}` span and a `messaging.consumed.messages` counter. See [Observability](./observability.md).
+
+### Restart safety
+
+Stopping the app — a deploy, `SIGTERM`, a crash — and starting it again resumes exactly where it left off:
+
+- **In-flight handlers** are drained on shutdown. Consumers are cancelled first so no new message is delivered, then the app waits for running handlers (up to `shutdownTimeoutMs`, default 10s) before closing the channels.
+- **Messages waiting on a backoff** live in their retry queue on the broker. They come back on their own when the TTL expires, whether or not the app was running at the time.
+- **Anything unacked** when the process died is redelivered by the broker on the next connection.
+
+Delivery is at-least-once: a crash between a handler's side effect and its ack means the message is delivered again. Handlers should be idempotent.
+
 ### Circuit breaker
 
-Each subscription is wrapped in its own **circuit breaker**. After repeated failures it opens and short-circuits calls to that handler for a cooldown, then half-opens to test recovery before closing again. This isolates a misbehaving consumer without affecting the others. Defaults: 5 failures to open, 10s cooldown, 1 success to close.
+If the framework cannot move a failed message to its retry or dead-letter queue — the target was deleted, for instance — the message is left on the queue and consumption pauses briefly instead of spinning through immediate redeliveries.
+
+Each subscription is wrapped in its own **circuit breaker**. After repeated failures it opens and **pauses consumption of that queue** for the cooldown — the consumer is cancelled and messages stay on the broker instead of burning through their retries against a dependency that is down. When the cooldown elapses the consumer re-registers and the next message decides whether the circuit closes or opens again. Defaults: 5 failures to open, 10s cooldown, 1 success to close.
+
+Because each subscription has its own breaker and its own channel, one misbehaving consumer never affects the others.
+
+`CircuitBreaker` is exported and usable on its own for any call you want to protect — an outbound HTTP dependency, for example:
+
+```ts
+import { CircuitBreaker, CircuitOpenError } from "@grupodiariodaregiao/bunstone";
+
+const breaker = new CircuitBreaker({ failureThreshold: 3, cooldownMs: 5000 });
+
+try {
+  const result = await breaker.execute(() => fetch(url));
+} catch (error) {
+  if (error instanceof CircuitOpenError) {
+    // short-circuited: the dependency is known to be down
+  }
+}
+```
+
+The retry helpers (`backoffDelay`, `shouldRetry`, `DEFAULT_RETRY`) and the topology helpers (`retryQueueName`, `retryDelays`) are exported too, which is what the module itself uses to derive queue names.
 
 ### Reconnection
 
-On connection loss the module reconnects automatically and **re-registers all consumers and topology** (exchanges, queues, bindings), so subscriptions resume without manual intervention.
+Each consumer runs on its own channel, and both connection-level and channel-level failures trigger a full re-establish: the module reconnects and **re-registers all consumers and topology** (exchanges, queues, bindings, retry queues), so subscriptions resume without manual intervention. Reconnect attempts are jittered to avoid a stampede when many replicas restart at once.
+
+`RabbitConnection` exposes `isHealthy()`, reporting whether the link is currently up.
+
+Be deliberate about where you use it. Under an orchestrator that **restarts** unhealthy containers — a Docker Swarm `healthcheck`, for instance — pointing the check at broker connectivity turns a broker outage into a restart loop across every replica, and restarting does not bring the broker back. The built-in reconnect already handles the outage, so keep the container healthcheck on `/health` and let the app stay up while it retries.
+
+Wire `isHealthy()` in only where "not ready" means *stop sending me traffic* rather than *kill me* — for example a readiness endpoint an external load balancer polls:
+
+```ts
+const app = await Application.create(AppModule, {
+  health: {
+    checks: [() => rabbitConnection.isHealthy()],
+  },
+});
+```
 
 ## Publishing
 
@@ -1349,6 +1887,18 @@ export class OrderService {
 
 - `publish(exchange, routingKey, message, options?)` — publish to an exchange.
 - `sendToQueue(queue, message, options?)` — send straight to a queue.
+
+Both publish on a **confirm channel**: the promise resolves only once the broker has acknowledged the message.
+
+`sendToQueue` is also `mandatory` — a queue that does not exist is always a mistake, and the broker acknowledges unroutable messages, so without this the message would vanish while your `await` reported success.
+
+`publish` is **not** mandatory by default, because publishing an event to a topic exchange nobody has bound yet is a normal state during a rollout. Pass `mandatory: true` when the message must reach a queue:
+
+```ts
+await this.rabbit.publish("events", "orders.created", payload, { mandatory: true });
+```
+
+Publishing while the broker is unreachable rejects after a timeout instead of hanging indefinitely, so an HTTP handler is never pinned for the length of an outage.
 
 ## docs/scheduling.md
 
@@ -1464,7 +2014,21 @@ async *live(): AsyncGenerator<SseMessage> {
 }
 ```
 
-When the client disconnects, the request's `AbortSignal` fires, the generator loop stops, and the stream closes. No manual cleanup is required.
+When the client disconnects, the request's `AbortSignal` fires, the heartbeat is cleared, the generator is finalized (its `finally` blocks run) and the stream closes. No manual cleanup is required.
+
+### Backpressure
+
+The stream is **pull-driven**: your generator is only advanced when the client is ready for the next message. A consumer that stops reading stops the producer, so streaming a large dataset to a slow or idle client cannot buffer the whole thing into memory.
+
+Heartbeats are skipped while the consumer is behind, so they never pile up either.
+
+### Headers
+
+CORS headers, `@SetHeader` values and rate-limit headers are applied to SSE responses like any other route — a cross-origin `EventSource` works with the same `cors` configuration as the rest of your API.
+
+### Field safety
+
+`event` and `id` are collapsed to a single line before being written, so a value containing a newline cannot forge extra frame lines. This matters whenever an event name or id derives from user input.
 
 ## WebSocket Gateways
 
@@ -1512,6 +2076,8 @@ interface WebSocketHandler {
 
 Only `message` is required. Incoming text is parsed as JSON when possible; otherwise `data` is the raw string. Send data back with `socket.send(...)`.
 
+A handler that throws (or rejects) is caught and logged per event, the way scheduled jobs are, so one bad message cannot take down the gateway or disappear without a trace.
+
 ### Registration
 
 Register the gateway class (and its dependencies) in a module's `providers`. Bunstone discovers gateways during startup and wires the upgrade route for its path.
@@ -1533,7 +2099,7 @@ Protect endpoints from abuse with the `@RateLimit()` decorator. It applies a fix
 
 ## Basic Usage
 
-Apply `@RateLimit()` to a controller method or to the whole controller (class-level applies to every route in it; a method-level decorator overrides the controller-level one).
+Apply `@RateLimit()` to a controller method or to the whole controller (class-level applies to every route in it; a method-level decorator overrides the controller-level one). A class-level limit is inherited by subclasses of that controller.
 
 ```ts
 import { Controller, Get, RateLimit } from "@grupodiariodaregiao/bunstone";
@@ -1562,19 +2128,42 @@ interface RateLimitConfig {
   max: number;        // maximum requests allowed within the window
   windowMs: number;   // window length in milliseconds
   message?: string;   // body message returned on 429 (default: "Too many requests.")
-  keyGenerator?: (ctx) => string; // custom bucket key (default: IP + method + path)
+  keyGenerator?: (ctx, clientAddress) => string; // custom bucket key
 }
 ```
 
-By default each request is keyed by `IP:METHOD:PATH`. Override `keyGenerator` to key by something else, e.g. an authenticated user id:
+By default each request is keyed by `IP:METHOD:ROUTE`, where `ROUTE` is the route **template** (`/users/:id`) rather than the concrete path. This matters: keying on the concrete path would let a caller mint a fresh bucket for every value of `:id` and never hit the limit at all.
+
+Override `keyGenerator` to key by something else, e.g. an authenticated user id. Its second argument is the client address already resolved through `trustProxy`, so a custom key stays correct behind a proxy:
 
 ```ts
 @RateLimit({
   max: 100,
   windowMs: 60_000,
-  keyGenerator: (ctx) => ctx.headers.get("x-user-id") ?? "anonymous",
+  keyGenerator: (ctx, ip) => ctx.headers.get("x-user-id") ?? ip,
 })
 ```
+
+## Behind a reverse proxy
+
+Without configuration the client address is the **peer address** — behind Traefik, nginx, or a load balancer that is the proxy itself, so every client collapses into a single bucket. A limit of `max: 100` then applies to your whole traffic at once, and one caller can spend the budget and get everyone else a `429`.
+
+Set `trustProxy` to the number of proxies in front of the app (`true` means one):
+
+```ts
+const app = await Application.create(AppModule, { trustProxy: true });
+```
+
+The address is then read from the `X-Forwarded-For` chain. Each proxy appends the peer it received from, so the chain reads `client, …, nearest-proxy` and the client sits `trustProxy` entries from the right. Counting from the right is what keeps this honest: entries a client prepends itself only push its real address further along, they never take the trusted slot. A chain too short to have crossed the configured proxies is ignored and the peer address is used instead.
+
+```ts
+// client → CDN → Traefik → app
+await Application.create(AppModule, { trustProxy: 2 });
+```
+
+> **Only enable this when the app is unreachable except through those proxies.** If the app's port is also exposed directly, a client can forge the entire chain and pick its own bucket. In Docker, publish the proxy's port and leave the app's unpublished.
+
+`clientAddress(ctx, trustProxy)` is exported if you need the same resolution elsewhere, for example in a guard or a custom `keyGenerator`.
 
 ## Response Headers
 
@@ -1616,6 +2205,79 @@ await storage.hit("key", 1, 20); // { allowed: false, ... }
 
 Rate limiting runs **before guards** in the request pipeline. A blocked request is rejected with `429` before any guard, validation, or handler code executes, so abusive traffic never reaches your authorization logic.
 
+## docs/logging.md
+
+# Logging
+
+Bunstone ships a small structured logger. The framework uses it internally (startup, scheduled jobs, queue consumers, reconnections) and you can use the same class in your own providers.
+
+## Usage
+
+Give each logger a name so lines can be traced back to their source.
+
+```ts
+import { Injectable, Logger } from "@grupodiariodaregiao/bunstone";
+
+@Injectable()
+export class OrdersService {
+  private readonly logger = new Logger("Orders");
+
+  place(orderId: string) {
+    this.logger.info("placing order", { orderId });
+  }
+}
+```
+
+## Levels
+
+```ts
+enum LogLevel {
+  DEBUG = 0,
+  INFO  = 1,
+  WARN  = 2,
+  ERROR = 3,
+  FATAL = 4,
+}
+```
+
+Methods: `debug`, `info`, `log` (an alias of `info`), `warn`, `error`, `fatal`. Anything below the configured level is dropped.
+
+## Options
+
+```ts
+new Logger("Orders", {
+  level: LogLevel.DEBUG,   // minimum level to emit (default INFO)
+  timestamp: true,         // include an ISO timestamp
+  pretty: false,           // human-readable with colours, or JSON
+});
+```
+
+`pretty` defaults to whether stdout is a TTY: colourised output in a terminal, and single-line JSON when the process is piped or running in a container, which is what a log shipper wants.
+
+## Structured output
+
+In JSON mode each line is one object:
+
+```json
+{"timestamp":"2026-07-25T18:43:47.807Z","level":"INFO","name":"Orders","message":"placing order {\"orderId\":\"o-1\"}"}
+```
+
+Errors keep their identity instead of collapsing to `{}`:
+
+```ts
+logger.error("failed", new Error("boom", { cause: new Error("root cause") }));
+```
+
+```json
+{"level":"ERROR","name":"Orders","message":"failed {\"name\":\"Error\",\"message\":\"boom\",\"stack\":\"...\",\"cause\":{\"name\":\"Error\",\"message\":\"root cause\",\"stack\":\"...\"}}"}
+```
+
+Serialization is cycle-safe: an object that references itself logs `"[Circular]"` rather than throwing. A log statement can never crash the code path it was there to diagnose.
+
+## Trace correlation
+
+When [`TelemetryModule`](./observability.md) is registered and a span is active, every line automatically carries `trace_id` and `span_id`, so a log can be opened directly against its trace in Grafana, Jaeger or any OTLP backend. No configuration is required — it works as soon as telemetry is on, and adds nothing when it is off.
+
 ## docs/observability.md
 
 # Observability (OpenTelemetry)
@@ -1646,10 +2308,76 @@ Start the app as usual — telemetry begins immediately.
 
 ## What gets instrumented
 
-Every HTTP request produces:
+### Spans
 
-- A span named `{METHOD} {route}` (e.g. `GET /users/:id`) with `http.request.method`, `http.route`, and `http.response.status_code`. Responses with status `>= 500` are marked as error spans.
-- A `http.server.request.duration` histogram (milliseconds), tagged with method and route.
+- **HTTP** — `{METHOD} {route}` (e.g. `GET /users/:id`) with `http.request.method`, `http.route` and `http.response.status_code`. Responses `>= 500` are marked as errors.
+- **Queue** — `process {queue}` with `messaging.system`, `messaging.destination.name` and `messaging.attempt`. A handler that throws marks the span as an error.
+- **Database** — one span per `SqlService` operation, named after the statement's verb (`SELECT`, `INSERT`, `TRANSACTION`), with `db.operation.name` and `db.query.text`. Statements are parameterised, so the recorded text contains no values.
+- **CQRS** — `command CreateUser`, `query GetUser`, `event UserCreated`, with `cqrs.kind` and `cqrs.message`.
+
+Only requests that reach a route handler are traced. A `404`, a `405`, a CORS preflight and a static file are answered before the pipeline and produce no span — the router, not your code, decided them.
+
+A streaming response (SSE) ends its span when the response is constructed, not when the stream closes: the span measures the time to first byte, not the lifetime of the connection.
+
+These nest under the request that caused them, so a trace shows where the time actually went:
+
+```
+GET /orders/:id
+├── query GetOrder
+│   └── SELECT
+└── SELECT
+```
+
+### Metrics
+
+| Metric | Type | Attributes |
+|---|---|---|
+| `http.server.request.duration` | histogram (ms) | `http.request.method`, `http.route` |
+| `http.server.requests` | counter | `http.request.method`, `http.route`, `http.response.status_class` |
+| `http.server.active_requests` | up/down counter | `http.route` |
+| `messaging.consumed.messages` | counter | `queue`, `outcome` (`ok` / `error`) |
+| `messaging.published.messages` | counter | `target`, `outcome` (`ok` / `unroutable` / `error`) |
+| `messaging.retried.messages` | counter | `queue` |
+| `messaging.dead_lettered.messages` | counter | `queue` |
+| `messaging.circuit_breaker.state` | gauge | `queue` — 0 closed, 1 half-open, 2 open |
+| `messaging.consumer.paused` | gauge | `queue` — 1 while paused |
+| `messaging.consumer.in_flight` | gauge | `queue` |
+| `db.client.operation.duration` | histogram (ms) | `db.operation.name`, `outcome` |
+| `cache.operations` | counter | `operation`, `result` (`hit` / `miss`) |
+| `cqrs.handler.duration` | histogram (ms) | `cqrs.kind`, `cqrs.message`, `outcome` |
+
+Status is recorded as a **class** (`2xx`, `4xx`, `5xx`) rather than an exact code, and routes are recorded as templates, so label cardinality stays bounded however many distinct URLs you serve.
+
+The gauges are observable: consumers report their own state only when a collector asks, so nothing is computed while no backend is listening.
+
+These cover the questions you usually reach for first: error rate per route (`http.server.requests` split by `status_class`), whether a queue is being retried into the ground (`messaging.retried` vs `messaging.dead_lettered`), and whether a consumer has stopped because its circuit opened (`messaging.circuit_breaker.state` with `messaging.consumer.paused`).
+
+## Distributed tracing
+
+Bunstone reads the W3C `traceparent` header on incoming requests, so a call from another service **continues that trace** instead of starting a new one. The same context is written into every message published to RabbitMQ and read back by the consumer.
+
+The practical effect is a single trace across a hop that is usually invisible:
+
+```
+POST /orders                    (service A, span kind SERVER)
+└── process orders.created      (service B, span kind CONSUMER)
+```
+
+Nothing to configure — registering `TelemetryModule` installs the W3C propagator.
+
+To continue the trace into a service Bunstone does not call for you (an outbound `fetch`, a third-party SDK), inject the context into your own carrier:
+
+```ts
+import { injectTraceContext } from "@grupodiariodaregiao/bunstone";
+
+const headers: Record<string, string> = {};
+injectTraceContext(headers);           // adds `traceparent` when a span is active
+await fetch(url, { headers });
+```
+
+## Everything here is optional
+
+Instrumentation is inert until `TelemetryModule` is registered. Without it there is no exporter, no span and no measurable cost — extraction and injection resolve to the OpenTelemetry no-op implementations (about 0.1 ns per call), and a request carrying a `traceparent` is served exactly as any other. An application that wants nothing to do with tracing simply does not import the module.
 
 ## Options
 
@@ -1703,6 +2431,10 @@ TelemetryModule.register({
 })
 ```
 
+## Direct access
+
+`TelemetryService` is injectable, and the resolved configuration is registered under the `TELEMETRY_OPTIONS` token. `TelemetrySdk` is the lower-level object that owns the tracer and meter providers, if you need to reach them.
+
 ## Log correlation
 
 The built-in `Logger` automatically includes `trace_id` and `span_id` whenever a span is active for the current request, so log lines can be correlated with their trace in your backend. No configuration is required — it works as soon as `TelemetryModule` is registered.
@@ -1710,6 +2442,94 @@ The built-in `Logger` automatically includes `trace_id` and `span_id` whenever a
 ## Shutdown
 
 `TelemetryModule` registers an `onModuleDestroy` hook that flushes all pending spans and metrics when the application closes, so nothing is lost on graceful shutdown.
+
+Only the SDK's own providers are shut down, and the process-wide OpenTelemetry slots are released so the next application can claim them. A process that creates a second `Application` after closing the first (integration test suites, hot-reload supervisors) keeps exporting normally.
+
+**One telemetry-enabled application per process.** OpenTelemetry's tracer and meter providers are process globals. If a second application starts telemetry while a first still owns them, the second logs a warning and does not export — it will not seize the slots and silence the application that is already running. Run one at a time, or enable `TelemetryModule` in only one of them.
+
+## docs/errors.md
+
+# Errors
+
+Bunstone throws typed errors with a stable code and, where possible, a suggestion telling you how to fix the problem. They are for *framework* failures — misconfiguration, a broken dependency graph, a queue that cannot be reached. For HTTP responses use [`HttpException` and its subclasses](./controllers.md#exceptions) instead.
+
+## The base class
+
+Every framework error extends `BunstoneError`:
+
+```ts
+abstract class BunstoneError extends Error {
+  readonly code: string;                          // e.g. "BNS-DI-003"
+  readonly suggestion?: string;                   // how to fix it
+  readonly context?: Record<string, unknown>;     // the offending token, module, queue…
+  readonly cause?: Error;                         // the original error, when wrapping one
+}
+```
+
+`instanceof` works correctly for every subclass, and `cause` chains are preserved, so a wrapped driver error is still reachable.
+
+The `message` carries the code and the suggestion, because that is what an uncaught error prints and what a logger records:
+
+```
+ConfigurationError: MongoEventStoreModule is not configured. The required module was never registered. [BNS-CFG-002]
+
+  Call `MongoModule.register(...)` in your root AppModule imports before using this feature.
+```
+
+`summary` holds the first sentence alone when you want to log or match on it without the extra lines.
+
+```ts
+import { BunstoneError, DatabaseError } from "@grupodiariodaregiao/bunstone";
+
+try {
+  await repository.save(order);
+} catch (error) {
+  if (error instanceof DatabaseError) {
+    logger.error(`[${error.code}] ${error.message}`, error.cause);
+  }
+}
+```
+
+## Catching by area
+
+| Class | Raised by |
+|---|---|
+| `DependencyResolutionError` | the DI container — unresolvable, circular or out-of-scope dependencies |
+| `ModuleInitializationError` | `@Module` compilation — not a module, `undefined` entry |
+| `ConfigurationError` | invalid or conflicting application options, duplicate routes |
+| `DatabaseError` | the SQL layer |
+| `EventStoreError` | the event store, including optimistic-concurrency conflicts |
+| `CqrsError` | command/query/event buses — missing or duplicate handlers |
+| `RabbitMQError` | connection, topology and consumer failures |
+| `ScheduleError` | invalid cron expressions and scheduler failures |
+| `RateLimitError` | rate-limit storage failures |
+| `GuardError` | guard resolution failures |
+| `HttpParamError` | parameter extraction and validation |
+| `UploadError` | multipart handling |
+| `TestingError` | the testing module |
+| `ImportError`, `AdapterError`, `EmailError`, `BullMQError` | optional integrations |
+
+## Error codes
+
+Codes are stable and greppable — they are safe to alert on. The prefix identifies the area:
+
+| Prefix | Area | Examples |
+|---|---|---|
+| `BNS-DI-*` | dependency injection | `BNS-DI-001` undefined type (usually `import type` on an injected class), `BNS-DI-002` circular dependency, `BNS-DI-003` no provider registered, `BNS-DI-004` outside the module's boundary |
+| `BNS-MOD-*` | modules | `BNS-MOD-001` not a module, `BNS-MOD-002` `undefined` entry (usually a circular import) |
+| `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module |
+| `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller |
+| `BNS-DB-*` | database | `BNS-DB-002` a connection module was never registered |
+| `BNS-ES-*` | event store | `BNS-ES-001` concurrency conflict, `BNS-ES-002` commit over the document limit, `BNS-ES-003` aggregate is not snapshottable |
+| `BNS-CQRS-*` | CQRS buses | missing or duplicate handler |
+| `BNS-RMQ-*`, `BNS-MQ-*` | messaging | connection, topology and publish failures |
+| `BNS-SCHED-*` | scheduling | invalid cron expression |
+| `BNS-IMP-*` | optional drivers | `BNS-IMP-003` an optional peer dependency is not installed |
+| `BNS-RL-*`, `BNS-GRD-*`, `BNS-TEST-*`, `BNS-ADP-*`, `BNS-EMAIL-*` | rate limiting, guards, testing, adapters, email |
+
+## Failing fast
+
+Most of these are raised during `Application.create`, before the server accepts a single request: an unresolvable dependency, a duplicate route, an invalid cron expression or a module boundary violation stops the process at startup rather than surfacing on a rarely-hit endpoint later.
 
 ## docs/testing.md
 
@@ -1742,6 +2562,10 @@ describe("Users", () => {
 ```
 
 `moduleRef.get(Token)` resolves any provider from the container.
+
+`compile()` builds the same object graph `Application.create` does, including the `onModuleInit` and `onApplicationBootstrap` hooks. It deliberately does **not** start the scheduler or connect to RabbitMQ, so tests never open a broker connection or leave timers running.
+
+Call `await moduleRef.close()` when you are done: it runs the destroy hooks and stops any server `createTestApp()` created.
 
 ## Overriding providers
 
@@ -1791,6 +2615,8 @@ app.delete(path, { headers });
 ```
 
 Bodies are JSON-encoded automatically. Every method returns a standard `Response`.
+
+`TestApp` mirrors the real server's routing: routes are matched by specificity (a static segment wins over a `:param` regardless of declaration order), an unsupported method on a known path returns `405` with an `Allow` header, and an unknown path returns `404` — the same status codes and bodies `Bun.serve` produces.
 
 ## The full pipeline runs
 
@@ -1843,8 +2669,32 @@ interface OpenApiServeOptions {
   ui?: boolean;      // serve Swagger UI (default: off)
   path?: string;     // spec path (default: "/openapi.json")
   uiPath?: string;   // UI path (default: "/docs")
+  auth?: {
+    username: string;
+    password: string;
+    realm?: string;
+  };
 }
 ```
+
+### Protecting the docs
+
+By default `/openapi.json` and `/docs` are public. Pass `auth` to require HTTP Basic Auth on both routes:
+
+```ts
+const app = await Application.create(AppModule, {
+  openapi: {
+    info: { title: "My API", version: "1.0.0" },
+    ui: true,
+    auth: {
+      username: process.env.DOCS_USER ?? "admin",
+      password: process.env.DOCS_PASSWORD ?? "secret",
+    },
+  },
+});
+```
+
+Unauthenticated requests receive `401` with a `WWW-Authenticate: Basic` challenge (the browser shows a login prompt for `/docs`). The same credentials are required for `/openapi.json`, so the Swagger UI can load the spec after you sign in.
 
 ## Decorators
 
@@ -1882,7 +2732,13 @@ export class UsersController {
 
 ## Schemas from Zod
 
-When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically, and `@Query("name")` parameters appear as query parameters.
+When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically — including those declared on the `@Controller` prefix — and `@Query("name")` parameters appear as query parameters.
+
+Some Zod types have no JSON Schema equivalent (`z.date()`, `z.bigint()`, `z.custom()`, `.transform()`). These are emitted as permissive schemas rather than failing: document generation can never stop your application from booting. When a schema cannot be represented, a warning naming the route is logged.
+
+A self-referencing schema (a category with children of its own type, for example) is hoisted into `components.schemas` and referenced from there, so its internal `$ref` resolves to the schema rather than to the root of the document.
+
+The Swagger UI page loads swagger-ui-dist from a CDN at an exact pinned version, locked with a subresource-integrity hash, so a compromised or altered CDN asset cannot execute on your API's origin.
 
 For the controller above, the generated document includes:
 
@@ -1935,6 +2791,8 @@ bunx @grupodiariodaregiao/bunstone new my-app
 cd my-app && bun install && bun run dev
 ```
 
+Scaffolding into a directory that already has files is refused, so a typo cannot overwrite an existing project. Pass `--force` to overwrite deliberately.
+
 ### `bunstone run <entry>`
 
 Runs an entrypoint with Bun. Extra Bun flags are forwarded.
@@ -1962,6 +2820,8 @@ bunx @grupodiariodaregiao/bunstone generate controller users   # → users.contr
 bunx @grupodiariodaregiao/bunstone g service users             # → users.service.ts (UsersService)
 bunx @grupodiariodaregiao/bunstone g module users              # → users.module.ts (UsersModule)
 ```
+
+An existing file is never overwritten silently — the command refuses and tells you to re-run with `--force`. An unrecognised kind prints the usage line instead of failing with a stack trace.
 
 ### `bunstone exports`
 
@@ -2002,6 +2862,12 @@ await Application.create(AppModule, {
 });
 ```
 
+A check that *throws* counts as not ready — `/ready` answers `503`, never a `500`.
+
+Mounting a controller on `/health`, `/ready`, `/openapi.json` or `/docs` while the matching built-in is enabled raises a configuration error at startup instead of silently replacing your route.
+
+**Under Docker Swarm**, remember that an unhealthy container is *restarted*, not just removed from routing. Point the container `healthcheck` at `/health` and keep dependency probes (database, broker) out of it — restarting a container does not fix a broker that is down, and tying the two together turns an outage into a restart loop across every replica. Use `/ready` with dependency checks only where "not ready" means *stop sending traffic*, such as an external load balancer.
+
 ## Graceful shutdown
 
 On `SIGINT`/`SIGTERM` (or `app.close()`), Bunstone shuts down cleanly:
@@ -2021,8 +2887,11 @@ await Application.create(AppModule, {
 
 - `shutdownGraceMs` — delay between marking the app not-ready and draining
   (gives the orchestrator time to stop sending traffic). Default `0`.
-- `shutdownTimeoutMs` — maximum drain time before connections are force-closed
-  (long-lived WebSocket connections are closed at this point). Default `10000`.
+- `shutdownTimeoutMs` — maximum drain time before connections are force-closed.
+  Default `10000`. Open WebSockets are closed explicitly at this point. A
+  response that is still streaming when the deadline passes (an SSE endpoint
+  with no client disconnect) is abandoned rather than waited on: shutdown always
+  completes within the timeout instead of hanging on it.
 
 For zero-downtime rolling deploys, set `shutdownGraceMs` to a couple of seconds
 and configure your orchestrator's `preStop` / termination grace period to match.

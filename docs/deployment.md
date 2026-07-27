@@ -27,6 +27,12 @@ await Application.create(AppModule, {
 });
 ```
 
+A check that *throws* counts as not ready — `/ready` answers `503`, never a `500`.
+
+Mounting a controller on `/health`, `/ready`, `/openapi.json` or `/docs` while the matching built-in is enabled raises a configuration error at startup instead of silently replacing your route.
+
+**Under Docker Swarm**, remember that an unhealthy container is *restarted*, not just removed from routing. Point the container `healthcheck` at `/health` and keep dependency probes (database, broker) out of it — restarting a container does not fix a broker that is down, and tying the two together turns an outage into a restart loop across every replica. Use `/ready` with dependency checks only where "not ready" means *stop sending traffic*, such as an external load balancer.
+
 ## Graceful shutdown
 
 On `SIGINT`/`SIGTERM` (or `app.close()`), Bunstone shuts down cleanly:
@@ -46,8 +52,11 @@ await Application.create(AppModule, {
 
 - `shutdownGraceMs` — delay between marking the app not-ready and draining
   (gives the orchestrator time to stop sending traffic). Default `0`.
-- `shutdownTimeoutMs` — maximum drain time before connections are force-closed
-  (long-lived WebSocket connections are closed at this point). Default `10000`.
+- `shutdownTimeoutMs` — maximum drain time before connections are force-closed.
+  Default `10000`. Open WebSockets are closed explicitly at this point. A
+  response that is still streaming when the deadline passes (an SSE endpoint
+  with no client disconnect) is abandoned rather than waited on: shutdown always
+  completes within the timeout instead of hanging on it.
 
 For zero-downtime rolling deploys, set `shutdownGraceMs` to a couple of seconds
 and configure your orchestrator's `preStop` / termination grace period to match.

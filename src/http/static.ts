@@ -20,8 +20,16 @@ export class StaticFiles {
 	}
 
 	async serve(pathname: string): Promise<Response> {
-		const relative = decodeURIComponent(pathname.slice(this.prefix.length));
-		const target = resolve(this.root, `.${relative}`);
+		let target: string;
+		try {
+			const relative = decodeURIComponent(pathname.slice(this.prefix.length));
+			// a NUL byte survives decoding and makes path APIs throw
+			if (relative.includes("\0")) throw new Error("null byte in path");
+			target = resolve(this.root, `.${relative}`);
+		} catch {
+			// a malformed escape or an unusable path is a bad request, not a 500
+			return new Response("Bad Request", { status: 400 });
+		}
 
 		if (target !== this.root && !target.startsWith(this.root + sep)) {
 			return new Response("Forbidden", { status: 403 });

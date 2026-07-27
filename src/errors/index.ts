@@ -1,5 +1,12 @@
+function compose(message: string, code: string, suggestion?: string): string {
+	const head = `${message} [${code}]`;
+	return suggestion ? `${head}\n\n  ${suggestion}` : head;
+}
+
 export abstract class BunstoneError extends Error {
 	public readonly code: string;
+	/** The failure on its own, without the code or the suggestion. */
+	public readonly summary: string;
 	public readonly suggestion?: string;
 	public readonly context?: Record<string, unknown>;
 	public override readonly cause?: Error;
@@ -11,7 +18,11 @@ export abstract class BunstoneError extends Error {
 		context?: Record<string, unknown>,
 		cause?: Error,
 	) {
-		super(message, cause ? { cause } : undefined);
+		// The code and the suggestion go into `message` because that is what an
+		// uncaught error prints and what a logger records. Kept in a property
+		// alone, the advice that makes these errors actionable is never seen.
+		super(compose(message, code, suggestion), cause ? { cause } : undefined);
+		this.summary = message;
 		this.name = this.constructor.name;
 		this.code = code;
 		this.suggestion = suggestion;
@@ -24,7 +35,11 @@ export abstract class BunstoneError extends Error {
 export class DependencyResolutionError extends BunstoneError {
 	constructor(
 		message: string,
-		code: "BNS-DI-001" | "BNS-DI-002" | "BNS-DI-003" = "BNS-DI-003",
+		code:
+			| "BNS-DI-001"
+			| "BNS-DI-002"
+			| "BNS-DI-003"
+			| "BNS-DI-004" = "BNS-DI-003",
 		suggestion?: string,
 		context?: Record<string, unknown>,
 		cause?: Error,
@@ -98,6 +113,22 @@ export class DependencyResolutionError extends BunstoneError {
 			{ tokenName, resolutionStack },
 		);
 	}
+
+	static notVisible(
+		tokenName: string,
+		requestingModule: string,
+		owningModule: string,
+	): DependencyResolutionError {
+		return new DependencyResolutionError(
+			`\`${requestingModule}\` cannot resolve \`${tokenName}\`: it is not part of any module it imports.`,
+			"BNS-DI-004",
+			[
+				`Add \`${tokenName}\` to the \`exports\` array of the module that provides it (\`${owningModule}\`),`,
+				`and make sure \`${requestingModule}\` lists that module in its \`imports\`.`,
+			].join("\n  "),
+			{ tokenName, requestingModule, owningModule },
+		);
+	}
 }
 
 export class ModuleInitializationError extends BunstoneError {
@@ -141,7 +172,13 @@ export class ModuleInitializationError extends BunstoneError {
 export class ConfigurationError extends BunstoneError {
 	constructor(
 		message: string,
-		code: "BNS-CFG-001" | "BNS-CFG-002" = "BNS-CFG-001",
+		code:
+			| "BNS-CFG-001"
+			| "BNS-CFG-002"
+			| "BNS-CFG-003"
+			| "BNS-CFG-004"
+			| "BNS-HTTP-001"
+			| "BNS-HTTP-002" = "BNS-CFG-001",
 		suggestion?: string,
 		context?: Record<string, unknown>,
 		cause?: Error,
@@ -213,7 +250,7 @@ export class CqrsError extends BunstoneError {
 export class EventStoreError extends BunstoneError {
 	constructor(
 		message: string,
-		code: "BNS-ES-001" = "BNS-ES-001",
+		code: "BNS-ES-001" | "BNS-ES-002" | "BNS-ES-003" = "BNS-ES-001",
 		suggestion?: string,
 		context?: Record<string, unknown>,
 		cause?: Error,
@@ -234,6 +271,34 @@ export class EventStoreError extends BunstoneError {
 				"Reload the aggregate and retry the operation.",
 			].join("\n  "),
 			{ streamId, expected, actual },
+		);
+	}
+
+	static payloadTooLarge(
+		streamId: string,
+		bytes: number,
+		limit: number,
+	): EventStoreError {
+		return new EventStoreError(
+			`Commit for stream "${streamId}" is ${bytes} bytes, over the ${limit} byte limit.`,
+			"BNS-ES-002",
+			[
+				"A commit is stored as one document, so it must fit the backend's document limit.",
+				"Split the operation into several appends, or move the bulk of the payload out of the event.",
+			].join("\n  "),
+			{ streamId, bytes, limit },
+		);
+	}
+
+	static notSnapshottable(aggregate: string): EventStoreError {
+		return new EventStoreError(
+			`\`${aggregate}\` cannot be snapshotted: it must implement both \`snapshotState()\` and \`restoreFromState()\`.`,
+			"BNS-ES-003",
+			[
+				"Implement the `Snapshottable` interface on the aggregate,",
+				"or drop `snapshotEvery` from the repository options to replay the full stream instead.",
+			].join("\n  "),
+			{ aggregate },
 		);
 	}
 }
@@ -257,6 +322,15 @@ export class DatabaseError extends BunstoneError {
 				"Call SqlModule.register(connectionStringOrOptions) inside your root AppModule imports.",
 				"Example: @Module({ imports: [SqlModule.register('postgresql://user:pass@host/db')] })",
 			].join("\n  "),
+		);
+	}
+
+	static notConnected(feature: string, register: string): DatabaseError {
+		return new DatabaseError(
+			`\`${feature}\` is not connected yet.`,
+			"BNS-DB-002",
+			`Register \`${register}\` in your root module; the connection is opened during application startup.`,
+			{ feature },
 		);
 	}
 
@@ -598,12 +672,31 @@ export class AdapterError extends BunstoneError {
 export class ImportError extends BunstoneError {
 	constructor(
 		message: string,
-		code: "BNS-IMP-001" | "BNS-IMP-002" = "BNS-IMP-002",
+		code: "BNS-IMP-001" | "BNS-IMP-002" | "BNS-IMP-003" = "BNS-IMP-002",
 		suggestion?: string,
 		context?: Record<string, unknown>,
 		cause?: Error,
 	) {
 		super(message, code, suggestion, context, cause);
+	}
+
+	static missingDriver(
+		pkg: string,
+		feature: string,
+		cause?: Error,
+	): ImportError {
+		return new ImportError(
+			`\`${feature}\` requires the optional driver '${pkg}', which is not installed.`,
+			"BNS-IMP-003",
+			[
+				`Install it next to Bunstone: bun add ${pkg}`,
+				`It is an optional peer dependency — Bunstone loads it only when you register ${feature},`,
+				"so a project on another backend never installs it.",
+				`If you bundle your app, mark '${pkg}' external or the bundler resolves it for every backend.`,
+			].join("\n  "),
+			{ package: pkg, feature },
+			cause,
+		);
 	}
 
 	static typeOnlyImport(

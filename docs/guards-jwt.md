@@ -93,6 +93,8 @@ export class AuthService {
 - `verify<T>(token)` — returns the decoded payload, or `null` if the token is invalid, tampered with, or expired.
 - `decode<T>(token)` — decodes the payload **without** verifying the signature.
 
+The module's configuration is available under the `JWT_OPTIONS` token, and `JwtGuard` is a normal provider you can list in `@UseGuards(JwtGuard)` if you prefer that over `@Jwt()`.
+
 ### Protecting routes
 
 `@Jwt()` is a built-in guard. It reads the `Authorization: Bearer <token>` header, verifies it with `JwtService`, and stores the payload on `ctx.state.jwt`. A missing or invalid token results in `401 Unauthorized`.
@@ -112,4 +114,13 @@ export class MeController {
 }
 ```
 
-`@Jwt()` composes cleanly with other guards — stack it alongside `@UseGuards(RoleGuard)` to require both a valid token and a custom check.
+`@Jwt()` composes cleanly with other guards — stack it alongside `@UseGuards(RoleGuard)` to require both a valid token and a custom check. Guard decorators applied to the same class are merged, so every one of them runs:
+
+```ts
+@UseGuards(RoleGuard)
+@Jwt()
+@Controller("admin")
+export class AdminController {}   // both guards enforced
+```
+
+Class-level guards are also **inherited**: a controller that extends a guarded base class keeps the base's guards, so extending a protected controller cannot accidentally open it up.

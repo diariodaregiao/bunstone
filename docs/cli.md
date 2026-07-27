@@ -17,6 +17,8 @@ bunx @grupodiariodaregiao/bunstone new my-app
 cd my-app && bun install && bun run dev
 ```
 
+Scaffolding into a directory that already has files is refused, so a typo cannot overwrite an existing project. Pass `--force` to overwrite deliberately.
+
 ### `bunstone run <entry>`
 
 Runs an entrypoint with Bun. Extra Bun flags are forwarded.
@@ -44,6 +46,8 @@ bunx @grupodiariodaregiao/bunstone generate controller users   # → users.contr
 bunx @grupodiariodaregiao/bunstone g service users             # → users.service.ts (UsersService)
 bunx @grupodiariodaregiao/bunstone g module users              # → users.module.ts (UsersModule)
 ```
+
+An existing file is never overwritten silently — the command refuses and tells you to re-run with `--force`. An unrecognised kind prints the usage line instead of failing with a stack trace.
 
 ### `bunstone exports`
 

@@ -2,7 +2,7 @@ import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
 import { instrumentRequest } from "@/observability/instrumentation";
 import type { RateLimitConfig } from "@/ratelimit/decorator";
-import { enforceRateLimit } from "@/ratelimit/enforce";
+import { enforceRateLimit, type TrustProxy } from "@/ratelimit/enforce";
 import type { RateLimitStorage } from "@/ratelimit/storage";
 import type { Cors } from "./cors";
 import { errorToResponse } from "./errors";
@@ -28,6 +28,7 @@ export interface RouteHandlerConfig {
 	cors?: Cors;
 	rateLimit?: RateLimitConfig;
 	rateLimitStorage?: RateLimitStorage;
+	trustProxy?: TrustProxy;
 	sse?: SseOptions;
 }
 
@@ -44,53 +45,82 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 		cors,
 		rateLimit,
 		rateLimitStorage,
+		trustProxy,
 		sse,
 	} = config;
 	const prototype = controller.prototype;
 	const setHeaderEntries = Object.entries(setHeaders);
+	const controllerModule = container.ownerOf(controller);
 
 	return (req: BunRequest, server: BunServer): Promise<Response> =>
-		instrumentRequest(req.method, route, async () => {
-			const ctx = createContext(req, server);
-			applyStaticHeaders(ctx, setHeaderEntries);
-			if (cors) applyCors(ctx, cors);
+		instrumentRequest(
+			req.method,
+			route,
+			async () => {
+				const ctx = createContext(req, server);
+				applyStaticHeaders(ctx, setHeaderEntries);
+				if (cors) applyCors(ctx, cors);
 
-			try {
-				if (rateLimit && rateLimitStorage) {
-					await enforceRateLimit(ctx, rateLimit, rateLimitStorage);
-				}
-
-				for (const GuardClass of guards) {
-					const guard = container.resolve(GuardClass);
-					if (!(await guard.canActivate(ctx))) {
-						throw new ForbiddenException();
+				try {
+					if (rateLimit && rateLimitStorage) {
+						await enforceRateLimit(
+							ctx,
+							rateLimit,
+							rateLimitStorage,
+							route,
+							trustProxy,
+						);
 					}
-				}
 
-				const instance = container.resolve(controller) as Record<
-					string,
-					Handler
-				>;
-				const handler = instance[handlerName];
-				if (typeof handler !== "function") {
-					throw new InternalServerErrorException(
-						`Handler "${handlerName}" is not a function.`,
-					);
-				}
-				const args = await extractArgs(ctx, prototype, handlerName);
-				const result = await handler.apply(instance, args);
+					for (const GuardClass of guards) {
+						// scoped to the controller's module so strict boundaries apply
+						// to guards exactly as they do to constructor injection
+						const guard = container.resolve(GuardClass, controllerModule);
+						if (!(await guard.canActivate(ctx))) {
+							throw new ForbiddenException();
+						}
+					}
 
-				if (sse) {
-					return sseResponse(result as AsyncIterable<SseMessage>, {
-						signal: req.signal,
-						heartbeatMs: sse.heartbeatMs,
-					});
+					const instance = container.resolve(controller) as Record<
+						string,
+						Handler
+					>;
+					const handler = instance[handlerName];
+					if (typeof handler !== "function") {
+						throw new InternalServerErrorException(
+							`Handler "${handlerName}" is not a function.`,
+						);
+					}
+					const args = await extractArgs(ctx, prototype, handlerName);
+					const result = await handler.apply(instance, args);
+
+					if (sse) {
+						// SSE still needs CORS, @SetHeader and rate-limit headers
+						return applyContextHeaders(
+							sseResponse(result as AsyncIterable<SseMessage>, {
+								signal: req.signal,
+								heartbeatMs: sse.heartbeatMs,
+							}),
+							ctx,
+						);
+					}
+					return serialize(result, ctx);
+				} catch (error) {
+					return errorToResponse(error, ctx);
 				}
-				return serialize(result, ctx);
-			} catch (error) {
-				return errorToResponse(error, ctx);
-			}
-		});
+			},
+			req.headers,
+		);
+}
+
+function applyContextHeaders(
+	response: Response,
+	ctx: RequestContext,
+): Response {
+	for (const [name, value] of ctx.responseHeaders) {
+		response.headers.set(name, value);
+	}
+	return response;
 }
 
 function applyStaticHeaders(

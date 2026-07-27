@@ -1,3 +1,7 @@
+export {
+	assertOpenApiBasicAuth,
+	type OpenApiBasicAuth,
+} from "./basic-auth";
 export { buildOpenApiDocument, type OpenApiInfo } from "./builder";
 export {
 	ApiOperation,

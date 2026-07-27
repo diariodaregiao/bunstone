@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import type { ServerWebSocket } from "bun";
 import type { Constructor } from "@/core/injectable";
+import { Logger } from "@/utils/logger";
 import type { WebSocketData } from "./types";
 
 export type Socket = ServerWebSocket<WebSocketData>;
@@ -54,16 +55,64 @@ function decode(message: string | Buffer): unknown {
 	}
 }
 
+const logger = new Logger("WebSocket");
+
+/**
+ * A gateway callback is invoked by Bun, so a rejection has nowhere to surface.
+ * Errors are caught and logged per event, the way scheduled jobs are, instead
+ * of vanishing into a discarded promise.
+ */
+function guard(
+	event: string,
+	run: () => void | Promise<void>,
+	onFailure?: () => void,
+): void {
+	const fail = (error: unknown) => {
+		logger.error(`WebSocket "${event}" handler failed:`, error);
+		onFailure?.();
+	};
+	try {
+		// `Promise.resolve` also covers a non-native thenable
+		Promise.resolve(run()).catch(fail);
+	} catch (error) {
+		fail(error);
+	}
+}
+
+/** Open sockets, so shutdown can close them instead of leaving them dangling. */
+const openSockets = new Set<Socket>();
+
+export function closeOpenSockets(code = 1001, reason = "server shutting down") {
+	for (const socket of openSockets) {
+		try {
+			socket.close(code, reason);
+		} catch {}
+	}
+	openSockets.clear();
+}
+
 export function buildWebSocketHandler(gateways: Map<string, WebSocketHandler>) {
 	return {
 		open(socket: Socket) {
-			void gateways.get(socket.data.path)?.open?.(socket);
+			openSockets.add(socket);
+			// a gateway that rejects the connection in `open` must not be left
+			// with a live socket that keeps receiving messages
+			guard(
+				"open",
+				() => gateways.get(socket.data.path)?.open?.(socket),
+				() => socket.close(1011, "handler failed"),
+			);
 		},
 		message(socket: Socket, message: string | Buffer) {
-			void gateways.get(socket.data.path)?.message(socket, decode(message));
+			guard("message", () =>
+				gateways.get(socket.data.path)?.message(socket, decode(message)),
+			);
 		},
 		close(socket: Socket, code: number, reason: string) {
-			void gateways.get(socket.data.path)?.close?.(socket, code, reason);
+			openSockets.delete(socket);
+			guard("close", () =>
+				gateways.get(socket.data.path)?.close?.(socket, code, reason),
+			);
 		},
 	};
 }

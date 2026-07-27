@@ -12,13 +12,7 @@ export interface TestRequestOptions {
 }
 
 export class TestApp {
-	private readonly routes: RoutesMap;
-	private readonly matcher = new RouteMatcher();
-
-	constructor(server: HttpServer) {
-		this.routes = server.getRoutesMap();
-		for (const path of Object.keys(this.routes)) this.matcher.add(path);
-	}
+	constructor(private readonly server: HttpServer) {}
 
 	get(path: string, options?: TestRequestOptions): Promise<Response> {
 		return this.dispatch("GET", path, { headers: options?.headers });
@@ -59,15 +53,7 @@ export class TestApp {
 	): Promise<Response> {
 		const url = `http://test.local${path.startsWith("/") ? path : `/${path}`}`;
 		const req = new Request(url, { method, ...init }) as BunRequest;
-		const match = this.matcher.match(new URL(url).pathname);
-		if (!match) return Promise.resolve(errorResponse(404, "Not Found"));
-
-		const handler = this.routes[match.path]?.[method];
-		if (!handler)
-			return Promise.resolve(errorResponse(405, "Method Not Allowed"));
-
-		req.params = match.params;
-		return Promise.resolve(handler(req, fakeServer));
+		return this.server.handle(req, fakeServer);
 	}
 }
 
@@ -77,8 +63,4 @@ function jsonInit(body: unknown, options?: TestRequestOptions): RequestInit {
 		headers: { "content-type": "application/json", ...options?.headers },
 		body: JSON.stringify(body),
 	};
-}
-
-function errorResponse(status: number, message: string): Response {
-	return Response.json({ statusCode: status, message }, { status });
 }

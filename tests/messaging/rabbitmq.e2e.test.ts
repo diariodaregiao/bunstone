@@ -7,21 +7,9 @@ import { RabbitConsumer, RabbitSubscribe } from "@/messaging/decorators";
 import { RabbitMQService } from "@/messaging/rabbitmq.service";
 import { RabbitMQModule } from "@/messaging/rabbitmq-module";
 import type { RabbitMessage } from "@/messaging/types";
+import { rabbitReachable, RABBITMQ_URI as URI } from "../support/services";
 
-const URI = process.env.RABBITMQ_URI ?? "amqp://guest:guest@localhost:5672";
-
-async function brokerReachable(): Promise<boolean> {
-	try {
-		const amqp = await import("amqplib");
-		const conn = await amqp.connect(URI);
-		await conn.close();
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-const reachable = await brokerReachable();
+const reachable = await rabbitReachable(URI);
 const suffix = crypto.randomUUID().slice(0, 8);
 const WORK_QUEUE = `bunstone.work.${suffix}`;
 const DLQ = `bunstone.work.dlq.${suffix}`;
@@ -78,6 +66,16 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await app?.close();
+	if (!reachable) return;
+	const amqp = await import("amqplib");
+	const connection = await amqp.connect(URI);
+	const channel = await connection.createChannel();
+	for (const queue of [WORK_QUEUE, DLQ, `${WORK_QUEUE}.dlq`, `${DLQ}.dlq`]) {
+		try {
+			await channel.deleteQueue(queue);
+		} catch {}
+	}
+	await connection.close();
 });
 
 describe.skipIf(!reachable)("RabbitMQ E2E", () => {
@@ -86,6 +84,16 @@ describe.skipIf(!reachable)("RabbitMQ E2E", () => {
 		await rabbit.sendToQueue(WORK_QUEUE, { id: 1 });
 		await Promise.race([workDone, timeout(4000)]);
 		expect(received).toContainEqual({ id: 1 });
+	});
+
+	it("rejects a publish the broker cannot route", async () => {
+		const rabbit = app.resolve(RabbitMQService);
+
+		// the broker confirms an unroutable publish, so without `mandatory` this
+		// would resolve successfully and the message would simply cease to exist
+		await expect(
+			rabbit.sendToQueue(`${WORK_QUEUE}.does-not-exist`, { id: 9 }),
+		).rejects.toThrow(/did not accept/);
 	});
 
 	it("routes a failing message to the DLQ", async () => {

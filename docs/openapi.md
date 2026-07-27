@@ -29,8 +29,32 @@ interface OpenApiServeOptions {
   ui?: boolean;      // serve Swagger UI (default: off)
   path?: string;     // spec path (default: "/openapi.json")
   uiPath?: string;   // UI path (default: "/docs")
+  auth?: {
+    username: string;
+    password: string;
+    realm?: string;
+  };
 }
 ```
+
+### Protecting the docs
+
+By default `/openapi.json` and `/docs` are public. Pass `auth` to require HTTP Basic Auth on both routes:
+
+```ts
+const app = await Application.create(AppModule, {
+  openapi: {
+    info: { title: "My API", version: "1.0.0" },
+    ui: true,
+    auth: {
+      username: process.env.DOCS_USER ?? "admin",
+      password: process.env.DOCS_PASSWORD ?? "secret",
+    },
+  },
+});
+```
+
+Unauthenticated requests receive `401` with a `WWW-Authenticate: Basic` challenge (the browser shows a login prompt for `/docs`). The same credentials are required for `/openapi.json`, so the Swagger UI can load the spec after you sign in.
 
 ## Decorators
 
@@ -68,7 +92,13 @@ export class UsersController {
 
 ## Schemas from Zod
 
-When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically, and `@Query("name")` parameters appear as query parameters.
+When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically — including those declared on the `@Controller` prefix — and `@Query("name")` parameters appear as query parameters.
+
+Some Zod types have no JSON Schema equivalent (`z.date()`, `z.bigint()`, `z.custom()`, `.transform()`). These are emitted as permissive schemas rather than failing: document generation can never stop your application from booting. When a schema cannot be represented, a warning naming the route is logged.
+
+A self-referencing schema (a category with children of its own type, for example) is hoisted into `components.schemas` and referenced from there, so its internal `$ref` resolves to the schema rather than to the root of the document.
+
+The Swagger UI page loads swagger-ui-dist from a CDN at an exact pinned version, locked with a subresource-integrity hash, so a compromised or altered CDN asset cannot execute on your API's origin.
 
 For the controller above, the generated document includes:
 

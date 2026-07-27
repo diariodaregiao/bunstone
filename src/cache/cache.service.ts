@@ -1,7 +1,11 @@
 import type { RedisClient } from "bun";
 import { Inject, Injectable } from "@/core/injectable";
 import type { OnModuleDestroy } from "@/core/lifecycle";
+import { recordCacheResult } from "@/observability/instrumentation";
+import { Logger } from "@/utils/logger";
 import { CACHE_CLIENT, type CacheSetOptions } from "./cache.tokens";
+
+const logger = new Logger("Cache");
 
 @Injectable()
 export class CacheService implements OnModuleDestroy {
@@ -12,20 +16,34 @@ export class CacheService implements OnModuleDestroy {
 	}
 
 	async get<T>(key: string): Promise<T | null> {
-		const raw = await this.redis.get(key);
-		return raw === null ? null : (JSON.parse(raw) as T);
+		const value = decode<T>(await this.redis.get(key));
+		// unparseable is a miss: counting it as a hit would hide the problem in
+		// the one metric meant to reveal it
+		recordCacheResult("get", value === null ? "miss" : "hit");
+		return value;
 	}
 
+	/**
+	 * Stores `value` as JSON. Values that JSON cannot represent (`undefined`, a
+	 * function, a symbol) are stored as `null` and read back as `null`. A
+	 * `ttlSeconds` of `0` or less means "already expired" and removes the key;
+	 * a fractional TTL is rounded to whole seconds, with any positive value
+	 * kept alive for at least one second.
+	 */
 	async set(
 		key: string,
 		value: unknown,
 		options: CacheSetOptions = {},
 	): Promise<void> {
-		const payload = JSON.stringify(value);
-		if (options.ttlSeconds) {
-			await this.redis.set(key, payload, "EX", options.ttlSeconds);
-		} else {
+		const encoded = JSON.stringify(value);
+		const payload = encoded === undefined ? "null" : encoded;
+		const ttl = normalizeTtl(options.ttlSeconds);
+		if (ttl === undefined) {
 			await this.redis.set(key, payload);
+		} else if (ttl > 0) {
+			await this.redis.set(key, payload, "EX", ttl);
+		} else {
+			await this.redis.del(key);
 		}
 	}
 
@@ -42,8 +60,20 @@ export class CacheService implements OnModuleDestroy {
 		factory: () => T | Promise<T>,
 		options: CacheSetOptions = {},
 	): Promise<T> {
-		const cached = await this.get<T>(key);
-		if (cached !== null) return cached;
+		// A stored JSON `null` is a cached value, not a miss, so negative results
+		// are cached too; only an absent key runs the factory.
+		const raw = await this.redis.get(key);
+		recordCacheResult("getOrSet", raw === null ? "miss" : "hit");
+		if (raw !== null) {
+			try {
+				return JSON.parse(raw) as T;
+			} catch {
+				// something else wrote this key: recompute instead of throwing forever
+				logger.warn(
+					`Cached value for "${key}" is not valid JSON; recomputing.`,
+				);
+			}
+		}
 		const value = await factory();
 		await this.set(key, value, options);
 		return value;
@@ -52,4 +82,30 @@ export class CacheService implements OnModuleDestroy {
 	onModuleDestroy(): void {
 		this.redis.close();
 	}
+}
+
+function decode<T>(raw: string | null): T | null {
+	if (raw === null) return null;
+	try {
+		return JSON.parse(raw) as T;
+	} catch {
+		// a value this service did not write should not poison every read
+		logger.warn("Cached value is not valid JSON; treating it as a miss.");
+		return null;
+	}
+}
+
+/**
+ * Redis only accepts an integer TTL. A computed TTL can arrive as `NaN` or a
+ * fraction, and silently turning `NaN` into a delete would lose the value.
+ */
+function normalizeTtl(ttlSeconds: number | undefined): number | undefined {
+	if (ttlSeconds === undefined) return undefined;
+	if (!Number.isFinite(ttlSeconds)) {
+		logger.warn(`Ignoring a non-finite ttlSeconds (${ttlSeconds}).`);
+		return undefined;
+	}
+	// Redis needs whole seconds; rounding a sub-second TTL down to 0 would turn
+	// a short-lived cache entry into a delete
+	return ttlSeconds > 0 ? Math.max(1, Math.floor(ttlSeconds)) : 0;
 }

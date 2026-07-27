@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { type GenerateKind, generate } from "../src/cli/generate";
+import { GENERATE_KINDS, generate, isGenerateKind } from "../src/cli/generate";
 import { projectAgentsMd } from "../src/cli/scaffold-agents";
 
-const [command, ...args] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const force = argv.includes("--force");
+const [command, ...args] = argv.filter((arg) => arg !== "--force");
 
 async function main(): Promise<void> {
 	switch (command) {
@@ -12,14 +14,15 @@ async function main(): Promise<void> {
 			await scaffold(args[0]);
 			break;
 		case "run":
-			await runBun(["run", ...args]);
+			// forwarded verbatim: flags after `run` belong to Bun, not to us
+			await runBun(["run", ...argv.slice(1)]);
 			break;
 		case "build":
 			await buildApp(args[0]);
 			break;
 		case "generate":
 		case "g":
-			await runGenerate(args[0] as GenerateKind, args[1]);
+			await runGenerate(args[0], args[1]);
 			break;
 		case "exports":
 			await listExports();
@@ -32,6 +35,11 @@ async function main(): Promise<void> {
 async function scaffold(name?: string): Promise<void> {
 	if (!name) return fail("Usage: bunstone new <project-name>");
 	const root = resolve(name);
+	if (!force && !(await isEmptyDir(root))) {
+		return fail(
+			`Refusing to scaffold into "${name}": the directory is not empty. Re-run with --force to overwrite its files.`,
+		);
+	}
 	const files: Record<string, string> = {
 		"package.json": JSON.stringify(
 			{
@@ -106,11 +114,24 @@ export class AppController {
 	);
 }
 
-async function runGenerate(kind: GenerateKind, name?: string): Promise<void> {
-	if (!kind || !name) {
-		return fail("Usage: bunstone generate <controller|service|module> <name>");
+/** A missing directory counts as empty — that is the normal `new` case. */
+async function isEmptyDir(path: string): Promise<boolean> {
+	const entries = await readdir(path).catch(() => null);
+	return entries === null || entries.length === 0;
+}
+
+async function runGenerate(kind?: string, name?: string): Promise<void> {
+	if (!kind || !name || !isGenerateKind(kind)) {
+		return fail(
+			`Usage: bunstone generate <${GENERATE_KINDS.join("|")}> <name>`,
+		);
 	}
 	const file = generate(kind, name);
+	if (!force && (await Bun.file(file.path).exists())) {
+		return fail(
+			`Refusing to overwrite ${file.path}. Re-run with --force to replace it.`,
+		);
+	}
 	await Bun.write(file.path, file.content);
 	console.log(`Created ${file.path}`);
 }
@@ -149,7 +170,9 @@ function printHelp(): void {
   bunstone run <entry>                run an entrypoint with Bun
   bunstone build [entry]              bundle the app to dist/
   bunstone generate <kind> <name>     generate controller|service|module
-  bunstone exports                    list public exports`);
+  bunstone exports                    list public exports
+
+  --force                             overwrite existing files (new, generate)`);
 }
 
 function fail(message: string): void {

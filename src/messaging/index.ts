@@ -5,6 +5,7 @@ export {
 	type CircuitState,
 } from "./circuit-breaker";
 export { RabbitConnection, type RabbitConnectionOptions } from "./connection";
+export { QueueConsumer, type QueueConsumerOptions } from "./consumer";
 export {
 	getSubscriptions,
 	isRabbitConsumer,
@@ -25,6 +26,13 @@ export {
 	type RetryOptions,
 	shouldRetry,
 } from "./retry";
+export {
+	declareRetryTopology,
+	declareTopology,
+	retryDelays,
+	retryQueueName,
+	type TopologyOptions,
+} from "./topology";
 export type {
 	RabbitBinding,
 	RabbitExchangeConfig,

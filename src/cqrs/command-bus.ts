@@ -1,6 +1,7 @@
 import type { Constructor } from "@/core/injectable";
 import { Injectable } from "@/core/injectable";
 import { CqrsError } from "@/errors";
+import { instrumentDispatch } from "@/observability/instrumentation";
 import type { ICommandHandler } from "./interfaces";
 
 @Injectable()
@@ -16,6 +17,10 @@ export class CommandBus {
 		if (!handler) {
 			throw CqrsError.noCommandHandler(command.constructor.name);
 		}
-		return (await handler.execute(command)) as TResult;
+		return instrumentDispatch(
+			"command",
+			command.constructor.name,
+			async () => (await handler.execute(command)) as TResult,
+		);
 	}
 }

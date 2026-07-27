@@ -25,8 +25,13 @@ export function Injectable(): ClassDecorator {
 
 export function Inject(token: Token): ParameterDecorator {
 	return (target, _propertyKey, index) => {
-		const overrides: Map<number, Token> =
-			Reflect.getOwnMetadata(INJECT_TOKENS_METADATA, target) ?? new Map();
+		// seeded from the inherited map so a subclass adding its own @Inject
+		// does not discard the ones declared on the base constructor
+		const inherited: Map<number, Token> | undefined = Reflect.getMetadata(
+			INJECT_TOKENS_METADATA,
+			target,
+		);
+		const overrides = new Map<number, Token>(inherited ?? []);
 		overrides.set(index, token);
 		Reflect.defineMetadata(INJECT_TOKENS_METADATA, overrides, target);
 	};

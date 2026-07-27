@@ -28,6 +28,10 @@ describe("Users", () => {
 
 `moduleRef.get(Token)` resolves any provider from the container.
 
+`compile()` builds the same object graph `Application.create` does, including the `onModuleInit` and `onApplicationBootstrap` hooks. It deliberately does **not** start the scheduler or connect to RabbitMQ, so tests never open a broker connection or leave timers running.
+
+Call `await moduleRef.close()` when you are done: it runs the destroy hooks and stops any server `createTestApp()` created.
+
 ## Overriding providers
 
 Swap a real provider for a mock with `.overrideProvider(Token).useValue(mock)` or `.useClass(Impl)`.
@@ -76,6 +80,8 @@ app.delete(path, { headers });
 ```
 
 Bodies are JSON-encoded automatically. Every method returns a standard `Response`.
+
+`TestApp` mirrors the real server's routing: routes are matched by specificity (a static segment wins over a `:param` regardless of declaration order), an unsupported method on a known path returns `405` with an `Allow` header, and an unknown path returns `404` — the same status codes and bodies `Bun.serve` produces.
 
 ## The full pipeline runs
 

@@ -24,9 +24,14 @@ export function resolveHealth(
 	};
 }
 
+/** A check that throws counts as "not ready" rather than crashing the probe. */
 export async function runChecks(checks: HealthCheck[]): Promise<boolean> {
 	for (const check of checks) {
-		if (!(await check())) return false;
+		try {
+			if (!(await check())) return false;
+		} catch {
+			return false;
+		}
 	}
 	return true;
 }

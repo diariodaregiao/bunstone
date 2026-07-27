@@ -1,6 +1,7 @@
 import type { Constructor } from "@/core/injectable";
 import { Injectable } from "@/core/injectable";
 import { CqrsError } from "@/errors";
+import { instrumentDispatch } from "@/observability/instrumentation";
 import type { IQueryHandler } from "./interfaces";
 
 @Injectable()
@@ -16,6 +17,10 @@ export class QueryBus {
 		if (!handler) {
 			throw CqrsError.noQueryHandler(query.constructor.name);
 		}
-		return (await handler.execute(query)) as TResult;
+		return instrumentDispatch(
+			"query",
+			query.constructor.name,
+			async () => (await handler.execute(query)) as TResult,
+		);
 	}
 }

@@ -1,0 +1,327 @@
+import "reflect-metadata";
+import { describe, expect, it } from "bun:test";
+import type { ConfirmChannel, ConsumeMessage } from "amqplib";
+import { QueueConsumer } from "@/messaging/consumer";
+import { retryQueueName } from "@/messaging/topology";
+import type { RabbitMessage } from "@/messaging/types";
+
+interface Published {
+	queue: string;
+	content: string;
+	headers: Record<string, unknown>;
+}
+
+/**
+ * Minimal stand-in for an amqplib confirm channel. `deliver` plays the role of
+ * the broker pushing a message, so the ack/nack decisions can be asserted
+ * without a running RabbitMQ.
+ */
+class FakeChannel {
+	readonly published: Published[] = [];
+	readonly acked: ConsumeMessage[] = [];
+	readonly nacked: { message: ConsumeMessage; requeue: boolean }[] = [];
+	readonly declared: { queue: string; options?: unknown }[] = [];
+	cancelled = 0;
+	/** When set, every publish fails with this error. */
+	publishError?: Error;
+
+	private handler?: (message: ConsumeMessage | null) => void;
+	private tag = 0;
+	/** Set to make the broker "return" the publish as unroutable. */
+	unroutable = false;
+	private returnListeners = new Set<(message: unknown) => void>();
+
+	on(event: string, listener: (message: unknown) => void) {
+		if (event === "return") this.returnListeners.add(listener);
+		return this;
+	}
+
+	once(event: string, listener: (message: unknown) => void) {
+		return this.on(event, listener);
+	}
+
+	removeListener(event: string, listener: () => void) {
+		if (event === "return") this.returnListeners.delete(listener);
+		return this;
+	}
+
+	async assertQueue(queue: string, options?: unknown) {
+		this.declared.push({ queue, options });
+		return { queue, messageCount: 0, consumerCount: 0 };
+	}
+
+	async prefetch() {}
+
+	async consume(
+		_queue: string,
+		handler: (message: ConsumeMessage | null) => void,
+	) {
+		this.handler = handler;
+		this.tag++;
+		return { consumerTag: `tag-${this.tag}` };
+	}
+
+	async cancel() {
+		this.cancelled++;
+		this.handler = undefined;
+	}
+
+	ack(message: ConsumeMessage) {
+		this.acked.push(message);
+	}
+
+	nack(message: ConsumeMessage, _allUpTo: boolean, requeue: boolean) {
+		this.nacked.push({ message, requeue });
+	}
+
+	sendToQueue(
+		queue: string,
+		content: Buffer,
+		options: { headers?: Record<string, unknown> },
+		callback: (error: Error | null) => void,
+	): boolean {
+		if (this.publishError) {
+			callback(this.publishError);
+			return true;
+		}
+		if (this.unroutable) {
+			// the broker returns the message before confirming it
+			for (const listener of this.returnListeners) {
+				listener({ properties: { headers: options.headers ?? {} } });
+			}
+			callback(null);
+			return true;
+		}
+		this.published.push({
+			queue,
+			content: content.toString(),
+			headers: options.headers ?? {},
+		});
+		callback(null);
+		return true;
+	}
+
+	deliver(
+		body: unknown,
+		headers: Record<string, unknown> = {},
+	): ConsumeMessage {
+		const message = {
+			content: Buffer.from(JSON.stringify(body)),
+			fields: { deliveryTag: 1, redelivered: false, routingKey: "q" },
+			properties: { headers, messageId: "m-1", correlationId: "c-1" },
+		} as unknown as ConsumeMessage;
+		this.handler?.(message);
+		return message;
+	}
+
+	get isConsuming(): boolean {
+		return Boolean(this.handler);
+	}
+
+	asChannel(): ConfirmChannel {
+		return this as unknown as ConfirmChannel;
+	}
+}
+
+const RETRY = { maxAttempts: 3, baseDelayMs: 100, factor: 2 };
+
+async function setup(overrides: {
+	handle: (message: RabbitMessage) => Promise<void>;
+	deadLetterQueue?: string;
+	failureThreshold?: number;
+}) {
+	const channel = new FakeChannel();
+	const consumer = new QueueConsumer({
+		queue: "orders",
+		handle: overrides.handle,
+		retry: RETRY,
+		deadLetterQueue: overrides.deadLetterQueue,
+		breaker: overrides.failureThreshold
+			? { failureThreshold: overrides.failureThreshold, cooldownMs: 60_000 }
+			: undefined,
+	});
+	await consumer.attach(channel.asChannel());
+	return { channel, consumer };
+}
+
+describe("QueueConsumer", () => {
+	it("declares a parking queue for every backoff step", async () => {
+		const { channel } = await setup({ handle: async () => {} });
+
+		const names = channel.declared.map((entry) => entry.queue);
+		expect(names).toContain(retryQueueName("orders", 100));
+		expect(names).toContain(retryQueueName("orders", 200));
+	});
+
+	it("acks a message whose handler resolves", async () => {
+		const { channel, consumer } = await setup({ handle: async () => {} });
+
+		channel.deliver({ id: 1 });
+		await consumer.drain(1000);
+
+		expect(channel.acked).toHaveLength(1);
+		expect(channel.published).toHaveLength(0);
+	});
+
+	it("parks a failed message in the retry queue before acking it", async () => {
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				throw new Error("boom");
+			},
+		});
+
+		channel.deliver({ id: 1 });
+		await consumer.drain(1000);
+
+		expect(channel.published).toHaveLength(1);
+		expect(channel.published[0]?.queue).toBe(retryQueueName("orders", 100));
+		expect(channel.published[0]?.headers["x-attempt"]).toBe(2);
+		// the original is only released once the copy is confirmed
+		expect(channel.acked).toHaveLength(1);
+	});
+
+	it("routes to the DLQ once attempts are exhausted", async () => {
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				throw new Error("boom");
+			},
+			deadLetterQueue: "orders.dlq",
+		});
+
+		channel.deliver({ id: 1 }, { "x-attempt": 3 });
+		await consumer.drain(1000);
+
+		expect(channel.published[0]?.queue).toBe("orders.dlq");
+		expect(channel.published[0]?.headers["x-error"]).toContain("boom");
+	});
+
+	it("keeps the message on the queue when the copy is unroutable", async () => {
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				throw new Error("boom");
+			},
+		});
+		channel.unroutable = true;
+
+		channel.deliver({ id: 1 });
+		await consumer.drain(1000);
+
+		// the broker confirms an unroutable publish, so only the return tells us
+		// the copy landed nowhere; acking here would destroy the message
+		expect(channel.acked).toHaveLength(0);
+		expect(channel.nacked.at(-1)?.requeue).toBe(true);
+	});
+
+	it("dead-letters an exhausted message even with no DLQ configured", async () => {
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				throw new Error("boom");
+			},
+		});
+
+		channel.deliver({ id: 1 }, { "x-attempt": 3 });
+		await consumer.drain(1000);
+
+		// a default dead-letter queue is provisioned, so nothing is destroyed
+		expect(channel.published.at(-1)?.queue).toBe("orders.dlq");
+		expect(channel.acked).toHaveLength(1);
+	});
+
+	it("keeps the message on the queue when the retry publish fails", async () => {
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				throw new Error("boom");
+			},
+		});
+		channel.publishError = new Error("broker refused");
+
+		channel.deliver({ id: 1 });
+		await consumer.drain(1000);
+
+		expect(channel.acked).toHaveLength(0);
+		expect(channel.nacked).toEqual([
+			{ message: expect.anything(), requeue: true },
+		]);
+	});
+
+	it("pauses consumption instead of spending attempts once the circuit opens", async () => {
+		let calls = 0;
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				calls++;
+				throw new Error("boom");
+			},
+			deadLetterQueue: "orders.dlq",
+			failureThreshold: 1,
+		});
+
+		channel.deliver({ id: 1 });
+		await consumer.drain(1000);
+
+		expect(calls).toBe(1);
+		expect(channel.cancelled).toBe(1);
+		expect(channel.isConsuming).toBe(false);
+		// nothing was dead-lettered; only the first message moved to a retry queue
+		expect(channel.published.map((p) => p.queue)).toEqual([
+			retryQueueName("orders", 100),
+		]);
+	});
+
+	it("does not resume consumption on reconnect while the circuit is open", async () => {
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				throw new Error("boom");
+			},
+			failureThreshold: 1,
+		});
+
+		channel.deliver({ id: 1 });
+		await consumer.drain(1000);
+		expect(channel.isConsuming).toBe(false);
+
+		// a reconnect must not put the consumer back to work against a
+		// dependency the breaker still considers down
+		await consumer.attach(channel.asChannel());
+
+		expect(channel.isConsuming).toBe(false);
+	});
+
+	it("stays stopped when a reconnect races shutdown", async () => {
+		const { channel, consumer } = await setup({ handle: async () => {} });
+
+		await consumer.close(100);
+		await consumer.attach(channel.asChannel());
+
+		expect(channel.isConsuming).toBe(false);
+	});
+
+	it("treats a corrupted attempt header as the first attempt", async () => {
+		const seen: number[] = [];
+		const { channel, consumer } = await setup({
+			handle: async (message) => {
+				seen.push(message.attempt);
+			},
+		});
+
+		channel.deliver({ id: 1 }, { "x-attempt": "not-a-number" });
+		await consumer.drain(1000);
+
+		expect(seen).toEqual([1]);
+	});
+
+	it("stops delivering and waits for in-flight work on close", async () => {
+		let finished = false;
+		const { channel, consumer } = await setup({
+			handle: async () => {
+				await Bun.sleep(50);
+				finished = true;
+			},
+		});
+
+		channel.deliver({ id: 1 });
+		await consumer.close(1000);
+
+		expect(finished).toBe(true);
+		expect(channel.cancelled).toBe(1);
+	});
+});
