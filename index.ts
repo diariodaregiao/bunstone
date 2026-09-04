@@ -183,6 +183,7 @@ export {
 	TelemetryService,
 } from "@/observability";
 export {
+	ApiBearerAuth,
 	ApiOperation,
 	type ApiOperationInfo,
 	ApiResponse,
@@ -190,7 +191,9 @@ export {
 	ApiTags,
 	assertOpenApiBasicAuth,
 	buildOpenApiDocument,
+	type BuildOpenApiOptions,
 	type OpenApiBasicAuth,
+	type OpenApiBearerAuth,
 	type OpenApiInfo,
 	swaggerUiHtml,
 } from "@/openapi";

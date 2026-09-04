@@ -4,6 +4,7 @@ import type { Constructor } from "@/core/injectable";
 export const API_TAGS_METADATA = "bunstone:api-tags";
 export const API_OPERATION_METADATA = "bunstone:api-operation";
 export const API_RESPONSE_METADATA = "bunstone:api-response";
+export const API_BEARER_AUTH_METADATA = "bunstone:api-bearer-auth";
 
 export interface ApiOperationInfo {
 	summary?: string;
@@ -54,6 +55,21 @@ export function ApiResponse(info: ApiResponseInfo): MethodDecorator {
 	};
 }
 
+export function ApiBearerAuth(): ClassDecorator & MethodDecorator {
+	return ((target: object, propertyKey?: string | symbol) => {
+		if (propertyKey === undefined) {
+			Reflect.defineMetadata(API_BEARER_AUTH_METADATA, true, target);
+		} else {
+			Reflect.defineMetadata(
+				API_BEARER_AUTH_METADATA,
+				true,
+				target,
+				propertyKey,
+			);
+		}
+	}) as ClassDecorator & MethodDecorator;
+}
+
 export function getControllerTags(controller: Constructor): string[] {
 	return Reflect.getMetadata(API_TAGS_METADATA, controller) ?? [];
 }
@@ -92,5 +108,22 @@ export function getApiResponses(
 			controller.prototype,
 			handlerName,
 		) ?? []
+	);
+}
+
+export function hasControllerBearerAuth(controller: Constructor): boolean {
+	return Reflect.getMetadata(API_BEARER_AUTH_METADATA, controller) === true;
+}
+
+export function hasRouteBearerAuth(
+	controller: Constructor,
+	handlerName: string,
+): boolean {
+	return (
+		Reflect.getOwnMetadata(
+			API_BEARER_AUTH_METADATA,
+			controller.prototype,
+			handlerName,
+		) === true
 	);
 }
