@@ -48,6 +48,25 @@ export async function redisReachable(url = REDIS_URL): Promise<boolean> {
 	}
 }
 
+export async function dockerComposeAvailable(): Promise<boolean> {
+	try {
+		const version = Bun.spawn(["docker", "compose", "version"], {
+			stdout: "ignore",
+			stderr: "ignore",
+		});
+		if ((await version.exited) !== 0) return false;
+
+		const info = Bun.spawn(["docker", "info"], {
+			stdout: "ignore",
+			stderr: "ignore",
+		});
+		return (await info.exited) === 0;
+	} catch (error) {
+		announce("Docker Compose", "docker daemon", error);
+		return false;
+	}
+}
+
 export async function mongoReachable(uri = MONGO_URI): Promise<boolean> {
 	try {
 		const { MongoClient } = await import("mongodb");

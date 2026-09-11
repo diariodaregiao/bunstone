@@ -1,0 +1,52 @@
+services:
+  traefik:
+    image: traefik:v3.3
+    ports:
+      - "9876:80"
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - ratelimit
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - ratelimit
+
+  app-1:
+    build:
+      context: ../../..
+      dockerfile: tests/ratelimit/traefik/Dockerfile
+    environment:
+      PORT: "3000"
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      USE_REDIS: ${USE_REDIS:-false}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-5}
+      REDIS_URL: redis://redis:6379
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-bunstone:traefik:}
+    networks:
+      - ratelimit
+    depends_on:
+      redis:
+        condition: service_started
+
+  app-2:
+    build:
+      context: ../../..
+      dockerfile: tests/ratelimit/traefik/Dockerfile
+    environment:
+      PORT: "3000"
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      USE_REDIS: ${USE_REDIS:-false}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-5}
+      REDIS_URL: redis://redis:6379
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-bunstone:traefik:}
+    networks:
+      - ratelimit
+    depends_on:
+      redis:
+        condition: service_started
+
+networks:
+  ratelimit:

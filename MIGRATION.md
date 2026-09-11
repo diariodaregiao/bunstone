@@ -22,6 +22,46 @@ await app.close();
 - `getElysia()` is gone — there is no Elysia instance.
 - Graceful shutdown: `app.close()` (also wired to SIGINT/SIGTERM by default).
 
+## Rate limiting
+
+```ts
+// v0.7
+const app = await AppStartup.create(AppModule, {
+  rateLimit: { max: 100, windowMs: 60_000 },
+});
+
+// v1.0 — global (restored)
+const app = await Application.create(AppModule, {
+  rateLimit: { max: 100, windowMs: 60_000 },
+});
+
+// v1.0 — per-route (always available)
+@RateLimit({ max: 2, windowMs: 10_000 })
+@Get("limited")
+limited() {}
+
+// v1.0 — module scope
+@Module({
+  imports: [RateLimitModule.register({ max: 50, windowMs: 60_000 }), UsersModule],
+})
+export class AdminModule {}
+
+// v1.0 — opt out under global/module scope (method or controller)
+@SkipRateLimit()
+@Get("webhook")
+webhook() {}
+
+// v1.1+ — Redis fleet-wide storage (optional)
+@Module({
+  imports: [RateLimitModule.registerStorage({ url: process.env.REDIS_URL })],
+})
+export class AppModule {}
+```
+
+- Default storage is in-process (`MemoryStorage`); with N replicas the effective limit is about `max × N` unless you use `RateLimitModule.registerStorage()`.
+- `@RateLimit()` on controllers/methods overrides global/module defaults (most specific wins).
+- See [Rate limiting](./docs/rate-limiting.md) for the three levels, precedence, `@SkipRateLimit()`, `scope: "module"`, Redis, and `trustProxy`.
+
 ## HTTP
 
 - `@SetResponseHeader` → `@SetHeader`.

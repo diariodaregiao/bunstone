@@ -1,0 +1,14 @@
+http:
+  routers:
+    api:
+      entryPoints:
+        - web
+      rule: PathPrefix(`/`)
+      service: apps
+
+  services:
+    apps:
+      loadBalancer:
+        servers:
+          - url: "http://app-1:3000"
+          - url: "http://app-2:3000"
