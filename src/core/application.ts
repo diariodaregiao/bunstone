@@ -74,7 +74,7 @@ export class Application {
 		rootModule: Constructor,
 		options: ApplicationOptions = {},
 	): Promise<Application> {
-		const { container, controllers } = compileModules(
+		const { container, controllers, moduleRateLimits } = compileModules(
 			rootModule,
 			options.strictModuleBoundaries === true,
 		);
@@ -123,7 +123,7 @@ export class Application {
 			const httpServer = new HttpServer(
 				container,
 				controllers,
-				options,
+				{ ...options, moduleRateLimits },
 				gateways,
 				isReady,
 			);
