@@ -512,27 +512,26 @@ export class RateLimitError extends BunstoneError {
 		super(message, code, suggestion, context, cause);
 	}
 
-	static transactionFailed(cause?: Error): RateLimitError {
+	static storageFailed(cause?: Error): RateLimitError {
 		return new RateLimitError(
-			"Failed to execute atomic Redis transaction for rate limiting.",
+			"Rate limit storage failed while recording a request.",
 			"BNS-RL-001",
-			[
-				"Check that the Redis client passed to RedisStorage is connected and healthy.",
-				"Verify that the Redis server supports MULTI/EXEC commands (standard in Redis ≥ 1.2).",
-			].join("\n  "),
+			"Check that the configured RateLimitStorage implementation is healthy.",
 			undefined,
 			cause,
 		);
 	}
 
+	/** @deprecated Use `storageFailed`. */
+	static transactionFailed(cause?: Error): RateLimitError {
+		return RateLimitError.storageFailed(cause);
+	}
+
 	static invalidResponse(): RateLimitError {
 		return new RateLimitError(
-			"Received an invalid or unexpected response from the Redis MULTI/EXEC transaction.",
+			"Rate limit storage returned an invalid response.",
 			"BNS-RL-002",
-			[
-				"This may indicate a version incompatibility between your Redis client library and the server.",
-				"Ensure the Redis client implements the RedisClientLike interface correctly.",
-			].join("\n  "),
+			"Ensure the RateLimitStorage implementation returns a valid RateLimitResult.",
 		);
 	}
 }
