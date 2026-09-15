@@ -1,5 +1,12 @@
 import "reflect-metadata";
 import { ModuleInitializationError } from "@/errors";
+import type { RateLimitConfig } from "@/ratelimit/decorator";
+import {
+	extractRateLimitModuleConfig,
+	extractRateLimitModuleScope,
+	type RateLimitModuleOptions,
+	toRateLimitConfig,
+} from "@/ratelimit/rate-limit-module";
 import { Container, type Provider, providerToken } from "./container";
 import type { Constructor, Token } from "./injectable";
 
@@ -44,6 +51,7 @@ export interface CompiledModules {
 	container: Container;
 	controllers: Constructor[];
 	modules: Constructor[];
+	moduleRateLimits: Map<Constructor, RateLimitConfig>;
 }
 
 /** What one module contributes to, and may see in, the dependency graph. */
@@ -65,8 +73,12 @@ export function compileModules(
 	const seenEntries = new Set<ModuleImport>();
 	const seenClasses = new Set<Constructor>();
 	const scopes = new Map<Constructor, ModuleScope>();
+	const moduleRateLimits = new Map<Constructor, RateLimitConfig>();
 
-	const visit = (entry: ModuleImport): void => {
+	const visit = (
+		entry: ModuleImport,
+		inheritedRateLimit?: RateLimitConfig,
+	): void => {
 		if (entry === undefined || entry === null) {
 			throw new ModuleInitializationError(
 				"An import, provider or controller entry is `undefined`.",
@@ -76,10 +88,15 @@ export function compileModules(
 			);
 		}
 
-		if (seenEntries.has(entry)) return;
-		seenEntries.add(entry);
-
 		const moduleClass = isDynamicModule(entry) ? entry.module : entry;
+
+		if (seenEntries.has(entry)) {
+			if (inheritedRateLimit && !moduleRateLimits.has(moduleClass)) {
+				moduleRateLimits.set(moduleClass, inheritedRateLimit);
+			}
+			return;
+		}
+		seenEntries.add(entry);
 		const staticMetadata = getModuleMetadata(moduleClass);
 		const dynamic = isDynamicModule(entry) ? entry : undefined;
 		if (!staticMetadata && !dynamic) {
@@ -111,6 +128,41 @@ export function compileModules(
 			...(dynamic?.controllers ?? []),
 		];
 
+		let ownRateLimitOptions: RateLimitModuleOptions | undefined;
+		let ownRateLimitScope: "subtree" | "module" = "subtree";
+		if (isDynamicModule(entry)) {
+			ownRateLimitOptions = extractRateLimitModuleConfig(entry);
+			if (ownRateLimitOptions) {
+				ownRateLimitScope = extractRateLimitModuleScope(entry);
+			}
+		}
+		if (!ownRateLimitOptions) {
+			for (const imported of imports) {
+				if (!isDynamicModule(imported)) continue;
+				const config = extractRateLimitModuleConfig(imported);
+				if (config) {
+					ownRateLimitOptions = config;
+					ownRateLimitScope = extractRateLimitModuleScope(imported);
+					break;
+				}
+			}
+		}
+		const ownRateLimit = ownRateLimitOptions
+			? toRateLimitConfig(ownRateLimitOptions)
+			: undefined;
+		const effectiveRateLimit = ownRateLimit ?? inheritedRateLimit;
+		if (ownRateLimit && ownRateLimitScope === "module") {
+			if (!moduleRateLimits.has(moduleClass)) {
+				moduleRateLimits.set(moduleClass, ownRateLimit);
+			}
+		} else if (effectiveRateLimit && !moduleRateLimits.has(moduleClass)) {
+			moduleRateLimits.set(moduleClass, effectiveRateLimit);
+		}
+		const propagate =
+			ownRateLimit && ownRateLimitScope === "module"
+				? inheritedRateLimit
+				: effectiveRateLimit;
+
 		const scope = scopeOf(scopes, moduleClass);
 		if (own?.global || dynamic?.global) scope.global = true;
 		if (own?.exports || dynamic?.exports) {
@@ -123,7 +175,7 @@ export function compileModules(
 
 		for (const imported of imports) {
 			scope.imports.add(isDynamicModule(imported) ? imported.module : imported);
-			visit(imported);
+			visit(imported, propagate);
 		}
 		for (const provider of providers) {
 			container.register(provider, moduleClass);
@@ -141,7 +193,7 @@ export function compileModules(
 	if (strict) {
 		container.enforceBoundaries(buildVisibility(scopes));
 	}
-	return { container, controllers, modules };
+	return { container, controllers, modules, moduleRateLimits };
 }
 
 function scopeOf(
