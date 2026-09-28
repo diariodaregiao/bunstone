@@ -29,7 +29,7 @@
         "tsc-alias": "^1.9.1",
       },
       "peerDependencies": {
-        "mongodb": "^6.10.0 || ^7.0.0",
+        "mongodb": "^6.10.0",
         "typescript": "^5",
       },
       "optionalPeers": [
