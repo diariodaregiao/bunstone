@@ -5,7 +5,11 @@ import {
 	assertOpenApiBasicAuth,
 	type OpenApiBasicAuth,
 } from "@/openapi/basic-auth";
-import { buildOpenApiDocument, type OpenApiInfo } from "@/openapi/builder";
+import {
+	buildOpenApiDocument,
+	type OpenApiBearerAuth,
+	type OpenApiInfo,
+} from "@/openapi/builder";
 import { swaggerUiHtml } from "@/openapi/ui";
 import { getRateLimit } from "@/ratelimit/decorator";
 import type { TrustProxy } from "@/ratelimit/enforce";
@@ -59,7 +63,10 @@ export interface OpenApiServeOptions {
 	uiPath?: string;
 	ui?: boolean;
 	auth?: OpenApiBasicAuth;
+	bearer?: boolean | OpenApiBearerAuth;
 }
+
+export type { OpenApiBearerAuth };
 
 export type RouteHandler = (
 	req: BunRequest,
@@ -178,7 +185,9 @@ export class HttpServer {
 		controllers: Constructor[],
 		options: OpenApiServeOptions,
 	): void {
-		const document = buildOpenApiDocument(controllers, options.info);
+		const document = buildOpenApiDocument(controllers, options.info, {
+			bearer: options.bearer,
+		});
 		const specPath = options.path ?? "/openapi.json";
 		const guard = (req: BunRequest, next: () => Response): Response => {
 			if (!options.auth) return next();

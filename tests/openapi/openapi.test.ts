@@ -6,7 +6,13 @@ import { Module } from "@/core/module";
 import { Body, Param, Query } from "@/http/params";
 import { Controller, Get, Post } from "@/http/routing";
 import { assertOpenApiBasicAuth } from "@/openapi/basic-auth";
-import { ApiOperation, ApiResponse, ApiTags } from "@/openapi/decorators";
+import { buildOpenApiDocument } from "@/openapi/builder";
+import {
+	ApiBearerAuth,
+	ApiOperation,
+	ApiResponse,
+	ApiTags,
+} from "@/openapi/decorators";
 
 const CreateUser = z.object({ name: z.string().min(2), age: z.number() });
 
@@ -99,6 +105,79 @@ describe("OpenAPI", () => {
 		const res = await fetch(`${base}/docs`);
 		expect(res.headers.get("content-type")).toContain("text/html");
 		expect(await res.text()).toContain("swagger");
+	});
+});
+
+describe("OpenAPI bearer auth", () => {
+	let bearerApp: Application;
+	let bearerBase: string;
+
+	beforeAll(async () => {
+		bearerApp = await Application.create(AppModule, {
+			gracefulShutdown: false,
+			logStartup: false,
+			openapi: {
+				info: { title: "Bearer API", version: "1.0.0" },
+				ui: true,
+				bearer: true,
+			},
+		});
+		bearerApp.listen(0);
+		bearerBase = bearerApp.getServer()?.url.href.replace(/\/$/, "") ?? "";
+	});
+
+	afterAll(async () => {
+		await bearerApp.close();
+	});
+
+	it("declares a bearer security scheme and global security", async () => {
+		const res = await fetch(`${bearerBase}/openapi.json`);
+		const doc = (await res.json()) as any;
+
+		expect(doc.components.securitySchemes.bearerAuth).toEqual({
+			type: "http",
+			scheme: "bearer",
+		});
+		expect(doc.security).toEqual([{ bearerAuth: [] }]);
+	});
+
+	it("persists authorization in the swagger ui page", async () => {
+		const res = await fetch(`${bearerBase}/docs`);
+		expect(await res.text()).toContain("persistAuthorization");
+	});
+});
+
+describe("OpenAPI @ApiBearerAuth", () => {
+	@Controller("protected")
+	@ApiBearerAuth()
+	class ProtectedController {
+		@Get()
+		list() {
+			return [];
+		}
+	}
+
+	@Controller("public")
+	class PublicController {
+		@Get()
+		list() {
+			return [];
+		}
+	}
+
+	it("applies security only to annotated controllers", () => {
+		const doc = buildOpenApiDocument(
+			[ProtectedController, PublicController],
+			{ title: "Mixed API", version: "1.0.0" },
+		) as any;
+
+		expect(doc.components.securitySchemes.bearerAuth).toEqual({
+			type: "http",
+			scheme: "bearer",
+		});
+		expect(doc.security).toBeUndefined();
+		expect(doc.paths["/protected"].get.security).toEqual([{ bearerAuth: [] }]);
+		expect(doc.paths["/public"].get.security).toBeUndefined();
 	});
 });
 

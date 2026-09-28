@@ -8,10 +8,11 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (141)
+## Public exports (142)
 
 - `AdapterError`
 - `AggregateRoot`
+- `ApiBearerAuth`
 - `ApiOperation`
 - `ApiResponse`
 - `ApiTags`
@@ -2674,8 +2675,49 @@ interface OpenApiServeOptions {
     password: string;
     realm?: string;
   };
+  bearer?: boolean | {
+    name?: string;
+    description?: string;
+    bearerFormat?: string;
+  };
 }
 ```
+
+### Bearer auth (Swagger Authorize)
+
+Pass `bearer: true` to add an HTTP Bearer security scheme to the OpenAPI document and require it on every documented route. Swagger UI shows an **Authorize** button where you enter the token once; all **Try it out** requests then send `Authorization: Bearer <token>`.
+
+```ts
+const app = await Application.create(AppModule, {
+  openapi: {
+    info: { title: "My API", version: "1.0.0" },
+    ui: true,
+    bearer: true,
+  },
+});
+```
+
+You can customize the scheme:
+
+```ts
+bearer: {
+  description: "Paste your API token",
+  bearerFormat: "token",
+}
+```
+
+Enter the token **without** the `Bearer ` prefix — Swagger UI adds it automatically.
+
+For mixed APIs (some routes public, some protected), omit global `bearer` and mark protected controllers or handlers with `@ApiBearerAuth()`:
+
+```ts
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
+@Controller("users")
+export class UsersController {}
+```
+
+This is independent of `openapi.auth`, which protects access to `/docs` and `/openapi.json` with HTTP Basic Auth.
 
 ### Protecting the docs
 
@@ -2729,6 +2771,7 @@ export class UsersController {
 - `@ApiTags(...tags)` — tags for a controller or a specific method; both are merged into the operation.
 - `@ApiOperation({ summary, description })` — describes the endpoint.
 - `@ApiResponse({ status, description })` — documents a response; repeat it for multiple statuses.
+- `@ApiBearerAuth()` — marks a controller or handler as requiring Bearer auth in the OpenAPI document (use with `openapi.bearer` off for mixed public/protected APIs).
 
 ## Schemas from Zod
 

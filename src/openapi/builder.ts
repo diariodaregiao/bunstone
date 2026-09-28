@@ -1,20 +1,32 @@
-import { type ZodType, z } from "zod/v4";
 import type { Constructor } from "@/core/injectable";
 import { PARAMS_METADATA, ParamSource } from "@/http/params";
 import { getControllerPath, getRoutes, joinPaths } from "@/http/routing";
 import { isZodSchema } from "@/utils/is-zod-schema";
 import { Logger } from "@/utils/logger";
+import { type ZodType, z } from "zod/v4";
 import {
 	getApiOperation,
 	getApiResponses,
 	getControllerTags,
 	getRouteTags,
+	hasControllerBearerAuth,
+	hasRouteBearerAuth,
 } from "./decorators";
 
 export interface OpenApiInfo {
 	title: string;
 	version: string;
 	description?: string;
+}
+
+export interface OpenApiBearerAuth {
+	name?: string;
+	description?: string;
+	bearerFormat?: string;
+}
+
+export interface BuildOpenApiOptions {
+	bearer?: boolean | OpenApiBearerAuth;
 }
 
 interface ParamMeta {
@@ -26,7 +38,14 @@ interface ParamMeta {
 
 type JsonObject = Record<string, unknown>;
 
+interface ResolvedBearer {
+	schemeName: string;
+	scheme: JsonObject;
+	global: boolean;
+}
+
 const logger = new Logger("OpenAPI");
+const DEFAULT_BEARER_SCHEME = "bearerAuth";
 
 /**
  * Document generation runs while the HTTP server is being constructed, so a
@@ -82,12 +101,58 @@ function isSelfReferencing(schema: JsonObject): boolean {
 	return JSON.stringify(schema).includes('"$ref":"#');
 }
 
+function resolveBearerConfig(
+	bearer?: boolean | OpenApiBearerAuth,
+): ResolvedBearer | null {
+	if (!bearer) return null;
+
+	const cfg = typeof bearer === "object" ? bearer : {};
+	const schemeName = cfg.name ?? DEFAULT_BEARER_SCHEME;
+	const scheme: JsonObject = { type: "http", scheme: "bearer" };
+	if (cfg.description) scheme.description = cfg.description;
+	if (cfg.bearerFormat) scheme.bearerFormat = cfg.bearerFormat;
+
+	return { schemeName, scheme, global: true };
+}
+
+function requiresBearerAuth(
+	controller: Constructor,
+	handlerName: string,
+): boolean {
+	return (
+		hasControllerBearerAuth(controller) ||
+		hasRouteBearerAuth(controller, handlerName)
+	);
+}
+
+function documentNeedsBearerScheme(
+	controllers: Constructor[],
+	bearer: ResolvedBearer | null,
+): boolean {
+	if (bearer) return true;
+	return controllers.some((controller) => {
+		if (hasControllerBearerAuth(controller)) return true;
+		return getRoutes(controller).some((route) =>
+			hasRouteBearerAuth(controller, route.handlerName),
+		);
+	});
+}
+
 export function buildOpenApiDocument(
 	controllers: Constructor[],
 	info: OpenApiInfo,
+	options?: BuildOpenApiOptions,
 ): JsonObject {
+	const bearer = resolveBearerConfig(options?.bearer);
+	const schemeName = bearer?.schemeName ?? DEFAULT_BEARER_SCHEME;
+	const defaultScheme: JsonObject = bearer?.scheme ?? {
+		type: "http",
+		scheme: "bearer",
+	};
+	const includeBearerScheme = documentNeedsBearerScheme(controllers, bearer);
+
 	const paths: Record<string, JsonObject> = {};
-	const components: Record<string, JsonObject> = {};
+	const schemaComponents: Record<string, JsonObject> = {};
 
 	for (const controller of controllers) {
 		const base = getControllerPath(controller);
@@ -101,7 +166,11 @@ export function buildOpenApiDocument(
 				route,
 				joined,
 				controllerTags,
-				components,
+				schemaComponents,
+				{
+					schemeName,
+					globalBearer: bearer !== null,
+				},
 			);
 			const entry = paths[fullPath] ?? {};
 			entry[route.method.toLowerCase()] = operation;
@@ -110,9 +179,21 @@ export function buildOpenApiDocument(
 	}
 
 	const document: JsonObject = { openapi: "3.1.0", info, paths };
-	if (Object.keys(components).length > 0) {
-		document.components = { schemas: components };
+
+	const components: JsonObject = {};
+	if (Object.keys(schemaComponents).length > 0) {
+		components.schemas = schemaComponents;
 	}
+	if (includeBearerScheme) {
+		components.securitySchemes = { [schemeName]: defaultScheme };
+	}
+	if (Object.keys(components).length > 0) {
+		document.components = components;
+	}
+	if (bearer) {
+		document.security = [{ [schemeName]: [] }];
+	}
+
 	return document;
 }
 
@@ -127,12 +208,18 @@ function hoist(
 	return { $ref: componentPath };
 }
 
+interface OperationBearerOptions {
+	schemeName: string;
+	globalBearer: boolean;
+}
+
 function buildOperation(
 	controller: Constructor,
 	route: { method: string; path: string; handlerName: string },
 	fullPath: string,
 	controllerTags: string[],
 	components: Record<string, JsonObject>,
+	bearerOptions: OperationBearerOptions,
 ): JsonObject {
 	const params: ParamMeta[] =
 		Reflect.getOwnMetadata(
@@ -167,6 +254,14 @@ function buildOperation(
 	if (requestBody) operation.requestBody = requestBody;
 
 	operation.responses = buildResponses(controller, route.handlerName);
+
+	if (
+		!bearerOptions.globalBearer &&
+		requiresBearerAuth(controller, route.handlerName)
+	) {
+		operation.security = [{ [bearerOptions.schemeName]: [] }];
+	}
+
 	return operation;
 }
 

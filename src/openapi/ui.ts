@@ -31,7 +31,11 @@ export function swaggerUiHtml(specPath: string): string {
 <script src="${base}/swagger-ui-bundle.js" integrity="${SWAGGER_UI_JS_SRI}" crossorigin="anonymous"></script>
 <script>
 window.onload = () => {
-	window.SwaggerUIBundle({ url: ${toScriptLiteral(specPath)}, dom_id: "#swagger" });
+	window.SwaggerUIBundle({
+		url: ${toScriptLiteral(specPath)},
+		dom_id: "#swagger",
+		persistAuthorization: true,
+	});
 };
 </script>
 </body>
