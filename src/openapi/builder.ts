@@ -1,5 +1,9 @@
 import type { Constructor } from "@/core/injectable";
-import { PARAMS_METADATA, ParamSource } from "@/http/params";
+import {
+	type FormDataOptions,
+	PARAMS_METADATA,
+	ParamSource,
+} from "@/http/params";
 import { getControllerPath, getRoutes, joinPaths } from "@/http/routing";
 import { isZodSchema } from "@/utils/is-zod-schema";
 import { Logger } from "@/utils/logger";
@@ -34,6 +38,7 @@ interface ParamMeta {
 	source: ParamSource;
 	key?: string;
 	schema?: ZodType;
+	formData?: FormDataOptions;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -314,6 +319,10 @@ function buildRequestBody(
 	components: Record<string, JsonObject>,
 	name: string,
 ): JsonObject | undefined {
+	// `@FormData()` consumes the request body, so it is the body whenever present.
+	const form = params.find((param) => param.source === ParamSource.FORM_DATA);
+	if (form) return buildMultipartBody(form.formData ?? {}, route);
+
 	const body = params.find((param) => param.source === ParamSource.BODY);
 	if (!body || !isZodSchema(body.schema)) return undefined;
 
@@ -327,6 +336,51 @@ function buildRequestBody(
 		content: {
 			"application/json": { schema },
 		},
+	};
+}
+
+/**
+ * Text fields come from the `fields` schema and file fields are declared by
+ * name; both become properties of one multipart object schema, which is what
+ * makes Swagger UI render a file picker next to the text inputs.
+ */
+function buildMultipartBody(
+	options: FormDataOptions,
+	route: string,
+): JsonObject {
+	const properties: JsonObject = {};
+	const required: string[] = [];
+	const encoding: JsonObject = {};
+
+	if (isZodSchema(options.fields)) {
+		const converted = toJsonSchema(options.fields, route);
+		Object.assign(properties, converted.properties ?? {});
+		required.push(...((converted.required ?? []) as string[]));
+	}
+
+	for (const [field, file] of Object.entries(options.files ?? {})) {
+		const binary: JsonObject = { type: "string", format: "binary" };
+		const property: JsonObject = file.multiple
+			? { type: "array", items: binary }
+			: binary;
+		if (file.description) property.description = file.description;
+		properties[field] = property;
+		if (file.required) required.push(field);
+
+		const accept = [file.accept ?? []].flat();
+		if (accept.length > 0) encoding[field] = { contentType: accept.join(", ") };
+	}
+
+	const schema: JsonObject = { type: "object" };
+	if (Object.keys(properties).length > 0) schema.properties = properties;
+	if (required.length > 0) schema.required = required;
+
+	const media: JsonObject = { schema };
+	if (Object.keys(encoding).length > 0) media.encoding = encoding;
+
+	return {
+		required: true,
+		content: { "multipart/form-data": media },
 	};
 }
 

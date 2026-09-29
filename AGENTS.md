@@ -955,9 +955,10 @@ export class UploadsController {
 ```
 
 ```ts
-interface FormDataPayload {
-  fields: Record<string, string>;  // every non-file field, as text
-  files: File[];                   // every file part
+interface FormDataPayload<TFields = Record<string, string>> {
+  fields: TFields;                      // every non-file field, as text (or the parsed `fields` schema)
+  files: File[];                        // every file part, in the order it was sent
+  filesByField: Record<string, File[]>; // the same files, grouped by form field name
 }
 ```
 
@@ -976,6 +977,52 @@ async upload(@FormData() form: FormDataPayload) {
   }
   await Bun.write(`./storage/${crypto.randomUUID()}`, file);
   return { ok: true };
+}
+```
+
+### Declaring fields and files
+
+`@FormData()` also accepts options that describe the form. They validate the request and generate the [OpenAPI documentation](./openapi.md#file-uploads-multipartform-data), which gives Swagger UI a file picker for each file field.
+
+```ts
+import { z } from "zod";
+import type { InferFormData } from "@grupodiariodaregiao/bunstone";
+
+const Upload = z.object({
+  title: z.string().min(1),
+  public: z.stringbool().default(false),
+});
+
+@Post()
+async upload(
+  @FormData({
+    fields: Upload,
+    files: {
+      cover: { required: true, accept: ["image/png", "image/jpeg"] },
+      attachments: { multiple: true },
+    },
+  })
+  form: InferFormData<typeof Upload>,
+) {
+  const [cover] = form.filesByField.cover;       // guaranteed by `required`
+  const attachments = form.filesByField.attachments ?? [];
+  return { title: form.fields.title, cover: cover.name, attachments: attachments.length };
+}
+```
+
+- `fields` is a Zod schema run against the text fields. The handler receives the parsed result, typed by `InferFormData<typeof Schema>`. Fields are text, so use `z.coerce.number()` or `z.stringbool()` for other types.
+- `files` declares the file fields by name. `required: true` rejects a request that sends no file under that name. A blank file input, which browsers send as an empty part with no filename, counts as missing.
+- `multiple`, `description` and `accept` only affect the OpenAPI document. `accept` does **not** check the uploaded file's type, so check `file.type` yourself, as in the example above.
+
+Field and file errors are reported together, in the same shape `@Body(schema)` uses:
+
+```json
+{
+  "statusCode": 400,
+  "errors": [
+    { "field": "cover", "message": "File is required." },
+    { "field": "title", "message": "Too small: expected string to have >=1 characters" }
+  ]
 }
 ```
 
@@ -2615,7 +2662,17 @@ app.patch(path, body, { headers });
 app.delete(path, { headers });
 ```
 
-Bodies are JSON-encoded automatically. Every method returns a standard `Response`.
+Bodies are JSON-encoded automatically, except a `FormData` body, which is sent as `multipart/form-data` so `@FormData()` routes can be tested too:
+
+```ts
+const form = new FormData();
+form.append("title", "Report");
+form.append("cover", new File(["png"], "cover.png", { type: "image/png" }));
+
+const res = await app.post("/uploads", form);
+```
+
+Every method returns a standard `Response`.
 
 `TestApp` mirrors the real server's routing: routes are matched by specificity (a static segment wins over a `:param` regardless of declaration order), an unsupported method on a known path returns `405` with an `Allow` header, and an unknown path returns `404` — the same status codes and bodies `Bun.serve` produces.
 
@@ -2775,7 +2832,7 @@ export class UsersController {
 
 ## Schemas from Zod
 
-When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically — including those declared on the `@Controller` prefix — and `@Query("name")` parameters appear as query parameters.
+When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. `@FormData({ fields, files })` is documented as a `multipart/form-data` body (see [File uploads](#file-uploads-multipartform-data)). Path parameters are documented automatically — including those declared on the `@Controller` prefix — and `@Query("name")` parameters appear as query parameters.
 
 Some Zod types have no JSON Schema equivalent (`z.date()`, `z.bigint()`, `z.custom()`, `.transform()`). These are emitted as permissive schemas rather than failing: document generation can never stop your application from booting. When a schema cannot be represented, a warning naming the route is logged.
 
@@ -2812,6 +2869,89 @@ For the controller above, the generated document includes:
   }
 }
 ```
+
+## File uploads (multipart/form-data)
+
+A route that reads its body with [`@FormData()`](./uploads-and-static.md#uploads) is documented with a `multipart/form-data` request body instead of `application/json`. With no options you get a generic object:
+
+```json
+"requestBody": {
+  "required": true,
+  "content": { "multipart/form-data": { "schema": { "type": "object" } } }
+}
+```
+
+To have Swagger UI render the actual form, with a text input per field and a **file picker** per file, describe it in the decorator:
+
+```ts
+import { z } from "zod";
+import { Controller, FormData, Post } from "@grupodiariodaregiao/bunstone";
+import type { InferFormData } from "@grupodiariodaregiao/bunstone";
+
+const Profile = z.object({
+  name: z.string().min(2),
+  age: z.coerce.number().int().optional(),
+});
+
+@Controller("profiles")
+export class ProfilesController {
+  @Post()
+  create(
+    @FormData({
+      fields: Profile,
+      files: {
+        avatar: {
+          required: true,
+          description: "Profile picture",
+          accept: ["image/png", "image/jpeg"],
+        },
+        attachments: { multiple: true, accept: "application/pdf" },
+      },
+    })
+    form: InferFormData<typeof Profile>,
+  ) {
+    const [avatar] = form.filesByField.avatar;
+    return { name: form.fields.name, avatar: avatar.name };
+  }
+}
+```
+
+- `fields`: a Zod object schema. Its properties and `required` list go into the document, and at runtime it validates the text fields.
+- `files`: the file fields, keyed by form field name. Each one becomes a `{ type: "string", format: "binary" }` property, or an array of them when `multiple: true`.
+  - `required`: listed in the schema's `required` and enforced at runtime (a missing file gets `400`).
+  - `multiple`: the field accepts several files.
+  - `description`: shown next to the field.
+  - `accept`: one or more media types, emitted as the part's `encoding.contentType`. This value is **documentation only**: the file's type is not checked (see [Uploads](./uploads-and-static.md#uploads) for enforcing it).
+
+The route above produces:
+
+```json
+"requestBody": {
+  "required": true,
+  "content": {
+    "multipart/form-data": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 2 },
+          "age": { "type": "integer" },
+          "avatar": { "type": "string", "format": "binary", "description": "Profile picture" },
+          "attachments": { "type": "array", "items": { "type": "string", "format": "binary" } }
+        },
+        "required": ["name", "avatar"]
+      },
+      "encoding": {
+        "avatar": { "contentType": "image/png, image/jpeg" },
+        "attachments": { "contentType": "application/pdf" }
+      }
+    }
+  }
+}
+```
+
+In Swagger UI, **Try it out** then shows the form, and **Execute** sends a real multipart upload.
+
+Multipart fields always arrive as text, so parse non-string fields from strings: `z.coerce.number()` for numbers and `z.stringbool()` for booleans. Avoid `z.coerce.boolean()`, which turns `"false"` into `true`. Both are still documented with their real type (`integer`, `boolean`).
 
 ## docs/cli.md
 
