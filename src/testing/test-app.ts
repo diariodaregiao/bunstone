@@ -59,6 +59,8 @@ export class TestApp {
 
 function jsonInit(body: unknown, options?: TestRequestOptions): RequestInit {
 	if (body === undefined) return { headers: options?.headers };
+	// Multipart bodies set their own content-type, boundary included.
+	if (body instanceof FormData) return { headers: options?.headers, body };
 	return {
 		headers: { "content-type": "application/json", ...options?.headers },
 		body: JSON.stringify(body),
