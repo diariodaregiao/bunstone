@@ -9,6 +9,7 @@ import { isZodSchema } from "@/utils/is-zod-schema";
 import { Logger } from "@/utils/logger";
 import { type ZodType, z } from "zod/v4";
 import {
+	type ApiResponseInfo,
 	getApiOperation,
 	getApiResponses,
 	getControllerTags,
@@ -58,10 +59,15 @@ const DEFAULT_BEARER_SCHEME = "bearerAuth";
  * must never be allowed to take the whole application down: degrade to a
  * permissive schema and keep booting.
  */
-function toJsonSchema(schema: ZodType, route: string): JsonObject {
+function toJsonSchema(
+	schema: ZodType,
+	route: string,
+	io: "input" | "output" = "input",
+): JsonObject {
 	try {
 		const converted = z.toJSONSchema(schema, {
 			unrepresentable: "any",
+			io,
 		}) as JsonObject;
 		delete converted.$schema;
 		return converted;
@@ -250,15 +256,21 @@ function buildOperation(
 	const parameters = buildParameters(fullPath, params, label);
 	if (parameters.length > 0) operation.parameters = parameters;
 
+	const componentPrefix = `${controller.name}${route.handlerName.charAt(0).toUpperCase()}${route.handlerName.slice(1)}`;
 	const requestBody = buildRequestBody(
 		params,
 		label,
 		components,
-		`${controller.name}${route.handlerName.charAt(0).toUpperCase()}${route.handlerName.slice(1)}Body`,
+		`${componentPrefix}Body`,
 	);
 	if (requestBody) operation.requestBody = requestBody;
 
-	operation.responses = buildResponses(controller, route.handlerName);
+	operation.responses = buildResponses(
+		getApiResponses(controller, route.handlerName),
+		label,
+		components,
+		componentPrefix,
+	);
 
 	if (
 		!bearerOptions.globalBearer &&
@@ -385,20 +397,61 @@ function buildMultipartBody(
 }
 
 function buildResponses(
-	controller: Constructor,
-	handlerName: string,
+	responses: ApiResponseInfo[],
+	route: string,
+	components: Record<string, JsonObject>,
+	componentPrefix: string,
 ): JsonObject {
-	const responses = getApiResponses(controller, handlerName);
 	if (responses.length === 0) {
 		return { "200": { description: "Successful response" } };
 	}
 	const result: JsonObject = {};
 	for (const response of responses) {
-		result[String(response.status)] = {
-			description: response.description ?? "",
-		};
+		const status = String(response.status);
+		const entry: JsonObject = { description: response.description ?? "" };
+		const content = buildResponseContent(
+			response,
+			route,
+			components,
+			`${componentPrefix}Response${status}`,
+		);
+		if (content) entry.content = content;
+		result[status] = entry;
 	}
 	return result;
+}
+
+/**
+ * A response only gets a `content` entry when it describes a payload: a schema,
+ * an example, or both. A bare `{ status, description }` stays body-less, which
+ * is how OpenAPI documents a `204` or an error with no documented shape.
+ */
+function buildResponseContent(
+	response: ApiResponseInfo,
+	route: string,
+	components: Record<string, JsonObject>,
+	name: string,
+): JsonObject | undefined {
+	const media: JsonObject = {};
+
+	if (isZodSchema(response.schema)) {
+		// The handler produces the value, so the schema's output side is what the
+		// client receives (a `.default()` field is always present, for instance).
+		const converted = toJsonSchema(response.schema, route, "output");
+		media.schema = isSelfReferencing(converted)
+			? hoist(converted, name, components)
+			: converted;
+	} else if (response.schema && typeof response.schema === "object") {
+		media.schema = response.schema;
+	}
+
+	if (response.example !== undefined) media.example = response.example;
+	if (response.examples && Object.keys(response.examples).length > 0) {
+		media.examples = response.examples;
+	}
+
+	if (Object.keys(media).length === 0) return undefined;
+	return { [response.contentType ?? "application/json"]: media };
 }
 
 function pathParamNames(path: string): string[] {
