@@ -9,6 +9,7 @@ import { errorToResponse } from "./errors";
 import { ForbiddenException, InternalServerErrorException } from "./exceptions";
 import type { GuardContract } from "./guard";
 import { extractArgs } from "./params";
+import { applyReturns, type ReturnsMetadata } from "./returns";
 import { serialize } from "./serialize";
 import { type SseMessage, type SseOptions, sseResponse } from "./sse";
 import {
@@ -30,6 +31,7 @@ export interface RouteHandlerConfig {
 	rateLimitStorage?: RateLimitStorage;
 	trustProxy?: TrustProxy;
 	sse?: SseOptions;
+	returns?: ReturnsMetadata;
 }
 
 type Handler = (...args: unknown[]) => unknown;
@@ -47,6 +49,7 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 		rateLimitStorage,
 		trustProxy,
 		sse,
+		returns,
 	} = config;
 	const prototype = controller.prototype;
 	const setHeaderEntries = Object.entries(setHeaders);
@@ -92,7 +95,7 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 						);
 					}
 					const args = await extractArgs(ctx, prototype, handlerName);
-					const result = await handler.apply(instance, args);
+					let result = await handler.apply(instance, args);
 
 					if (sse) {
 						// SSE still needs CORS, @SetHeader and rate-limit headers
@@ -103,6 +106,9 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 							}),
 							ctx,
 						);
+					}
+					if (returns) {
+						result = await applyReturns(result, returns, ctx, route);
 					}
 					return serialize(result, ctx);
 				} catch (error) {

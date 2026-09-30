@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import type { ZodType } from "zod/v4";
 import type { Constructor } from "@/core/injectable";
 
 export const API_TAGS_METADATA = "bunstone:api-tags";
@@ -11,9 +12,27 @@ export interface ApiOperationInfo {
 	description?: string;
 }
 
+/** A named example shown in the Swagger UI example dropdown. */
+export interface ApiResponseExample {
+	summary?: string;
+	description?: string;
+	value: unknown;
+}
+
 export interface ApiResponseInfo {
 	status: number;
 	description?: string;
+	/**
+	 * Shape of the response body: a Zod schema (converted with
+	 * `z.toJSONSchema`, output side) or a plain JSON Schema object.
+	 */
+	schema?: ZodType | Record<string, unknown>;
+	/** A single example payload for the response body. */
+	example?: unknown;
+	/** Several named example payloads; Swagger UI shows them in a dropdown. */
+	examples?: Record<string, ApiResponseExample>;
+	/** Media type of the body. Default `application/json`. */
+	contentType?: string;
 }
 
 export function ApiTags(...tags: string[]): ClassDecorator & MethodDecorator {

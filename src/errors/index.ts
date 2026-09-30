@@ -645,6 +645,31 @@ export class HttpParamError extends BunstoneError {
 	}
 }
 
+export class ResponseValidationError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-HTTP-003" = "BNS-HTTP-003",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static mismatch(route: string, cause: Error): ResponseValidationError {
+		return new ResponseValidationError(
+			`The response of ${route} does not match its @Returns schema.`,
+			"BNS-HTTP-003",
+			[
+				"The handler returned a value the schema rejects; the client received a 500.",
+				"Fix the handler or the schema. The Zod issues are in `cause`.",
+			].join("\n  "),
+			{ route },
+			cause,
+		);
+	}
+}
+
 export class GuardError extends BunstoneError {
 	constructor(
 		message: string,

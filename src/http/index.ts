@@ -38,6 +38,12 @@ export {
 	State,
 } from "./params";
 export {
+	getReturns,
+	Returns,
+	type ReturnsDecorator,
+	type ReturnsOptions,
+} from "./returns";
+export {
 	Controller,
 	Delete,
 	Get,

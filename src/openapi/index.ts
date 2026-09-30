@@ -13,6 +13,7 @@ export {
 	ApiOperation,
 	type ApiOperationInfo,
 	ApiResponse,
+	type ApiResponseExample,
 	type ApiResponseInfo,
 	ApiTags,
 	getApiOperation,

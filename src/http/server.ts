@@ -20,6 +20,7 @@ import { getControllerGuards, getRouteGuards } from "./guard";
 import { type HealthOptions, resolveHealth } from "./health";
 import { RouteMatcher } from "./matcher";
 import { createRouteHandler } from "./pipeline";
+import { getReturns } from "./returns";
 import {
 	getControllerPath,
 	getRoutes,
@@ -245,6 +246,7 @@ export class HttpServer {
 					rateLimitStorage: this.rateLimitStorage,
 					trustProxy: this.options.trustProxy,
 					sse: getSseOptions(controller, route.handlerName),
+					returns: getReturns(controller, route.handlerName),
 				});
 				const shape = routeShape(path);
 				const clash = shapes.get(`${route.method} ${shape}`);
