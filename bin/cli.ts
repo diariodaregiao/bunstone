@@ -51,7 +51,7 @@ async function scaffold(name?: string): Promise<void> {
 					"reflect-metadata": "^0.2.2",
 				},
 				devDependencies: {
-					"@types/bun": "1.3.11",
+					"@types/bun": "1.4.3",
 					typescript: "^7.0.0",
 				},
 			},
