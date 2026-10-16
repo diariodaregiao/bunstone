@@ -8,8 +8,8 @@
     "jsxImportSource": "react",
     "allowJs": true,
 
-    "baseUrl": ".",
     "paths": {
+      "*": ["./*"],
       "@/*": ["./src/*"]
     },
 
@@ -19,6 +19,7 @@
     "noEmit": false,
     "declaration": true,
     "emitDeclarationOnly": true,
+    "rootDir": ".",
     "outDir": "./dist",
 
     "strict": true,
