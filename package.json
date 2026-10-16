@@ -59,7 +59,7 @@
     "tsc-alias": "^1.9.1"
   },
   "peerDependencies": {
-    "typescript": "^5",
+    "typescript": "^7.0.2",
     "mongodb": "^6.10.0"
   },
   "dependencies": {
