@@ -1,3 +1,5 @@
+import type { EventEmitter } from "node:events";
+import nodeProcess from "node:process";
 import { wireCqrs } from "@/cqrs/cqrs-module";
 import { assertEventStoreWiring } from "@/cqrs/event-sourcing-module";
 import { resolveHealth, runChecks } from "@/http/health";
@@ -8,8 +10,6 @@ import { RabbitConnection } from "@/messaging/connection";
 import { wireRabbit } from "@/messaging/rabbitmq-module";
 import { Scheduler } from "@/scheduling/scheduler";
 import { Logger } from "@/utils/logger";
-import type { EventEmitter } from "node:events";
-import nodeProcess from "node:process";
 import type { Container } from "./container";
 import { DisposableRegistry } from "./disposable";
 import type { Constructor, Token } from "./injectable";
