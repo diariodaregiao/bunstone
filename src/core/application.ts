@@ -8,6 +8,8 @@ import { RabbitConnection } from "@/messaging/connection";
 import { wireRabbit } from "@/messaging/rabbitmq-module";
 import { Scheduler } from "@/scheduling/scheduler";
 import { Logger } from "@/utils/logger";
+import type { EventEmitter } from "node:events";
+import nodeProcess from "node:process";
 import type { Container } from "./container";
 import { DisposableRegistry } from "./disposable";
 import type { Constructor, Token } from "./injectable";
@@ -39,6 +41,8 @@ interface ReadinessState {
 
 const SHUTDOWN_SIGNALS: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
+
+const processEvents = nodeProcess as EventEmitter;
 
 /** Best-effort teardown of a bootstrap that never finished. */
 async function unwind(
@@ -208,23 +212,24 @@ export class Application {
 		// listen() may be called again; without this the previous handlers stay
 		// on `process` and only the last pair is ever removed
 		this.removeSignals();
+		const handler = () => {
+			this.close()
+				.then(() => process.exit(0))
+				.catch((error) => {
+					this.logger.error("Error during shutdown:", error);
+					process.exit(1);
+				});
+		};
 		for (const signal of SHUTDOWN_SIGNALS) {
-			const handler = () => {
-				this.close()
-					.then(() => process.exit(0))
-					.catch((error) => {
-						this.logger.error("Error during shutdown:", error);
-						process.exit(1);
-					});
-			};
 			this.signalHandlers.set(signal, handler);
-			process.on(signal, handler);
 		}
+		processEvents.on("SIGINT", handler);
+		processEvents.on("SIGTERM", handler);
 	}
 
 	private removeSignals(): void {
 		for (const [signal, handler] of this.signalHandlers) {
-			process.off(signal, handler);
+			processEvents.off(signal, handler);
 		}
 		this.signalHandlers.clear();
 	}
