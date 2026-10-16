@@ -1,3 +1,4 @@
+import { type ZodType, z } from "zod/v4";
 import type { Constructor } from "@/core/injectable";
 import {
 	type FormDataOptions,
@@ -7,7 +8,6 @@ import {
 import { getControllerPath, getRoutes, joinPaths } from "@/http/routing";
 import { isZodSchema } from "@/utils/is-zod-schema";
 import { Logger } from "@/utils/logger";
-import { type ZodType, z } from "zod/v4";
 import {
 	type ApiResponseInfo,
 	getApiOperation,
