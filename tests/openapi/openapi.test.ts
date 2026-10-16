@@ -166,10 +166,10 @@ describe("OpenAPI @ApiBearerAuth", () => {
 	}
 
 	it("applies security only to annotated controllers", () => {
-		const doc = buildOpenApiDocument(
-			[ProtectedController, PublicController],
-			{ title: "Mixed API", version: "1.0.0" },
-		) as any;
+		const doc = buildOpenApiDocument([ProtectedController, PublicController], {
+			title: "Mixed API",
+			version: "1.0.0",
+		}) as any;
 
 		expect(doc.components.securitySchemes.bearerAuth).toEqual({
 			type: "http",

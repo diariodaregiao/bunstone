@@ -1,5 +1,4 @@
-import { RouteMatcher } from "@/http/matcher";
-import type { HttpServer, RoutesMap } from "@/http/server";
+import type { HttpServer } from "@/http/server";
 import type { BunRequest, BunServer } from "@/http/types";
 
 const fakeServer = {

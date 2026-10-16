@@ -3,8 +3,8 @@ export {
 	type OpenApiBasicAuth,
 } from "./basic-auth";
 export {
-	buildOpenApiDocument,
 	type BuildOpenApiOptions,
+	buildOpenApiDocument,
 	type OpenApiBearerAuth,
 	type OpenApiInfo,
 } from "./builder";
