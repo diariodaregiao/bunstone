@@ -222,9 +222,8 @@ export class Application {
 		};
 		for (const signal of SHUTDOWN_SIGNALS) {
 			this.signalHandlers.set(signal, handler);
+			processEvents.on(signal, handler);
 		}
-		processEvents.on("SIGINT", handler);
-		processEvents.on("SIGTERM", handler);
 	}
 
 	private removeSignals(): void {
