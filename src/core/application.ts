@@ -3,6 +3,7 @@ import nodeProcess from "node:process";
 import { wireCqrs } from "@/cqrs/cqrs-module";
 import { assertEventStoreWiring } from "@/cqrs/event-sourcing-module";
 import { resolveHealth, runChecks } from "@/http/health";
+import { resolveIdleTimeout } from "@/http/idle-timeout";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
 import { collectGateways } from "@/http/websocket";
@@ -78,9 +79,13 @@ export class Application {
 		rootModule: Constructor,
 		options: ApplicationOptions = {},
 	): Promise<Application> {
+		const resolvedOptions: ApplicationOptions = {
+			...options,
+			idleTimeout: resolveIdleTimeout(options.idleTimeout),
+		};
 		const { container, controllers } = compileModules(
 			rootModule,
-			options.strictModuleBoundaries === true,
+			resolvedOptions.strictModuleBoundaries === true,
 		);
 		const intake = new DisposableRegistry();
 		const resources = new DisposableRegistry();
@@ -105,7 +110,8 @@ export class Application {
 						container
 							.resolve(RabbitConnection)
 							.stopConsuming(
-								options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS,
+								resolvedOptions.shutdownTimeoutMs ??
+									DEFAULT_SHUTDOWN_TIMEOUT_MS,
 							),
 					"rabbit-consumers",
 				);
@@ -118,7 +124,7 @@ export class Application {
 			const gateways = collectGateways(instances);
 
 			const readiness: ReadinessState = { listening: false, draining: false };
-			const health = resolveHealth(options.health);
+			const health = resolveHealth(resolvedOptions.health);
 			const isReady = async () =>
 				readiness.listening &&
 				!readiness.draining &&
@@ -127,7 +133,7 @@ export class Application {
 			const httpServer = new HttpServer(
 				container,
 				controllers,
-				options,
+				resolvedOptions,
 				gateways,
 				isReady,
 			);
@@ -144,7 +150,7 @@ export class Application {
 				intake,
 				resources,
 				instances,
-				options,
+				resolvedOptions,
 				readiness,
 			);
 		} catch (error) {

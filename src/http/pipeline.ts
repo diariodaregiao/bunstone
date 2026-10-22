@@ -32,6 +32,8 @@ export interface RouteHandlerConfig {
 	trustProxy?: TrustProxy;
 	sse?: SseOptions;
 	returns?: ReturnsMetadata;
+	/** Idle timeout in seconds, re-armed once the request body has been read. */
+	idleTimeoutSeconds?: number;
 }
 
 type Handler = (...args: unknown[]) => unknown;
@@ -50,6 +52,7 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 		trustProxy,
 		sse,
 		returns,
+		idleTimeoutSeconds,
 	} = config;
 	const prototype = controller.prototype;
 	const setHeaderEntries = Object.entries(setHeaders);
@@ -95,6 +98,11 @@ export function createRouteHandler(config: RouteHandlerConfig) {
 						);
 					}
 					const args = await extractArgs(ctx, prototype, handlerName);
+					// Bun does not enforce `idleTimeout` on a request that carries a
+					// body until the timeout is armed again after the body is read.
+					if (idleTimeoutSeconds !== undefined) {
+						server.timeout?.(req, idleTimeoutSeconds);
+					}
 					let result = await handler.apply(instance, args);
 
 					if (sse) {

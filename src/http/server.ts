@@ -18,6 +18,10 @@ import { Logger } from "@/utils/logger";
 import { Cors, type CorsOptions } from "./cors";
 import { getControllerGuards, getRouteGuards } from "./guard";
 import { type HealthOptions, resolveHealth } from "./health";
+import {
+	DEFAULT_IDLE_TIMEOUT_MS,
+	idleTimeoutForBunServe,
+} from "./idle-timeout";
 import { RouteMatcher } from "./matcher";
 import { createRouteHandler } from "./pipeline";
 import { getReturns } from "./returns";
@@ -56,6 +60,9 @@ export interface HttpServerOptions {
 	openapi?: OpenApiServeOptions;
 
 	health?: boolean | HealthOptions;
+
+	/** Milliseconds a connection may sit idle before the server closes it. */
+	idleTimeout?: number;
 }
 
 export interface OpenApiServeOptions {
@@ -247,6 +254,9 @@ export class HttpServer {
 					trustProxy: this.options.trustProxy,
 					sse: getSseOptions(controller, route.handlerName),
 					returns: getReturns(controller, route.handlerName),
+					idleTimeoutSeconds: idleTimeoutForBunServe(
+						this.options.idleTimeout ?? DEFAULT_IDLE_TIMEOUT_MS,
+					),
 				});
 				const shape = routeShape(path);
 				const clash = shapes.get(`${route.method} ${shape}`);
@@ -293,6 +303,9 @@ export class HttpServer {
 		this.server = Bun.serve({
 			port: port ?? this.options.port ?? 3000,
 			hostname: this.options.hostname,
+			idleTimeout: idleTimeoutForBunServe(
+				this.options.idleTimeout ?? DEFAULT_IDLE_TIMEOUT_MS,
+			),
 			routes: this.routes,
 			websocket: buildWebSocketHandler(this.gateways),
 			fetch: (req, server) => this.fallback(req as BunRequest, server),
