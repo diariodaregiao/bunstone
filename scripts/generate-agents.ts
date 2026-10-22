@@ -14,6 +14,7 @@ const DOC_ORDER = [
 	"guards-jwt.md",
 	"uploads-and-static.md",
 	"cors.md",
+	"idle-timeout.md",
 	"database.md",
 	"cache.md",
 	"cqrs.md",
