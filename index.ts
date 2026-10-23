@@ -229,8 +229,4 @@ export {
 	TestingModuleBuilder,
 	type TestRequestOptions,
 } from "@/testing";
-export {
-	Logger,
-	type LoggerOptions,
-	LogLevel,
-} from "@/utils/logger";
+export { Logger, type LoggerOptions, LogLevel } from "@/utils/logger";

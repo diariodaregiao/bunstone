@@ -1,0 +1,13 @@
+# Mirrors the formatting the project had with Biome.
+[fmt]
+useTabs = true
+tabWidth = 2
+printWidth = 80
+semi = true
+singleQuote = false
+jsxSingleQuote = false
+quoteProps = "as-needed"
+trailingComma = "all"
+bracketSpacing = true
+arrowParens = "always"
+endOfLine = "lf"

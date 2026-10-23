@@ -39,22 +39,20 @@
     "agents:build": "bun run ./scripts/generate-agents.ts",
     "test": "bun test",
     "coverage": "bun test --coverage",
-    "typecheck": "bun --check",
+    "typecheck": "bun check --no-script",
     "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun --packages external && tsc -p tsconfig.build.json --emitDeclarationOnly --declaration --outDir dist && tsc-alias -p tsconfig.build.json --outDir dist",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "format": "biome format . --write",
-    "check": "bun run typecheck && biome check . && bun test",
+    "format": "bun fmt --no-script src bin tests index.ts",
+    "format:check": "bun fmt --no-script --check src bin tests index.ts",
+    "verify": "bun run typecheck && bun run format:check && bun test",
     "benchmark": "bun run ./benchmarks/run.ts",
     "prepack": "npm run build && npm run agents:build"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.11",
     "@types/amqplib": "^0.10.8",
     "@types/autocannon": "^7.12.7",
-    "@types/bun": "1.4.3",
+    "@types/bun": "1.4.4",
     "autocannon": "^8.0.0",
-    "bun-types": "1.4.3",
+    "bun-types": "1.4.4",
     "mongodb": "^6.10.0",
     "tsc-alias": "^1.9.1",
     "typescript": "7.0.2"
@@ -82,9 +80,9 @@
     "access": "public"
   },
   "engines": {
-    "bun": ">=1.4.3"
+    "bun": ">=1.4.4"
   },
-  "packageManager": "bun@1.4.3",
+  "packageManager": "bun@1.4.4",
   "peerDependenciesMeta": {
     "mongodb": {
       "optional": true

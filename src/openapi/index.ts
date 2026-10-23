@@ -1,7 +1,4 @@
-export {
-	assertOpenApiBasicAuth,
-	type OpenApiBasicAuth,
-} from "./basic-auth";
+export { assertOpenApiBasicAuth, type OpenApiBasicAuth } from "./basic-auth";
 export {
 	type BuildOpenApiOptions,
 	buildOpenApiDocument,

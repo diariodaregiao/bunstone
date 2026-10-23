@@ -11,9 +11,7 @@ export interface OnModuleDestroy {
 }
 
 export type LifecycleHook =
-	| "onModuleInit"
-	| "onApplicationBootstrap"
-	| "onModuleDestroy";
+	"onModuleInit" | "onApplicationBootstrap" | "onModuleDestroy";
 
 function hasHook(instance: unknown, hook: LifecycleHook): boolean {
 	return typeof (instance as Record<string, unknown>)?.[hook] === "function";
