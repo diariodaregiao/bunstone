@@ -9,13 +9,7 @@ export type BunServer = Server<WebSocketData>;
 export type BunRequest = Request & { params: Record<string, string> };
 
 export type HttpMethod =
-	| "GET"
-	| "POST"
-	| "PUT"
-	| "PATCH"
-	| "DELETE"
-	| "HEAD"
-	| "OPTIONS";
+	"GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
 
 export interface RequestContext {
 	readonly req: BunRequest;

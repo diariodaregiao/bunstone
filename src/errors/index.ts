@@ -36,10 +36,7 @@ export class DependencyResolutionError extends BunstoneError {
 	constructor(
 		message: string,
 		code:
-			| "BNS-DI-001"
-			| "BNS-DI-002"
-			| "BNS-DI-003"
-			| "BNS-DI-004" = "BNS-DI-003",
+			"BNS-DI-001" | "BNS-DI-002" | "BNS-DI-003" | "BNS-DI-004" = "BNS-DI-003",
 		suggestion?: string,
 		context?: Record<string, unknown>,
 		cause?: Error,
