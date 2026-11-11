@@ -29,6 +29,7 @@ interface Instruments {
 	dbDuration: Histogram;
 	cacheOperations: Counter;
 	cqrsDuration: Histogram;
+	mcpDuration: Histogram;
 }
 
 const consumerStates = new Map<
@@ -101,6 +102,10 @@ export function getInstruments(): Instruments {
 		cqrsDuration: meter.createHistogram("cqrs.handler.duration", {
 			unit: "ms",
 			description: "Duration of command, query and event handlers.",
+		}),
+		mcpDuration: meter.createHistogram("mcp.server.operation.duration", {
+			unit: "ms",
+			description: "Duration of MCP tool calls, resource reads and prompts.",
 		}),
 	};
 	registerConsumerGauges(meter);

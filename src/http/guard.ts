@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import type { Constructor } from "@/core/injectable";
+import type { McpGuard } from "@/mcp/types";
 import type { RequestContext } from "./types";
 
 export interface GuardContract {
@@ -8,8 +9,12 @@ export interface GuardContract {
 
 export const GUARDS_METADATA = "bunstone:guards";
 
+/**
+ * Guards for a controller or route, or for an MCP provider or method, where
+ * they receive the `McpContext` instead (an `McpGuard`).
+ */
 export function UseGuards(
-	...guards: Constructor<GuardContract>[]
+	...guards: (Constructor<GuardContract> | Constructor<McpGuard>)[]
 ): ClassDecorator & MethodDecorator {
 	return ((target: object, propertyKey?: string | symbol) => {
 		if (propertyKey === undefined) {

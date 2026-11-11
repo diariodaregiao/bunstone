@@ -16,6 +16,7 @@ import {
 	getRouteTags,
 	hasControllerBearerAuth,
 	hasRouteBearerAuth,
+	isExcluded,
 } from "./decorators";
 
 export interface OpenApiInfo {
@@ -166,10 +167,12 @@ export function buildOpenApiDocument(
 	const schemaComponents: Record<string, JsonObject> = {};
 
 	for (const controller of controllers) {
+		if (isExcluded(controller)) continue;
 		const base = getControllerPath(controller);
 		const controllerTags = getControllerTags(controller);
 
 		for (const route of getRoutes(controller)) {
+			if (isExcluded(controller, route.handlerName)) continue;
 			const joined = joinPaths(base, route.path);
 			const fullPath = toOpenApiPath(joined);
 			const operation = buildOperation(

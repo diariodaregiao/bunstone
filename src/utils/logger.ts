@@ -73,7 +73,22 @@ function safeStringify(value: unknown): string {
 	}
 }
 
+/** Where every Logger writes; see `Logger.useStderr()`. */
+let write: (...args: unknown[]) => void = (...args) => console.log(...args);
+
 export class Logger {
+	/**
+	 * Sends every log line to stderr instead of stdout. Needed when stdout is a
+	 * protocol channel, as for an MCP server over stdio, where a stray log line
+	 * would corrupt the stream. `McpStdioServer.listen()` calls it; call it
+	 * yourself first thing in the entry point to cover startup logs too.
+	 */
+	static useStderr(enabled = true): void {
+		write = enabled
+			? (...args) => console.error(...args)
+			: (...args) => console.log(...args);
+	}
+
 	private level: LogLevel;
 	private showTimestamp: boolean;
 	private pretty: boolean;
@@ -106,7 +121,7 @@ export class Logger {
 		const traceContext = this.traceContext();
 
 		if (!this.pretty) {
-			console.log(
+			write(
 				JSON.stringify({
 					timestamp: this.getTimestamp(),
 					level,
@@ -131,7 +146,7 @@ export class Logger {
 			message += `${colors.gray}[trace:${traceContext.trace_id.slice(0, 8)}]${colors.reset} `;
 		}
 
-		console.log(message, ...args);
+		write(message, ...args);
 	}
 
 	private shouldLog(level: LogLevel): boolean {

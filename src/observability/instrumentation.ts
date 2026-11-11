@@ -230,3 +230,45 @@ export function instrumentDispatch<T>(
 		},
 	);
 }
+
+/**
+ * One MCP tool call, resource read or prompt, as `tools/call add`. It nests
+ * under the HTTP request that carried it, so a trace shows the request, the
+ * tool and whatever the tool queried.
+ */
+export function instrumentMcp<T>(
+	operation: "tools/call" | "resources/read" | "prompts/get",
+	name: string,
+	run: () => Promise<T>,
+): Promise<T> {
+	const start = performance.now();
+	const { mcpDuration } = getInstruments();
+	let outcome = "ok";
+
+	return getTracer().startActiveSpan(
+		`${operation} ${name}`,
+		{ kind: SpanKind.INTERNAL },
+		context.active(),
+		async (span) => {
+			span.setAttribute("mcp.method.name", operation);
+			span.setAttribute("mcp.primitive.name", name);
+			try {
+				return await run();
+			} catch (error) {
+				outcome = "error";
+				span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: error instanceof Error ? error.message : String(error),
+				});
+				throw error;
+			} finally {
+				mcpDuration.record(performance.now() - start, {
+					"mcp.method.name": operation,
+					"mcp.primitive.name": name,
+					outcome,
+				});
+				span.end();
+			}
+		},
+	);
+}
