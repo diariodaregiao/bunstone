@@ -106,6 +106,25 @@ await storage.hit("key", 1, 20); // { allowed: false, ... }
 
 `MemoryStorage` is single-instance only. It periodically sweeps expired buckets and is created automatically for the server, so you never have to instantiate it yourself for normal usage.
 
+### Redis / Valkey (multiple replicas)
+
+With more than one replica, each `MemoryStorage` counts separately, so a client gets `max` requests **per replica**. `RedisStorage` keeps the counters in Redis or Valkey through Bun's native client, so every replica enforces the same limit:
+
+```ts
+import { Application, RedisStorage } from "@grupodiariodaregiao/bunstone";
+
+const app = await Application.create(AppModule, {
+  trustProxy: true,
+  rateLimitStorage: new RedisStorage({ url: process.env.REDIS_URL }),
+});
+```
+
+- `url` — connection URL. Defaults to `REDIS_URL` / `VALKEY_URL`, then `redis://localhost:6379`. The storage owns this client and closes it on shutdown.
+- `client` — an existing `RedisClient` to share instead. It is not closed by the storage.
+- `prefix` — key prefix, default `"bunstone:rl:"`.
+
+Each hit is a single atomic script (`INCR` plus the window's expiry), so a crash can never leave a key without a TTL.
+
 ## Ordering
 
 Rate limiting runs **before guards** in the request pipeline. A blocked request is rejected with `429` before any guard, validation, or handler code executes, so abusive traffic never reaches your authorization logic.
