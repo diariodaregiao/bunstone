@@ -22,6 +22,7 @@ const DOC_ORDER = [
 	"messaging.md",
 	"scheduling.md",
 	"realtime.md",
+	"mcp.md",
 	"rate-limiting.md",
 	"logging.md",
 	"observability.md",

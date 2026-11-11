@@ -11,6 +11,7 @@ Bunstone is a decorator-based framework for [Bun](https://bun.sh), inspired by N
 - **Lifecycle hooks** — `OnModuleInit`, `OnApplicationBootstrap`, and `OnModuleDestroy`.
 - **Guards** — `@UseGuards` with DI-injected guard classes.
 - **JWT auth** — a ready-made `JwtModule`, `JwtService`, `@Jwt()` guard, and `@JwtPayload()` parameter.
+- **MCP servers** — expose provider methods to AI assistants as MCP tools, resources and prompts, over HTTP or stdio.
 - **Graceful shutdown** — `app.close()` runs destroy hooks and disposers; `SIGINT`/`SIGTERM` are handled automatically.
 
 ## Installation
@@ -64,6 +65,6 @@ Run it with Bun and open `http://localhost:3000`.
 - [Guards & JWT](./guards-jwt.md)
 - [Uploads & static files](./uploads-and-static.md) · [CORS](./cors.md) · [HTTP idle timeout](./idle-timeout.md)
 - [Database & MongoDB](./database.md) · [Cache](./cache.md) · [CQRS](./cqrs.md) · [Event sourcing](./event-sourcing.md)
-- [Messaging](./messaging.md) · [Scheduling](./scheduling.md) · [Realtime](./realtime.md)
+- [Messaging](./messaging.md) · [Scheduling](./scheduling.md) · [Realtime](./realtime.md) · [MCP](./mcp.md)
 - [Rate limiting](./rate-limiting.md) · [Logging](./logging.md) · [Observability](./observability.md) · [Errors](./errors.md)
 - [Testing](./testing.md) · [OpenAPI](./openapi.md) · [CLI](./cli.md) · [Deployment](./deployment.md)

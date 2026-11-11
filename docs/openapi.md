@@ -131,6 +131,7 @@ export class UsersController {
 - `@ApiOperation({ summary, description })` — describes the endpoint.
 - `@ApiResponse({ status, description, schema?, example?, examples?, contentType? })` — documents a response; repeat it for multiple statuses. See [Response payloads](#response-payloads).
 - `@Returns(schema, options?)` — types the handler's return value, documents it as the response body and parses it at runtime. See [Typed responses with `@Returns`](#typed-responses-with-returns).
+- `@ApiExclude()` — leaves a controller or route out of the document; it is still served. The [MCP](./mcp.md) endpoint uses it.
 - `@ApiBearerAuth()` — marks a controller or handler as requiring Bearer auth in the OpenAPI document (use with `openapi.bearer` off for mixed public/protected APIs).
 
 ## Schemas from Zod

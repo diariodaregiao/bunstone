@@ -8,6 +8,14 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./mcp": {
+      "import": "./dist/src/mcp/index.js",
+      "types": "./dist/src/mcp/index.d.ts"
+    },
+    "./mcp/testing": {
+      "import": "./dist/src/mcp/testing.js",
+      "types": "./dist/src/mcp/testing.d.ts"
+    },
     "./*": {
       "import": "./dist/*.js",
       "types": "./dist/*.d.ts"
@@ -41,7 +49,7 @@
     "test:serial": "bun test",
     "coverage": "bun test --coverage",
     "typecheck": "bun check --no-script",
-    "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target bun --packages external && tsc -p tsconfig.build.json --emitDeclarationOnly --declaration --outDir dist && tsc-alias -p tsconfig.build.json --outDir dist",
+    "build": "rm -rf dist && bun build ./index.ts ./src/mcp/index.ts ./src/mcp/testing.ts --outdir ./dist --root . --target bun --packages external --splitting && tsc -p tsconfig.build.json --emitDeclarationOnly --declaration --outDir dist && tsc-alias -p tsconfig.build.json --outDir dist",
     "format": "bun fmt --no-script src bin tests index.ts",
     "format:check": "bun fmt --no-script --check src bin tests index.ts",
     "verify": "bun run typecheck && bun run format:check && bun test",
@@ -49,6 +57,7 @@
     "prepack": "npm run build && npm run agents:build"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
     "@types/amqplib": "^0.10.8",
     "@types/autocannon": "^7.12.7",
     "@types/bun": "1.4.4",
@@ -60,9 +69,11 @@
   },
   "peerDependencies": {
     "typescript": "^5.0.0 || ^6.0.0 || ^7.0.0",
-    "mongodb": "^6.10.0"
+    "mongodb": "^6.10.0",
+    "@modelcontextprotocol/client": "^2.4.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "^2.4.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/context-async-hooks": "^2.7.1",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.217.0",
@@ -86,6 +97,9 @@
   "packageManager": "bun@1.4.4",
   "peerDependenciesMeta": {
     "mongodb": {
+      "optional": true
+    },
+    "@modelcontextprotocol/client": {
       "optional": true
     }
   }
