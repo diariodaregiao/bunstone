@@ -13,6 +13,7 @@
     "src/database/**/*",
     "src/observability/**/*",
     "src/cache/**/*",
+    "src/config/**/*",
     "src/scheduling/**/*",
     "src/mcp/**/*",
     "src/errors/**/*",

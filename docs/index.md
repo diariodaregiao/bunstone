@@ -8,6 +8,7 @@ Bunstone is a decorator-based framework for [Bun](https://bun.sh), inspired by N
 - **Decorator-based routing** — `@Controller`, `@Get`, `@Post`, and friends map classes and methods to routes.
 - **Zod validation** — pass a Zod schema to `@Body`, `@Query`, or `@Param` for automatic parsing and validation.
 - **Modules** — group controllers and providers with `@Module`, compose them with `imports`, and share them with `exports` or `global`.
+- **Typed configuration** — `defineConfig(schema)` validates the environment at boot and returns a frozen, typed object.
 - **Lifecycle hooks** — `OnModuleInit`, `OnApplicationBootstrap`, and `OnModuleDestroy`.
 - **Guards** — `@UseGuards` with DI-injected guard classes.
 - **JWT auth** — a ready-made `JwtModule`, `JwtService`, `@Jwt()` guard, and `@JwtPayload()` parameter.
@@ -61,6 +62,7 @@ Run it with Bun and open `http://localhost:3000`.
 - [Getting Started](./getting-started.md)
 - [Dependency Injection](./dependency-injection.md)
 - [Modules](./modules.md)
+- [Configuration](./config.md)
 - [Controllers](./controllers.md)
 - [Guards & JWT](./guards-jwt.md)
 - [Uploads & static files](./uploads-and-static.md) · [CORS](./cors.md) · [HTTP idle timeout](./idle-timeout.md)

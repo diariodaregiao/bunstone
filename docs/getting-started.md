@@ -96,5 +96,6 @@ With the module and controller above, `GET /users` and `GET /users/:id` are live
 
 - [Dependency Injection](./dependency-injection.md)
 - [Modules](./modules.md)
+- [Configuration](./config.md)
 - [Controllers](./controllers.md)
 - [Guards & JWT](./guards-jwt.md)
