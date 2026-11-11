@@ -5,6 +5,7 @@ import { FRAMEWORK_PREFLIGHT, type FrameworkPreflight } from "./lifecycle";
 import {
 	type Constructor,
 	INJECT_TOKENS_METADATA,
+	isInjectable,
 	type Token,
 	tokenName,
 } from "./injectable";
@@ -165,6 +166,9 @@ export class Container {
 			Reflect.getMetadata("design:paramtypes", cls) ?? [];
 
 		if (paramTypes.length === 0 && cls.length > 0) {
+			if (isDecorated(cls)) {
+				throw DependencyResolutionError.missingParamTypes(cls.name);
+			}
 			throw DependencyResolutionError.generic(
 				`Class \`${cls.name}\` has constructor parameters but no decorator metadata was emitted.`,
 				{ class: cls.name },
@@ -217,4 +221,13 @@ function normalize(provider: Provider): NormalizedProvider {
 		useFactory: provider.useFactory,
 		inject: provider.inject ?? [],
 	};
+}
+
+/** Carries metadata from one of Bunstone's class decorators. */
+function isDecorated(cls: Constructor): boolean {
+	return (
+		isInjectable(cls) ||
+		// `@Controller()`'s key, read without importing the HTTP layer
+		Reflect.hasMetadata("bunstone:controller", cls)
+	);
 }

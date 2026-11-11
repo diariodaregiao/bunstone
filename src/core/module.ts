@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { ModuleInitializationError } from "@/errors";
 import { Container, type Provider, providerToken } from "./container";
+import { assertLegacyDecorator } from "./decorator-mode";
 import type { Constructor, Token } from "./injectable";
 
 export interface ModuleMetadata {
@@ -25,9 +26,10 @@ export type ModuleImport = Constructor | DynamicModule;
 export const MODULE_METADATA = "bunstone:module";
 
 export function Module(metadata: ModuleMetadata = {}): ClassDecorator {
-	return (target) => {
-		Reflect.defineMetadata(MODULE_METADATA, metadata, target);
-	};
+	return ((...args: unknown[]) => {
+		assertLegacyDecorator(args, "@Module()");
+		Reflect.defineMetadata(MODULE_METADATA, metadata, args[0] as object);
+	}) as ClassDecorator;
 }
 
 export function getModuleMetadata(
