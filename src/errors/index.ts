@@ -36,10 +36,7 @@ export class DependencyResolutionError extends BunstoneError {
 	constructor(
 		message: string,
 		code:
-			| "BNS-DI-001"
-			| "BNS-DI-002"
-			| "BNS-DI-003"
-			| "BNS-DI-004" = "BNS-DI-003",
+			"BNS-DI-001" | "BNS-DI-002" | "BNS-DI-003" | "BNS-DI-004" = "BNS-DI-003",
 		suggestion?: string,
 		context?: Record<string, unknown>,
 		cause?: Error,
@@ -639,6 +636,31 @@ export class HttpParamError extends BunstoneError {
 				"The request body may have been consumed by another middleware. Make sure no other handler reads the body first.",
 			].join("\n  "),
 			{ reason },
+			cause,
+		);
+	}
+}
+
+export class ResponseValidationError extends BunstoneError {
+	constructor(
+		message: string,
+		code: "BNS-HTTP-003" = "BNS-HTTP-003",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	static mismatch(route: string, cause: Error): ResponseValidationError {
+		return new ResponseValidationError(
+			`The response of ${route} does not match its @Returns schema.`,
+			"BNS-HTTP-003",
+			[
+				"The handler returned a value the schema rejects; the client received a 500.",
+				"Fix the handler or the schema. The Zod issues are in `cause`.",
+			].join("\n  "),
+			{ route },
 			cause,
 		);
 	}

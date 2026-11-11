@@ -245,8 +245,7 @@ export class MongoEventStore implements EventStore, OnModuleInit {
 			const [collection] = await db.listCollections({ name }).toArray();
 			const collation = (
 				collection as
-					| { options?: { collation?: { locale?: string } } }
-					| undefined
+					{ options?: { collation?: { locale?: string } } } | undefined
 			)?.options?.collation;
 			if (collation && collation.locale !== "simple") {
 				logger.warn(

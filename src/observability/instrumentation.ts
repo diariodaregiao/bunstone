@@ -1,10 +1,6 @@
 import {
 	type Context,
-	type Counter,
 	context,
-	type Histogram,
-	type MeterProvider,
-	metrics,
 	propagation,
 	SpanKind,
 	SpanStatusCode,

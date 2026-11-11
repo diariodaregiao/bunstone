@@ -48,9 +48,9 @@ app.listen(3000);
 The full documentation ships inside the package (under `node_modules`) so coding
 agents and developers can read it locally:
 
-- Guides: [`docs/`](./docs) — DI, modules, controllers, guards/JWT, database,
-  CQRS, event sourcing, messaging, scheduling, realtime (SSE/WebSocket), rate
-  limiting, observability, testing, OpenAPI, CLI.
+- Guides: [`docs/`](./docs) — DI, modules, controllers, guards/JWT, CORS, HTTP
+  idle timeout, database, CQRS, event sourcing, messaging, scheduling,
+  realtime (SSE/WebSocket), rate limiting, observability, testing, OpenAPI, CLI.
 - Full single-file reference: [`AGENTS.md`](./AGENTS.md)
 - Machine-readable index: [`llms.txt`](./llms.txt)
 - List every public export: `bunx @grupodiariodaregiao/bunstone exports`

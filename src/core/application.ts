@@ -1,6 +1,9 @@
+import type { EventEmitter } from "node:events";
+import nodeProcess from "node:process";
 import { wireCqrs } from "@/cqrs/cqrs-module";
 import { assertEventStoreWiring } from "@/cqrs/event-sourcing-module";
 import { resolveHealth, runChecks } from "@/http/health";
+import { resolveIdleTimeout } from "@/http/idle-timeout";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
 import { collectGateways } from "@/http/websocket";
@@ -40,6 +43,8 @@ interface ReadinessState {
 const SHUTDOWN_SIGNALS: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
 
+const processEvents = nodeProcess as EventEmitter;
+
 /** Best-effort teardown of a bootstrap that never finished. */
 async function unwind(
 	intake: DisposableRegistry,
@@ -74,9 +79,13 @@ export class Application {
 		rootModule: Constructor,
 		options: ApplicationOptions = {},
 	): Promise<Application> {
+		const resolvedOptions: ApplicationOptions = {
+			...options,
+			idleTimeout: resolveIdleTimeout(options.idleTimeout),
+		};
 		const { container, controllers, moduleRateLimits } = compileModules(
 			rootModule,
-			options.strictModuleBoundaries === true,
+			resolvedOptions.strictModuleBoundaries === true,
 		);
 		const intake = new DisposableRegistry();
 		const resources = new DisposableRegistry();
@@ -101,7 +110,8 @@ export class Application {
 						container
 							.resolve(RabbitConnection)
 							.stopConsuming(
-								options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS,
+								resolvedOptions.shutdownTimeoutMs ??
+									DEFAULT_SHUTDOWN_TIMEOUT_MS,
 							),
 					"rabbit-consumers",
 				);
@@ -114,7 +124,7 @@ export class Application {
 			const gateways = collectGateways(instances);
 
 			const readiness: ReadinessState = { listening: false, draining: false };
-			const health = resolveHealth(options.health);
+			const health = resolveHealth(resolvedOptions.health);
 			const isReady = async () =>
 				readiness.listening &&
 				!readiness.draining &&
@@ -123,7 +133,7 @@ export class Application {
 			const httpServer = new HttpServer(
 				container,
 				controllers,
-				{ ...options, moduleRateLimits },
+				{ ...resolvedOptions, moduleRateLimits },
 				gateways,
 				isReady,
 			);
@@ -140,7 +150,7 @@ export class Application {
 				intake,
 				resources,
 				instances,
-				options,
+				resolvedOptions,
 				readiness,
 			);
 		} catch (error) {
@@ -208,23 +218,23 @@ export class Application {
 		// listen() may be called again; without this the previous handlers stay
 		// on `process` and only the last pair is ever removed
 		this.removeSignals();
+		const handler = () => {
+			this.close()
+				.then(() => process.exit(0))
+				.catch((error) => {
+					this.logger.error("Error during shutdown:", error);
+					process.exit(1);
+				});
+		};
 		for (const signal of SHUTDOWN_SIGNALS) {
-			const handler = () => {
-				this.close()
-					.then(() => process.exit(0))
-					.catch((error) => {
-						this.logger.error("Error during shutdown:", error);
-						process.exit(1);
-					});
-			};
 			this.signalHandlers.set(signal, handler);
-			process.on(signal, handler);
+			processEvents.on(signal, handler);
 		}
 	}
 
 	private removeSignals(): void {
 		for (const [signal, handler] of this.signalHandlers) {
-			process.off(signal, handler);
+			processEvents.off(signal, handler);
 		}
 		this.signalHandlers.clear();
 	}

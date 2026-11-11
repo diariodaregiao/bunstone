@@ -21,9 +21,10 @@ export class UploadsController {
 ```
 
 ```ts
-interface FormDataPayload {
-  fields: Record<string, string>;  // every non-file field, as text
-  files: File[];                   // every file part
+interface FormDataPayload<TFields = Record<string, string>> {
+  fields: TFields;                      // every non-file field, as text (or the parsed `fields` schema)
+  files: File[];                        // every file part, in the order it was sent
+  filesByField: Record<string, File[]>; // the same files, grouped by form field name
 }
 ```
 
@@ -42,6 +43,52 @@ async upload(@FormData() form: FormDataPayload) {
   }
   await Bun.write(`./storage/${crypto.randomUUID()}`, file);
   return { ok: true };
+}
+```
+
+### Declaring fields and files
+
+`@FormData()` also accepts options that describe the form. They validate the request and generate the [OpenAPI documentation](./openapi.md#file-uploads-multipartform-data), which gives Swagger UI a file picker for each file field.
+
+```ts
+import { z } from "zod";
+import type { InferFormData } from "@grupodiariodaregiao/bunstone";
+
+const Upload = z.object({
+  title: z.string().min(1),
+  public: z.stringbool().default(false),
+});
+
+@Post()
+async upload(
+  @FormData({
+    fields: Upload,
+    files: {
+      cover: { required: true, accept: ["image/png", "image/jpeg"] },
+      attachments: { multiple: true },
+    },
+  })
+  form: InferFormData<typeof Upload>,
+) {
+  const [cover] = form.filesByField.cover;       // guaranteed by `required`
+  const attachments = form.filesByField.attachments ?? [];
+  return { title: form.fields.title, cover: cover.name, attachments: attachments.length };
+}
+```
+
+- `fields` is a Zod schema run against the text fields. The handler receives the parsed result, typed by `InferFormData<typeof Schema>`. Fields are text, so use `z.coerce.number()` or `z.stringbool()` for other types.
+- `files` declares the file fields by name. `required: true` rejects a request that sends no file under that name. A blank file input, which browsers send as an empty part with no filename, counts as missing.
+- `multiple`, `description` and `accept` only affect the OpenAPI document. `accept` does **not** check the uploaded file's type, so check `file.type` yourself, as in the example above.
+
+Field and file errors are reported together, in the same shape `@Body(schema)` uses:
+
+```json
+{
+  "statusCode": 400,
+  "errors": [
+    { "field": "cover", "message": "File is required." },
+    { "field": "title", "message": "Too small: expected string to have >=1 characters" }
+  ]
 }
 ```
 

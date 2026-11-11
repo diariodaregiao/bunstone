@@ -1,14 +1,21 @@
 import { type ZodType, z } from "zod/v4";
 import type { Constructor } from "@/core/injectable";
-import { PARAMS_METADATA, ParamSource } from "@/http/params";
+import {
+	type FormDataOptions,
+	PARAMS_METADATA,
+	ParamSource,
+} from "@/http/params";
 import { getControllerPath, getRoutes, joinPaths } from "@/http/routing";
 import { isZodSchema } from "@/utils/is-zod-schema";
 import { Logger } from "@/utils/logger";
 import {
+	type ApiResponseInfo,
 	getApiOperation,
 	getApiResponses,
 	getControllerTags,
 	getRouteTags,
+	hasControllerBearerAuth,
+	hasRouteBearerAuth,
 } from "./decorators";
 
 export interface OpenApiInfo {
@@ -17,16 +24,34 @@ export interface OpenApiInfo {
 	description?: string;
 }
 
+export interface OpenApiBearerAuth {
+	name?: string;
+	description?: string;
+	bearerFormat?: string;
+}
+
+export interface BuildOpenApiOptions {
+	bearer?: boolean | OpenApiBearerAuth;
+}
+
 interface ParamMeta {
 	index: number;
 	source: ParamSource;
 	key?: string;
 	schema?: ZodType;
+	formData?: FormDataOptions;
 }
 
 type JsonObject = Record<string, unknown>;
 
+interface ResolvedBearer {
+	schemeName: string;
+	scheme: JsonObject;
+	global: boolean;
+}
+
 const logger = new Logger("OpenAPI");
+const DEFAULT_BEARER_SCHEME = "bearerAuth";
 
 /**
  * Document generation runs while the HTTP server is being constructed, so a
@@ -34,10 +59,15 @@ const logger = new Logger("OpenAPI");
  * must never be allowed to take the whole application down: degrade to a
  * permissive schema and keep booting.
  */
-function toJsonSchema(schema: ZodType, route: string): JsonObject {
+function toJsonSchema(
+	schema: ZodType,
+	route: string,
+	io: "input" | "output" = "input",
+): JsonObject {
 	try {
 		const converted = z.toJSONSchema(schema, {
 			unrepresentable: "any",
+			io,
 		}) as JsonObject;
 		delete converted.$schema;
 		return converted;
@@ -82,12 +112,58 @@ function isSelfReferencing(schema: JsonObject): boolean {
 	return JSON.stringify(schema).includes('"$ref":"#');
 }
 
+function resolveBearerConfig(
+	bearer?: boolean | OpenApiBearerAuth,
+): ResolvedBearer | null {
+	if (!bearer) return null;
+
+	const cfg = typeof bearer === "object" ? bearer : {};
+	const schemeName = cfg.name ?? DEFAULT_BEARER_SCHEME;
+	const scheme: JsonObject = { type: "http", scheme: "bearer" };
+	if (cfg.description) scheme.description = cfg.description;
+	if (cfg.bearerFormat) scheme.bearerFormat = cfg.bearerFormat;
+
+	return { schemeName, scheme, global: true };
+}
+
+function requiresBearerAuth(
+	controller: Constructor,
+	handlerName: string,
+): boolean {
+	return (
+		hasControllerBearerAuth(controller) ||
+		hasRouteBearerAuth(controller, handlerName)
+	);
+}
+
+function documentNeedsBearerScheme(
+	controllers: Constructor[],
+	bearer: ResolvedBearer | null,
+): boolean {
+	if (bearer) return true;
+	return controllers.some((controller) => {
+		if (hasControllerBearerAuth(controller)) return true;
+		return getRoutes(controller).some((route) =>
+			hasRouteBearerAuth(controller, route.handlerName),
+		);
+	});
+}
+
 export function buildOpenApiDocument(
 	controllers: Constructor[],
 	info: OpenApiInfo,
+	options?: BuildOpenApiOptions,
 ): JsonObject {
+	const bearer = resolveBearerConfig(options?.bearer);
+	const schemeName = bearer?.schemeName ?? DEFAULT_BEARER_SCHEME;
+	const defaultScheme: JsonObject = bearer?.scheme ?? {
+		type: "http",
+		scheme: "bearer",
+	};
+	const includeBearerScheme = documentNeedsBearerScheme(controllers, bearer);
+
 	const paths: Record<string, JsonObject> = {};
-	const components: Record<string, JsonObject> = {};
+	const schemaComponents: Record<string, JsonObject> = {};
 
 	for (const controller of controllers) {
 		const base = getControllerPath(controller);
@@ -101,7 +177,11 @@ export function buildOpenApiDocument(
 				route,
 				joined,
 				controllerTags,
-				components,
+				schemaComponents,
+				{
+					schemeName,
+					globalBearer: bearer !== null,
+				},
 			);
 			const entry = paths[fullPath] ?? {};
 			entry[route.method.toLowerCase()] = operation;
@@ -110,9 +190,21 @@ export function buildOpenApiDocument(
 	}
 
 	const document: JsonObject = { openapi: "3.1.0", info, paths };
-	if (Object.keys(components).length > 0) {
-		document.components = { schemas: components };
+
+	const components: JsonObject = {};
+	if (Object.keys(schemaComponents).length > 0) {
+		components.schemas = schemaComponents;
 	}
+	if (includeBearerScheme) {
+		components.securitySchemes = { [schemeName]: defaultScheme };
+	}
+	if (Object.keys(components).length > 0) {
+		document.components = components;
+	}
+	if (bearer) {
+		document.security = [{ [schemeName]: [] }];
+	}
+
 	return document;
 }
 
@@ -127,12 +219,18 @@ function hoist(
 	return { $ref: componentPath };
 }
 
+interface OperationBearerOptions {
+	schemeName: string;
+	globalBearer: boolean;
+}
+
 function buildOperation(
 	controller: Constructor,
 	route: { method: string; path: string; handlerName: string },
 	fullPath: string,
 	controllerTags: string[],
 	components: Record<string, JsonObject>,
+	bearerOptions: OperationBearerOptions,
 ): JsonObject {
 	const params: ParamMeta[] =
 		Reflect.getOwnMetadata(
@@ -158,15 +256,29 @@ function buildOperation(
 	const parameters = buildParameters(fullPath, params, label);
 	if (parameters.length > 0) operation.parameters = parameters;
 
+	const componentPrefix = `${controller.name}${route.handlerName.charAt(0).toUpperCase()}${route.handlerName.slice(1)}`;
 	const requestBody = buildRequestBody(
 		params,
 		label,
 		components,
-		`${controller.name}${route.handlerName.charAt(0).toUpperCase()}${route.handlerName.slice(1)}Body`,
+		`${componentPrefix}Body`,
 	);
 	if (requestBody) operation.requestBody = requestBody;
 
-	operation.responses = buildResponses(controller, route.handlerName);
+	operation.responses = buildResponses(
+		getApiResponses(controller, route.handlerName),
+		label,
+		components,
+		componentPrefix,
+	);
+
+	if (
+		!bearerOptions.globalBearer &&
+		requiresBearerAuth(controller, route.handlerName)
+	) {
+		operation.security = [{ [bearerOptions.schemeName]: [] }];
+	}
+
 	return operation;
 }
 
@@ -219,6 +331,10 @@ function buildRequestBody(
 	components: Record<string, JsonObject>,
 	name: string,
 ): JsonObject | undefined {
+	// `@FormData()` consumes the request body, so it is the body whenever present.
+	const form = params.find((param) => param.source === ParamSource.FORM_DATA);
+	if (form) return buildMultipartBody(form.formData ?? {}, route);
+
 	const body = params.find((param) => param.source === ParamSource.BODY);
 	if (!body || !isZodSchema(body.schema)) return undefined;
 
@@ -235,21 +351,107 @@ function buildRequestBody(
 	};
 }
 
-function buildResponses(
-	controller: Constructor,
-	handlerName: string,
+/**
+ * Text fields come from the `fields` schema and file fields are declared by
+ * name; both become properties of one multipart object schema, which is what
+ * makes Swagger UI render a file picker next to the text inputs.
+ */
+function buildMultipartBody(
+	options: FormDataOptions,
+	route: string,
 ): JsonObject {
-	const responses = getApiResponses(controller, handlerName);
+	const properties: JsonObject = {};
+	const required: string[] = [];
+	const encoding: JsonObject = {};
+
+	if (isZodSchema(options.fields)) {
+		const converted = toJsonSchema(options.fields, route);
+		Object.assign(properties, converted.properties ?? {});
+		required.push(...((converted.required ?? []) as string[]));
+	}
+
+	for (const [field, file] of Object.entries(options.files ?? {})) {
+		const binary: JsonObject = { type: "string", format: "binary" };
+		const property: JsonObject = file.multiple
+			? { type: "array", items: binary }
+			: binary;
+		if (file.description) property.description = file.description;
+		properties[field] = property;
+		if (file.required) required.push(field);
+
+		const accept = [file.accept ?? []].flat();
+		if (accept.length > 0) encoding[field] = { contentType: accept.join(", ") };
+	}
+
+	const schema: JsonObject = { type: "object" };
+	if (Object.keys(properties).length > 0) schema.properties = properties;
+	if (required.length > 0) schema.required = required;
+
+	const media: JsonObject = { schema };
+	if (Object.keys(encoding).length > 0) media.encoding = encoding;
+
+	return {
+		required: true,
+		content: { "multipart/form-data": media },
+	};
+}
+
+function buildResponses(
+	responses: ApiResponseInfo[],
+	route: string,
+	components: Record<string, JsonObject>,
+	componentPrefix: string,
+): JsonObject {
 	if (responses.length === 0) {
 		return { "200": { description: "Successful response" } };
 	}
 	const result: JsonObject = {};
 	for (const response of responses) {
-		result[String(response.status)] = {
-			description: response.description ?? "",
-		};
+		const status = String(response.status);
+		const entry: JsonObject = { description: response.description ?? "" };
+		const content = buildResponseContent(
+			response,
+			route,
+			components,
+			`${componentPrefix}Response${status}`,
+		);
+		if (content) entry.content = content;
+		result[status] = entry;
 	}
 	return result;
+}
+
+/**
+ * A response only gets a `content` entry when it describes a payload: a schema,
+ * an example, or both. A bare `{ status, description }` stays body-less, which
+ * is how OpenAPI documents a `204` or an error with no documented shape.
+ */
+function buildResponseContent(
+	response: ApiResponseInfo,
+	route: string,
+	components: Record<string, JsonObject>,
+	name: string,
+): JsonObject | undefined {
+	const media: JsonObject = {};
+
+	if (isZodSchema(response.schema)) {
+		// The handler produces the value, so the schema's output side is what the
+		// client receives (a `.default()` field is always present, for instance).
+		const converted = toJsonSchema(response.schema, route, "output");
+		media.schema = isSelfReferencing(converted)
+			? hoist(converted, name, components)
+			: converted;
+	} else if (response.schema && typeof response.schema === "object") {
+		media.schema = response.schema;
+	}
+
+	if (response.example !== undefined) media.example = response.example;
+	if (response.examples && Object.keys(response.examples).length > 0) {
+		media.examples = response.examples;
+	}
+
+	if (Object.keys(media).length === 0) return undefined;
+	return { [response.contentType ?? "application/json"]: media };
 }
 
 function pathParamNames(path: string): string[] {

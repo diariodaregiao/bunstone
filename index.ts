@@ -99,6 +99,8 @@ export {
 	Delete,
 	ForbiddenException,
 	FormData,
+	type FormDataFileOptions,
+	type FormDataOptions,
 	type FormDataPayload,
 	Get,
 	type GuardContract,
@@ -109,6 +111,7 @@ export {
 	HttpException,
 	type HttpMethod,
 	type HttpServerOptions,
+	type InferFormData,
 	InternalServerErrorException,
 	NotFoundException,
 	type OpenApiServeOptions,
@@ -120,6 +123,8 @@ export {
 	Query,
 	Req,
 	type RequestContext,
+	Returns,
+	type ReturnsOptions,
 	type RouteDefinition,
 	SetHeader,
 	type Socket,
@@ -183,14 +188,18 @@ export {
 	TelemetryService,
 } from "@/observability";
 export {
+	ApiBearerAuth,
 	ApiOperation,
 	type ApiOperationInfo,
 	ApiResponse,
+	type ApiResponseExample,
 	type ApiResponseInfo,
 	ApiTags,
 	assertOpenApiBasicAuth,
+	type BuildOpenApiOptions,
 	buildOpenApiDocument,
 	type OpenApiBasicAuth,
+	type OpenApiBearerAuth,
 	type OpenApiInfo,
 	swaggerUiHtml,
 } from "@/openapi";
@@ -232,8 +241,4 @@ export {
 	TestingModuleBuilder,
 	type TestRequestOptions,
 } from "@/testing";
-export {
-	Logger,
-	type LoggerOptions,
-	LogLevel,
-} from "@/utils/logger";
+export { Logger, type LoggerOptions, LogLevel } from "@/utils/logger";

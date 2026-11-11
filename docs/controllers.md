@@ -144,6 +144,20 @@ download() {
 }
 ```
 
+### Typed responses
+
+`@Returns(schema)` types a handler's return value with a Zod schema, parses it before sending (stripping unknown keys and applying defaults), and documents it in [OpenAPI](./openapi.md#typed-responses-with-returns).
+
+```ts
+const User = z.object({ id: z.string(), name: z.string() });
+
+@Get(":id")
+@Returns(User)
+async findOne(@Param("id") id: string) {
+  return this.users.find(id);   // a `passwordHash` column never reaches the client
+}
+```
+
 ## Exceptions
 
 Throw an `HttpException` (or one of its subclasses) to produce an error response with the matching status code. The message or object you pass becomes the response body.

@@ -79,7 +79,17 @@ app.patch(path, body, { headers });
 app.delete(path, { headers });
 ```
 
-Bodies are JSON-encoded automatically. Every method returns a standard `Response`.
+Bodies are JSON-encoded automatically, except a `FormData` body, which is sent as `multipart/form-data` so `@FormData()` routes can be tested too:
+
+```ts
+const form = new FormData();
+form.append("title", "Report");
+form.append("cover", new File(["png"], "cover.png", { type: "image/png" }));
+
+const res = await app.post("/uploads", form);
+```
+
+Every method returns a standard `Response`.
 
 `TestApp` mirrors the real server's routing: routes are matched by specificity (a static segment wins over a `:param` regardless of declaration order), an unsupported method on a known path returns `405` with an `Allow` header, and an unknown path returns `404` — the same status codes and bodies `Bun.serve` produces.
 

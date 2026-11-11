@@ -14,11 +14,7 @@ export {
 	SKIP_RATE_LIMIT_METADATA,
 	SkipRateLimit,
 } from "./decorator";
-export {
-	clientAddress,
-	enforceRateLimit,
-	type TrustProxy,
-} from "./enforce";
+export { clientAddress, enforceRateLimit, type TrustProxy } from "./enforce";
 export {
 	extractRateLimitModuleConfig,
 	extractRateLimitModuleScope,

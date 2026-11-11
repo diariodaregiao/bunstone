@@ -26,14 +26,23 @@ export {
 	Body,
 	Ctx,
 	FormData,
+	type FormDataFileOptions,
+	type FormDataOptions,
 	type FormDataPayload,
 	Header,
+	type InferFormData,
 	Param,
 	ParamSource,
 	Query,
 	Req,
 	State,
 } from "./params";
+export {
+	getReturns,
+	Returns,
+	type ReturnsDecorator,
+	type ReturnsOptions,
+} from "./returns";
 export {
 	Controller,
 	Delete,

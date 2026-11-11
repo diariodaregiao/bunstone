@@ -56,9 +56,8 @@ describe("event store wiring", () => {
 	});
 
 	it("keeps the deprecated EventSourcingModule working", async () => {
-		const { EventSourcingModule } = await import(
-			"@/cqrs/event-sourcing-module"
-		);
+		const { EventSourcingModule } =
+			await import("@/cqrs/event-sourcing-module");
 
 		@Module({
 			imports: [SqlModule.register(sqlite), EventSourcingModule.register()],

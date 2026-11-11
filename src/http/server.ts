@@ -5,7 +5,11 @@ import {
 	assertOpenApiBasicAuth,
 	type OpenApiBasicAuth,
 } from "@/openapi/basic-auth";
-import { buildOpenApiDocument, type OpenApiInfo } from "@/openapi/builder";
+import {
+	buildOpenApiDocument,
+	type OpenApiBearerAuth,
+	type OpenApiInfo,
+} from "@/openapi/builder";
 import { swaggerUiHtml } from "@/openapi/ui";
 import {
 	type GlobalRateLimitOptions,
@@ -19,8 +23,13 @@ import { Logger } from "@/utils/logger";
 import { Cors, type CorsOptions } from "./cors";
 import { getControllerGuards, getRouteGuards } from "./guard";
 import { type HealthOptions, resolveHealth } from "./health";
+import {
+	DEFAULT_IDLE_TIMEOUT_MS,
+	idleTimeoutForBunServe,
+} from "./idle-timeout";
 import { RouteMatcher } from "./matcher";
 import { createRouteHandler } from "./pipeline";
+import { getReturns } from "./returns";
 import {
 	getControllerPath,
 	getRoutes,
@@ -61,6 +70,9 @@ export interface HttpServerOptions {
 	openapi?: OpenApiServeOptions;
 
 	health?: boolean | HealthOptions;
+
+	/** Milliseconds a connection may sit idle before the server closes it. */
+	idleTimeout?: number;
 }
 
 export interface OpenApiServeOptions {
@@ -69,7 +81,10 @@ export interface OpenApiServeOptions {
 	uiPath?: string;
 	ui?: boolean;
 	auth?: OpenApiBasicAuth;
+	bearer?: boolean | OpenApiBearerAuth;
 }
+
+export type { OpenApiBearerAuth };
 
 export type RouteHandler = (
 	req: BunRequest,
@@ -195,7 +210,9 @@ export class HttpServer {
 		controllers: Constructor[],
 		options: OpenApiServeOptions,
 	): void {
-		const document = buildOpenApiDocument(controllers, options.info);
+		const document = buildOpenApiDocument(controllers, options.info, {
+			bearer: options.bearer,
+		});
 		const specPath = options.path ?? "/openapi.json";
 		const guard = (req: BunRequest, next: () => Response): Response => {
 			if (!options.auth) return next();
@@ -261,6 +278,10 @@ export class HttpServer {
 					rateLimitStorage: this.rateLimitStorage,
 					trustProxy: this.options.trustProxy,
 					sse: getSseOptions(controller, route.handlerName),
+					returns: getReturns(controller, route.handlerName),
+					idleTimeoutSeconds: idleTimeoutForBunServe(
+						this.options.idleTimeout ?? DEFAULT_IDLE_TIMEOUT_MS,
+					),
 				});
 				const shape = routeShape(path);
 				const clash = shapes.get(`${route.method} ${shape}`);
@@ -307,6 +328,9 @@ export class HttpServer {
 		this.server = Bun.serve({
 			port: port ?? this.options.port ?? 3000,
 			hostname: this.options.hostname,
+			idleTimeout: idleTimeoutForBunServe(
+				this.options.idleTimeout ?? DEFAULT_IDLE_TIMEOUT_MS,
+			),
 			routes: this.routes,
 			websocket: buildWebSocketHandler(this.gateways),
 			fetch: (req, server) => this.fallback(req as BunRequest, server),

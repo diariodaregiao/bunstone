@@ -8,10 +8,11 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (147)
+## Public exports (150)
 
 - `AdapterError`
 - `AggregateRoot`
+- `ApiBearerAuth`
 - `ApiOperation`
 - `ApiResponse`
 - `ApiTags`
@@ -102,6 +103,8 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `RateLimitModule`
 - `RedisStorage`
 - `Req`
+- `ResponseValidationError`
+- `Returns`
 - `SQL_CLIENT`
 - `ScheduleError`
 - `Scheduler`
@@ -226,7 +229,7 @@ Run it with Bun and open `http://localhost:3000`.
 - [Modules](./modules.md)
 - [Controllers](./controllers.md)
 - [Guards & JWT](./guards-jwt.md)
-- [Uploads & static files](./uploads-and-static.md) · [CORS](./cors.md)
+- [Uploads & static files](./uploads-and-static.md) · [CORS](./cors.md) · [HTTP idle timeout](./idle-timeout.md)
 - [Database & MongoDB](./database.md) · [Cache](./cache.md) · [CQRS](./cqrs.md) · [Event sourcing](./event-sourcing.md)
 - [Messaging](./messaging.md) · [Scheduling](./scheduling.md) · [Realtime](./realtime.md)
 - [Rate limiting](./rate-limiting.md) · [Logging](./logging.md) · [Observability](./observability.md) · [Errors](./errors.md)
@@ -773,6 +776,20 @@ download() {
 }
 ```
 
+### Typed responses
+
+`@Returns(schema)` types a handler's return value with a Zod schema, parses it before sending (stripping unknown keys and applying defaults), and documents it in [OpenAPI](./openapi.md#typed-responses-with-returns).
+
+```ts
+const User = z.object({ id: z.string(), name: z.string() });
+
+@Get(":id")
+@Returns(User)
+async findOne(@Param("id") id: string) {
+  return this.users.find(id);   // a `passwordHash` column never reaches the client
+}
+```
+
 ## Exceptions
 
 Throw an `HttpException` (or one of its subclasses) to produce an error response with the matching status code. The message or object you pass becomes the response body.
@@ -960,9 +977,10 @@ export class UploadsController {
 ```
 
 ```ts
-interface FormDataPayload {
-  fields: Record<string, string>;  // every non-file field, as text
-  files: File[];                   // every file part
+interface FormDataPayload<TFields = Record<string, string>> {
+  fields: TFields;                      // every non-file field, as text (or the parsed `fields` schema)
+  files: File[];                        // every file part, in the order it was sent
+  filesByField: Record<string, File[]>; // the same files, grouped by form field name
 }
 ```
 
@@ -981,6 +999,52 @@ async upload(@FormData() form: FormDataPayload) {
   }
   await Bun.write(`./storage/${crypto.randomUUID()}`, file);
   return { ok: true };
+}
+```
+
+### Declaring fields and files
+
+`@FormData()` also accepts options that describe the form. They validate the request and generate the [OpenAPI documentation](./openapi.md#file-uploads-multipartform-data), which gives Swagger UI a file picker for each file field.
+
+```ts
+import { z } from "zod";
+import type { InferFormData } from "@grupodiariodaregiao/bunstone";
+
+const Upload = z.object({
+  title: z.string().min(1),
+  public: z.stringbool().default(false),
+});
+
+@Post()
+async upload(
+  @FormData({
+    fields: Upload,
+    files: {
+      cover: { required: true, accept: ["image/png", "image/jpeg"] },
+      attachments: { multiple: true },
+    },
+  })
+  form: InferFormData<typeof Upload>,
+) {
+  const [cover] = form.filesByField.cover;       // guaranteed by `required`
+  const attachments = form.filesByField.attachments ?? [];
+  return { title: form.fields.title, cover: cover.name, attachments: attachments.length };
+}
+```
+
+- `fields` is a Zod schema run against the text fields. The handler receives the parsed result, typed by `InferFormData<typeof Schema>`. Fields are text, so use `z.coerce.number()` or `z.stringbool()` for other types.
+- `files` declares the file fields by name. `required: true` rejects a request that sends no file under that name. A blank file input, which browsers send as an empty part with no filename, counts as missing.
+- `multiple`, `description` and `accept` only affect the OpenAPI document. `accept` does **not** check the uploaded file's type, so check `file.type` yourself, as in the example above.
+
+Field and file errors are reported together, in the same shape `@Body(schema)` uses:
+
+```json
+{
+  "statusCode": 400,
+  "errors": [
+    { "field": "cover", "message": "File is required." },
+    { "field": "title", "message": "Too small: expected string to have >=1 characters" }
+  ]
 }
 ```
 
@@ -1112,6 +1176,95 @@ Responses whose CORS headers depend on the request origin carry `Vary: Origin`, 
 ## Where CORS headers apply
 
 CORS headers are applied to every response the application produces: successful handlers, errors, rate-limit `429`s, `404`s and `405`s from the router, static files, and Server-Sent Events streams. A cross-origin `EventSource` works with the same configuration as the rest of the API.
+
+## docs/idle-timeout.md
+
+# HTTP idle timeout
+
+Control how long the HTTP server keeps an **idle** TCP connection open before
+closing it. This is configured on `Application.create` and applied when you call
+`app.listen()`.
+
+This option is for **`Bun.serve`** (your API). It is unrelated to
+[`idleTimeout` on `SqlModule`](./database.md#options), which configures the SQL
+connection pool.
+
+## Configuration
+
+Pass `idleTimeout` in milliseconds:
+
+```ts
+import "reflect-metadata";
+import { Application } from "@grupodiariodaregiao/bunstone";
+import { AppModule } from "./app.module";
+
+const app = await Application.create(AppModule, {
+  idleTimeout: 10_000,
+});
+
+app.listen(3000);
+```
+
+When `idleTimeout` is omitted, Bunstone uses **10_000** milliseconds (10 seconds).
+
+## How it maps to Bun
+
+`Bun.serve` expects `idleTimeout` in **seconds**, with a maximum of **255**.
+Bunstone keeps your option in **milliseconds** for consistency with other timeouts
+in the ecosystem, then converts when starting the server:
+
+- values are rounded **up** to the next whole second (`500` → `1` second);
+- the minimum passed to Bun is **1** second.
+
+| You pass (`idleTimeout`) | Bun receives |
+|--------------------------|--------------|
+| `10_000` (default)       | `10`         |
+| `25_000`                 | `25`         |
+| `500`                    | `1`          |
+
+The largest value you can set is **255_000** ms (255 seconds).
+
+## Validation
+
+`idleTimeout` is checked during `Application.create`, before the server binds a
+port. Invalid values throw `ConfigurationError` (`BNS-CFG-001`) at startup.
+
+| Value | Result |
+|-------|--------|
+| Omitted | Default `10000` |
+| Positive integer (ms) | Used as configured |
+| `0`, negative, or non-integer | Rejected |
+| Non-numeric (e.g. a string at runtime) | Rejected |
+| Greater than `255_000` | Rejected |
+
+```ts
+// throws at create — not at listen
+await Application.create(AppModule, { idleTimeout: -1 });
+```
+
+## What counts as idle
+
+The limit applies to the whole request, regardless of method: a `GET` and a
+`POST` whose handler is still working with no bytes exchanged are closed alike
+once `idleTimeout` elapses. Bunstone re-arms the timeout per request after the
+body has been read, because Bun does not enforce it on a request that carries a
+body until then.
+
+Two caveats from Bun itself:
+
+- Bun checks idle connections on a coarse timer, so a connection may be closed up
+  to a few seconds after the configured value (`2_000` closed at about 4 s).
+- A request body that the handler never reads (no `@Body()`, `@FormData()` or
+  similar) is not covered.
+
+## When to tune it
+
+- **Lower** values reclaim connections sooner behind proxies or under high churn.
+- **Higher** values suit keep-alive heavy clients, as long as you stay within the
+  Bun limit (255 seconds).
+
+For graceful teardown of in-flight work and probes, see
+[Deployment](./deployment.md).
 
 ## docs/database.md
 
@@ -2101,35 +2254,15 @@ Clients then connect to `ws://<host>/ws`.
 
 # Rate Limiting
 
-Protect endpoints from abuse with rate limiting at three optional levels. Each level uses the same `RateLimitConfig` shape. A fixed-window counter adds `X-RateLimit-*` headers to every limited response and returns `429 Too Many Requests` once the limit is hit.
+Protect endpoints from abuse with the `@RateLimit()` decorator. It applies a fixed-window counter, adds informative `X-RateLimit-*` headers to every response, and returns `429 Too Many Requests` once the limit is hit.
 
-## Three levels
+## Basic Usage
 
-All three levels are optional. You can enable any combination:
-
-| Level | How | Applies to |
-|---|---|---|
-| **Global** | `Application.create({ rateLimit })` | Every controller route |
-| **Module / controller group** | `RateLimitModule.register(...)` or `@RateLimit()` on a controller class | A module subtree, a single module, or all routes in one controller |
-| **Route** | `@RateLimit()` on a handler method | One endpoint |
+Apply `@RateLimit()` to a controller method or to the whole controller (class-level applies to every route in it; a method-level decorator overrides the controller-level one). A class-level limit is inherited by subclasses of that controller.
 
 ```ts
-import { Application, Controller, Get, Module, RateLimit, RateLimitModule } from "@grupodiariodaregiao/bunstone";
+import { Controller, Get, RateLimit } from "@grupodiariodaregiao/bunstone";
 
-// Global default
-const app = await Application.create(AppModule, {
-  rateLimit: { max: 200, windowMs: 60_000 },
-  trustProxy: true,
-});
-
-// Module scope (subtree by default)
-@Module({
-  imports: [RateLimitModule.register({ max: 50, windowMs: 60_000 })],
-})
-export class AdminModule {}
-
-// Controller group
-@RateLimit({ max: 10, windowMs: 10_000 })
 @Controller("api")
 export class ApiController {
   @Get("limited")
@@ -2137,100 +2270,15 @@ export class ApiController {
   limited() {
     return { ok: true };
   }
+
+  @Get("open")
+  open() {
+    return { ok: true };
+  }
 }
 ```
 
-Routes without any matching configuration are never rate limited.
-
-## Resolution order
-
-The **most specific** level wins. For each route the effective config is the first match:
-
-1. `@SkipRateLimit()` — no limit
-2. `@RateLimit()` on the **method**
-3. `@RateLimit()` on the **controller class**
-4. `RateLimitModule.register(...)` on the controller's module (subtree or local scope)
-5. `rateLimit.prefixes` — longest matching path prefix
-6. `Application.create({ rateLimit })` global default
-7. none — no limit
-
-Method overrides controller, controller overrides module, module overrides prefix, prefix overrides global.
-
-## Path prefix
-
-Limit a group of routes by URL prefix inside the global config:
-
-```ts
-const app = await Application.create(AppModule, {
-  rateLimit: {
-    max: 200,
-    windowMs: 60_000,
-    prefixes: [
-      { path: "/auth", max: 20, windowMs: 60_000 },
-      { path: "/auth/admin", max: 5, windowMs: 60_000 },
-    ],
-  },
-});
-```
-
-A prefix `/auth` matches `/auth`, `/auth/login`, and `/auth/:id`. When several prefixes match, the **longest** wins. Each route template still gets its own bucket (`/auth/login` and `/auth/:id` do not share a counter).
-
-## Module scope
-
-`RateLimitModule.register(...)` accepts an optional `scope`:
-
-- **`subtree`** (default) — the module that imports it **and every module it imports**.
-- **`module`** — only controllers **declared in the importing module**; imported modules stay open.
-
-```ts
-// Only AdminController is limited; UsersModule controllers are not.
-@Module({
-  imports: [
-    RateLimitModule.register({ max: 50, windowMs: 60_000, scope: "module" }),
-    UsersModule,
-  ],
-  controllers: [AdminController],
-})
-export class AdminModule {}
-```
-
-If a module is imported through more than one path, the first compiled path wins — order your root `imports` accordingly.
-
-## Exceptions
-
-Opt routes out when global or module scope is active:
-
-**On a single route:**
-
-```ts
-@Get("webhook")
-@SkipRateLimit()
-webhook() {
-  return { ok: true };
-}
-```
-
-**On a whole controller:**
-
-```ts
-@SkipRateLimit()
-@Controller("internal")
-export class InternalController {}
-```
-
-**On the global default** — exclude route templates via `skip`:
-
-```ts
-const app = await Application.create(AppModule, {
-  rateLimit: {
-    max: 200,
-    windowMs: 60_000,
-    skip: ["/webhooks/stripe"],
-  },
-});
-```
-
-Built-in routes (`/health`, `/ready`, OpenAPI, static files) are **never** rate limited. When `health: true` is enabled, `/health` and `/ready` are also excluded from the global limit on controller routes (so orchestrator probes never receive `429` even if a controller is mounted on the same path).
+Routes without the decorator are never rate limited.
 
 ## Configuration
 
@@ -2243,11 +2291,9 @@ interface RateLimitConfig {
 }
 ```
 
-`keyGenerator` is available at every level — the winning config's generator is used.
+By default each request is keyed by `IP:METHOD:ROUTE`, where `ROUTE` is the route **template** (`/users/:id`) rather than the concrete path. This matters: keying on the concrete path would let a caller mint a fresh bucket for every value of `:id` and never hit the limit at all.
 
-By default each request is keyed by `IP:METHOD:ROUTE`, where `ROUTE` is the route **template** (`/users/:id`) rather than the concrete path. This applies to the global limit too: each URL template gets its own budget, so an attack on one route does not exhaust the allowance for others.
-
-Override `keyGenerator` to key by something else, e.g. an authenticated user id. Its second argument is the client address already resolved through `trustProxy`:
+Override `keyGenerator` to key by something else, e.g. an authenticated user id. Its second argument is the client address already resolved through `trustProxy`, so a custom key stays correct behind a proxy:
 
 ```ts
 @RateLimit({
@@ -2259,27 +2305,24 @@ Override `keyGenerator` to key by something else, e.g. an authenticated user id.
 
 ## Behind a reverse proxy
 
-Without configuration the client address is the **peer address** — behind Traefik, nginx, or a load balancer that is the proxy itself, so every client collapses into a single bucket.
+Without configuration the client address is the **peer address** — behind Traefik, nginx, or a load balancer that is the proxy itself, so every client collapses into a single bucket. A limit of `max: 100` then applies to your whole traffic at once, and one caller can spend the budget and get everyone else a `429`.
 
 Set `trustProxy` to the number of proxies in front of the app (`true` means one):
 
 ```ts
-// Traefik alone in front of the app
 const app = await Application.create(AppModule, { trustProxy: true });
 ```
+
+The address is then read from the `X-Forwarded-For` chain. Each proxy appends the peer it received from, so the chain reads `client, …, nearest-proxy` and the client sits `trustProxy` entries from the right. Counting from the right is what keeps this honest: entries a client prepends itself only push its real address further along, they never take the trusted slot. A chain too short to have crossed the configured proxies is ignored and the peer address is used instead.
 
 ```ts
 // client → CDN → Traefik → app
 await Application.create(AppModule, { trustProxy: 2 });
 ```
 
-The address is read from the `X-Forwarded-For` chain. Each proxy appends the peer it received from, so the client sits `trustProxy` entries from the right. A chain too short to have crossed the configured proxies is ignored and the peer address is used instead.
-
 > **Only enable this when the app is unreachable except through those proxies.** If the app's port is also exposed directly, a client can forge the entire chain and pick its own bucket. In Docker, publish the proxy's port and leave the app's unpublished.
 
-`clientAddress(ctx, trustProxy)` is exported if you need the same resolution elsewhere.
-
-End-to-end checks behind Traefik (two replicas, `trustProxy`, Redis, header preservation) live in [`tests/ratelimit/traefik/README.md`](../tests/ratelimit/traefik/README.md). Run `bun test tests/ratelimit/traefik.e2e.test.ts` when Docker is available.
+`clientAddress(ctx, trustProxy)` is exported if you need the same resolution elsewhere, for example in a guard or a custom `keyGenerator`.
 
 ## Response Headers
 
@@ -2305,42 +2348,17 @@ Retry-After: 8
 
 ## Storage
 
-### Memory (default)
-
-The default storage is `MemoryStorage`: an in-process **fixed window** counter. When a window elapses the bucket resets, so a client is never permanently locked out.
-
-`MemoryStorage` is **per process instance** only. With multiple replicas behind Traefik or another load balancer, each pod keeps its own counters — a client can send up to roughly `max × replicas` requests per window across the fleet.
-
-No extra setup is required; memory storage is created automatically.
-
-### Redis (optional)
-
-For a fleet-wide cap across replicas, import `RateLimitModule.registerStorage()` in your root module:
+The default storage is `MemoryStorage`: an in-process **fixed window** counter. When a window elapses the bucket resets, so a client is never permanently locked out — it simply gets a fresh allowance in the next window.
 
 ```ts
-import { Module, RateLimitModule } from "@grupodiariodaregiao/bunstone";
+import { MemoryStorage } from "@grupodiariodaregiao/bunstone";
 
-@Module({
-  imports: [
-    RateLimitModule.registerStorage({
-      url: process.env.REDIS_URL, // defaults to REDIS_URL / redis://localhost:6379
-      onFailure: "allow",         // recommended default
-    }),
-  ],
-})
-export class AppModule {}
+const storage = new MemoryStorage();
+await storage.hit("key", 1, 20); // { allowed: true, remaining: 0, ... }
+await storage.hit("key", 1, 20); // { allowed: false, ... }
 ```
 
-`RedisStorage` uses Bun's native `RedisClient` (the same client as `CacheModule`) with atomic `INCR`. Apps that do not import `registerStorage` keep using `MemoryStorage` — no new dependency is required.
-
-When Redis is unreachable:
-
-| `onFailure` | Behaviour |
-|---|---|
-| `"allow"` (default) | Log a warning and let the request through |
-| `"reject"` | Fail with `RateLimitError` (HTTP 500) |
-
-Pass a custom `RateLimitStorage` through `Application.create({ rateLimitStorage })` for tests or your own backend.
+`MemoryStorage` is single-instance only. It periodically sweeps expired buckets and is created automatically for the server, so you never have to instantiate it yourself for normal usage.
 
 ## Ordering
 
@@ -2646,6 +2664,7 @@ try {
 | `RateLimitError` | rate-limit storage failures |
 | `GuardError` | guard resolution failures |
 | `HttpParamError` | parameter extraction and validation |
+| `ResponseValidationError` | a handler's return value rejected by its `@Returns` schema |
 | `UploadError` | multipart handling |
 | `TestingError` | the testing module |
 | `ImportError`, `AdapterError`, `EmailError`, `BullMQError` | optional integrations |
@@ -2659,7 +2678,7 @@ Codes are stable and greppable — they are safe to alert on. The prefix identif
 | `BNS-DI-*` | dependency injection | `BNS-DI-001` undefined type (usually `import type` on an injected class), `BNS-DI-002` circular dependency, `BNS-DI-003` no provider registered, `BNS-DI-004` outside the module's boundary |
 | `BNS-MOD-*` | modules | `BNS-MOD-001` not a module, `BNS-MOD-002` `undefined` entry (usually a circular import) |
 | `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module |
-| `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller |
+| `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller, `BNS-HTTP-003` a response does not match its `@Returns` schema |
 | `BNS-DB-*` | database | `BNS-DB-002` a connection module was never registered |
 | `BNS-ES-*` | event store | `BNS-ES-001` concurrency conflict, `BNS-ES-002` commit over the document limit, `BNS-ES-003` aggregate is not snapshottable |
 | `BNS-CQRS-*` | CQRS buses | missing or duplicate handler |
@@ -2755,7 +2774,17 @@ app.patch(path, body, { headers });
 app.delete(path, { headers });
 ```
 
-Bodies are JSON-encoded automatically. Every method returns a standard `Response`.
+Bodies are JSON-encoded automatically, except a `FormData` body, which is sent as `multipart/form-data` so `@FormData()` routes can be tested too:
+
+```ts
+const form = new FormData();
+form.append("title", "Report");
+form.append("cover", new File(["png"], "cover.png", { type: "image/png" }));
+
+const res = await app.post("/uploads", form);
+```
+
+Every method returns a standard `Response`.
 
 `TestApp` mirrors the real server's routing: routes are matched by specificity (a static segment wins over a `:param` regardless of declaration order), an unsupported method on a known path returns `405` with an `Allow` header, and an unknown path returns `404` — the same status codes and bodies `Bun.serve` produces.
 
@@ -2815,8 +2844,49 @@ interface OpenApiServeOptions {
     password: string;
     realm?: string;
   };
+  bearer?: boolean | {
+    name?: string;
+    description?: string;
+    bearerFormat?: string;
+  };
 }
 ```
+
+### Bearer auth (Swagger Authorize)
+
+Pass `bearer: true` to add an HTTP Bearer security scheme to the OpenAPI document and require it on every documented route. Swagger UI shows an **Authorize** button where you enter the token once; all **Try it out** requests then send `Authorization: Bearer <token>`.
+
+```ts
+const app = await Application.create(AppModule, {
+  openapi: {
+    info: { title: "My API", version: "1.0.0" },
+    ui: true,
+    bearer: true,
+  },
+});
+```
+
+You can customize the scheme:
+
+```ts
+bearer: {
+  description: "Paste your API token",
+  bearerFormat: "token",
+}
+```
+
+Enter the token **without** the `Bearer ` prefix — Swagger UI adds it automatically.
+
+For mixed APIs (some routes public, some protected), omit global `bearer` and mark protected controllers or handlers with `@ApiBearerAuth()`:
+
+```ts
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
+@Controller("users")
+export class UsersController {}
+```
+
+This is independent of `openapi.auth`, which protects access to `/docs` and `/openapi.json` with HTTP Basic Auth.
 
 ### Protecting the docs
 
@@ -2869,11 +2939,13 @@ export class UsersController {
 
 - `@ApiTags(...tags)` — tags for a controller or a specific method; both are merged into the operation.
 - `@ApiOperation({ summary, description })` — describes the endpoint.
-- `@ApiResponse({ status, description })` — documents a response; repeat it for multiple statuses.
+- `@ApiResponse({ status, description, schema?, example?, examples?, contentType? })` — documents a response; repeat it for multiple statuses. See [Response payloads](#response-payloads).
+- `@Returns(schema, options?)` — types the handler's return value, documents it as the response body and parses it at runtime. See [Typed responses with `@Returns`](#typed-responses-with-returns).
+- `@ApiBearerAuth()` — marks a controller or handler as requiring Bearer auth in the OpenAPI document (use with `openapi.bearer` off for mixed public/protected APIs).
 
 ## Schemas from Zod
 
-When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. Path parameters are documented automatically — including those declared on the `@Controller` prefix — and `@Query("name")` parameters appear as query parameters.
+When you pass a Zod schema to `@Body(schema)`, Bunstone converts it with `z.toJSONSchema` and emits it as the operation's `requestBody` schema. A Zod schema passed to `@ApiResponse({ schema })` becomes that response's body schema (see [Response payloads](#response-payloads)). `@FormData({ fields, files })` is documented as a `multipart/form-data` body (see [File uploads](#file-uploads-multipartform-data)). Path parameters are documented automatically — including those declared on the `@Controller` prefix — and `@Query("name")` parameters appear as query parameters.
 
 Some Zod types have no JSON Schema equivalent (`z.date()`, `z.bigint()`, `z.custom()`, `.transform()`). These are emitted as permissive schemas rather than failing: document generation can never stop your application from booting. When a schema cannot be represented, a warning naming the route is logged.
 
@@ -2910,6 +2982,308 @@ For the controller above, the generated document includes:
   }
 }
 ```
+
+## Typed responses with `@Returns`
+
+`@Returns(schema)` declares a route's response body with a Zod schema, all in one place:
+
+- **Typing:** the handler must return what the schema describes. A mismatch is a compile error on the decorator.
+- **Documentation:** the schema is documented as the response payload, under `200` by default.
+- **Runtime:** the returned value is parsed by the schema before it is sent, so the client receives exactly what the document says.
+
+```ts
+import { z } from "zod";
+import { Controller, Get, Post, Returns } from "@grupodiariodaregiao/bunstone";
+
+const User = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: z.enum(["admin", "user"]).default("user"),
+});
+
+@Controller("users")
+export class UsersController {
+  constructor(private readonly users: UsersRepository) {}
+
+  @Get(":id")
+  @Returns(User, { example: { id: "1", name: "Ada", role: "admin" } })
+  async findOne(@Param("id") id: string) {
+    return this.users.find(id);   // must resolve to z.input<typeof User>
+  }
+
+  @Get()
+  @Returns(z.array(User))
+  list() {
+    return this.users.all();
+  }
+
+  @Post()
+  @Returns(User, { status: 201, description: "Created" })
+  create(@Body(CreateUser) body: z.infer<typeof CreateUser>) {
+    return this.users.create(body);
+  }
+}
+```
+
+### What happens at runtime
+
+The value the handler returns (or resolves to) goes through `schema.safeParseAsync` before it is serialized:
+
+- **Unknown keys are stripped.** A `z.object` drops properties it does not declare, so a database row with a `passwordHash` column cannot leak into the response by accident.
+- **Defaults and transforms are applied.** In the example, a user returned without `role` is sent with `role: "user"`.
+- **An invalid value is a `500`,** never a `400`: the server produced it, so the client is not to blame. The client receives the usual `{ "statusCode": 500, "message": "Internal Server Error" }`, and the failure is logged as a `ResponseValidationError` (`BNS-HTTP-003`) whose `cause` holds the Zod issues.
+- **`status` is applied** to the response as well as the document, so `{ status: 201 }` both documents and responds with `201`. A status the handler sets itself (`ctx.statusCode`) takes precedence.
+- **A `Response`, `ReadableStream` or `Blob` passes through unparsed.** Returning one means the handler has taken over the body.
+
+Parsing costs one schema validation per request. On a hot route, or when the value is already known to be correct, turn it off with `parse: false`: the schema then only types and documents the route.
+
+```ts
+@Get("feed")
+@Returns(Feed, { parse: false })
+feed() { ... }
+```
+
+### Typing
+
+With parsing on (the default), the handler returns the schema's **input** type (`z.input<typeof User>`): fields with a `.default()` may be left out, because parsing fills them in. With `parse: false`, nothing fills them in, so the handler must return the **output** type (`z.output<typeof User>`). Either way, the document describes the output, because that is what the client receives.
+
+`example` and `examples` are type-checked against the output type, so an example cannot drift from the schema without a compile error.
+
+The check is performed by TypeScript on the decorator, so an error reads *"Unable to resolve signature of method decorator"*, followed by the property that does not match. Two TypeScript limits to know about:
+
+- **Literal types are widened** in a method without a return annotation: `return { role: "admin" }` is inferred as `role: string` and rejected by a `z.enum`. Write `"admin" as const`, or annotate the method, as in `findOne(): z.input<typeof User>`.
+- **Extra properties are allowed** by TypeScript, since the return value is not an object literal checked in place. That is what runtime parsing is for. With `parse: false` those properties are sent to the client.
+
+### Options
+
+```ts
+interface ReturnsOptions<T> {
+  status?: number;                  // default 200; also applied to the response
+  description?: string;             // default "Successful response"
+  example?: T;                      // checked against the schema's output
+  examples?: Record<string, { summary?: string; description?: string; value: T }>;
+  contentType?: string;             // default "application/json"
+  parse?: boolean;                  // default true
+}
+```
+
+`@Returns` registers an ordinary `@ApiResponse`, so it can be combined with others that document the error cases:
+
+```ts
+@Get(":id")
+@Returns(User)
+@ApiResponse({ status: 404, description: "No user with that id", example: { message: "User not found" } })
+findOne(@Param("id") id: string) { ... }
+```
+
+Use `@ApiResponse({ schema })` instead when you only want to document a body, without typing the handler or parsing its result.
+
+## Response payloads
+
+By default `@ApiResponse` documents only a status and a description. To show what the response **body** looks like, pass a `schema`, an `example`, or both. Swagger UI then renders the model under the status code and shows the example (or, without one, an example it generates from the schema).
+
+```ts
+import { z } from "zod";
+import { ApiResponse, Controller, Get, NotFoundException, Param } from "@grupodiariodaregiao/bunstone";
+
+const User = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: z.enum(["admin", "user"]).default("user"),
+});
+
+@Controller("users")
+export class UsersController {
+  @Get(":id")
+  @ApiResponse({
+    status: 200,
+    description: "The user",
+    schema: User,
+    example: { id: "1", name: "Ada", role: "admin" },
+  })
+  @ApiResponse({
+    status: 404,
+    description: "No user with that id",
+    schema: { type: "object", properties: { message: { type: "string" } } },
+    example: { message: "User not found" },
+  })
+  findOne(@Param("id") id: string): z.infer<typeof User> {
+    if (id !== "1") throw new NotFoundException("User not found");
+    return { id, name: "Ada", role: "admin" };
+  }
+
+  @Get()
+  @ApiResponse({ status: 200, description: "Every user", schema: z.array(User) })
+  list() {
+    return [];
+  }
+}
+```
+
+The options:
+
+- `schema` — a Zod schema or a plain JSON Schema object. A Zod schema is converted with `z.toJSONSchema` from its **output** side, because the handler produces the value: a field with `.default()` is documented as always present. A plain object is copied into the document as written.
+- `example` — one example payload, emitted as the media type's `example`.
+- `examples` — several named examples, `{ [name]: { summary?, description?, value } }`. Swagger UI shows them in a dropdown.
+- `contentType` — the media type of the body. Default `application/json`.
+
+`example` and `examples` can be used with or without a `schema`. A response that passes none of them is documented without a `content` entry, the right way to describe a `204` or an error whose body you do not want to document.
+
+Several examples for the same status:
+
+```ts
+@ApiResponse({
+  status: 422,
+  description: "Validation failed",
+  examples: {
+    missingName: {
+      summary: "Name is missing",
+      value: { statusCode: 422, errors: [{ field: "name", message: "Required" }] },
+    },
+    shortName: {
+      summary: "Name is too short",
+      value: { statusCode: 422, errors: [{ field: "name", message: "Too small" }] },
+    },
+  },
+})
+```
+
+A body that is not JSON:
+
+```ts
+@Get("export")
+@SetHeader("content-type", "text/csv")
+@ApiResponse({
+  status: 200,
+  contentType: "text/csv",
+  schema: { type: "string" },
+  example: "id,name\n1,Ada",
+})
+exportCsv() {
+  return "id,name\n1,Ada";
+}
+```
+
+The `@ApiResponse` above generates:
+
+```json
+"responses": {
+  "200": {
+    "description": "The user",
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "role": { "type": "string", "enum": ["admin", "user"], "default": "user" }
+          },
+          "required": ["id", "name", "role"],
+          "additionalProperties": false
+        },
+        "example": { "id": "1", "name": "Ada", "role": "admin" }
+      }
+    }
+  },
+  "404": {
+    "description": "No user with that id",
+    "content": {
+      "application/json": {
+        "schema": { "type": "object", "properties": { "message": { "type": "string" } } },
+        "example": { "message": "User not found" }
+      }
+    }
+  }
+}
+```
+
+The same rules apply as for request bodies: a Zod type with no JSON Schema equivalent is documented as a permissive schema instead of failing the boot, and a self-referencing schema is moved into `components.schemas` (named `<Controller><Handler>Response<status>`) and referenced from there.
+
+The schema is documentation only. Bunstone does **not** validate what the handler returns against it, and the example is not checked against the schema either.
+
+## File uploads (multipart/form-data)
+
+A route that reads its body with [`@FormData()`](./uploads-and-static.md#uploads) is documented with a `multipart/form-data` request body instead of `application/json`. With no options you get a generic object:
+
+```json
+"requestBody": {
+  "required": true,
+  "content": { "multipart/form-data": { "schema": { "type": "object" } } }
+}
+```
+
+To have Swagger UI render the actual form, with a text input per field and a **file picker** per file, describe it in the decorator:
+
+```ts
+import { z } from "zod";
+import { Controller, FormData, Post } from "@grupodiariodaregiao/bunstone";
+import type { InferFormData } from "@grupodiariodaregiao/bunstone";
+
+const Profile = z.object({
+  name: z.string().min(2),
+  age: z.coerce.number().int().optional(),
+});
+
+@Controller("profiles")
+export class ProfilesController {
+  @Post()
+  create(
+    @FormData({
+      fields: Profile,
+      files: {
+        avatar: {
+          required: true,
+          description: "Profile picture",
+          accept: ["image/png", "image/jpeg"],
+        },
+        attachments: { multiple: true, accept: "application/pdf" },
+      },
+    })
+    form: InferFormData<typeof Profile>,
+  ) {
+    const [avatar] = form.filesByField.avatar;
+    return { name: form.fields.name, avatar: avatar.name };
+  }
+}
+```
+
+- `fields`: a Zod object schema. Its properties and `required` list go into the document, and at runtime it validates the text fields.
+- `files`: the file fields, keyed by form field name. Each one becomes a `{ type: "string", format: "binary" }` property, or an array of them when `multiple: true`.
+  - `required`: listed in the schema's `required` and enforced at runtime (a missing file gets `400`).
+  - `multiple`: the field accepts several files.
+  - `description`: shown next to the field.
+  - `accept`: one or more media types, emitted as the part's `encoding.contentType`. This value is **documentation only**: the file's type is not checked (see [Uploads](./uploads-and-static.md#uploads) for enforcing it).
+
+The route above produces:
+
+```json
+"requestBody": {
+  "required": true,
+  "content": {
+    "multipart/form-data": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 2 },
+          "age": { "type": "integer" },
+          "avatar": { "type": "string", "format": "binary", "description": "Profile picture" },
+          "attachments": { "type": "array", "items": { "type": "string", "format": "binary" } }
+        },
+        "required": ["name", "avatar"]
+      },
+      "encoding": {
+        "avatar": { "contentType": "image/png, image/jpeg" },
+        "attachments": { "contentType": "application/pdf" }
+      }
+    }
+  }
+}
+```
+
+In Swagger UI, **Try it out** then shows the form, and **Execute** sends a real multipart upload.
+
+Multipart fields always arrive as text, so parse non-string fields from strings: `z.coerce.number()` for numbers and `z.stringbool()` for booleans. Avoid `z.coerce.boolean()`, which turns `"false"` into `true`. Both are still documented with their real type (`integer`, `boolean`).
 
 ## docs/cli.md
 

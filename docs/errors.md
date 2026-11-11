@@ -54,6 +54,7 @@ try {
 | `RateLimitError` | rate-limit storage failures |
 | `GuardError` | guard resolution failures |
 | `HttpParamError` | parameter extraction and validation |
+| `ResponseValidationError` | a handler's return value rejected by its `@Returns` schema |
 | `UploadError` | multipart handling |
 | `TestingError` | the testing module |
 | `ImportError`, `AdapterError`, `EmailError`, `BullMQError` | optional integrations |
@@ -67,7 +68,7 @@ Codes are stable and greppable — they are safe to alert on. The prefix identif
 | `BNS-DI-*` | dependency injection | `BNS-DI-001` undefined type (usually `import type` on an injected class), `BNS-DI-002` circular dependency, `BNS-DI-003` no provider registered, `BNS-DI-004` outside the module's boundary |
 | `BNS-MOD-*` | modules | `BNS-MOD-001` not a module, `BNS-MOD-002` `undefined` entry (usually a circular import) |
 | `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module |
-| `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller |
+| `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller, `BNS-HTTP-003` a response does not match its `@Returns` schema |
 | `BNS-DB-*` | database | `BNS-DB-002` a connection module was never registered |
 | `BNS-ES-*` | event store | `BNS-ES-001` concurrency conflict, `BNS-ES-002` commit over the document limit, `BNS-ES-003` aggregate is not snapshottable |
 | `BNS-CQRS-*` | CQRS buses | missing or duplicate handler |

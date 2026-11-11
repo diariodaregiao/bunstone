@@ -1,18 +1,38 @@
 import "reflect-metadata";
+import type { ZodType } from "zod/v4";
 import type { Constructor } from "@/core/injectable";
 
 export const API_TAGS_METADATA = "bunstone:api-tags";
 export const API_OPERATION_METADATA = "bunstone:api-operation";
 export const API_RESPONSE_METADATA = "bunstone:api-response";
+export const API_BEARER_AUTH_METADATA = "bunstone:api-bearer-auth";
 
 export interface ApiOperationInfo {
 	summary?: string;
 	description?: string;
 }
 
+/** A named example shown in the Swagger UI example dropdown. */
+export interface ApiResponseExample {
+	summary?: string;
+	description?: string;
+	value: unknown;
+}
+
 export interface ApiResponseInfo {
 	status: number;
 	description?: string;
+	/**
+	 * Shape of the response body: a Zod schema (converted with
+	 * `z.toJSONSchema`, output side) or a plain JSON Schema object.
+	 */
+	schema?: ZodType | Record<string, unknown>;
+	/** A single example payload for the response body. */
+	example?: unknown;
+	/** Several named example payloads; Swagger UI shows them in a dropdown. */
+	examples?: Record<string, ApiResponseExample>;
+	/** Media type of the body. Default `application/json`. */
+	contentType?: string;
 }
 
 export function ApiTags(...tags: string[]): ClassDecorator & MethodDecorator {
@@ -54,6 +74,21 @@ export function ApiResponse(info: ApiResponseInfo): MethodDecorator {
 	};
 }
 
+export function ApiBearerAuth(): ClassDecorator & MethodDecorator {
+	return ((target: object, propertyKey?: string | symbol) => {
+		if (propertyKey === undefined) {
+			Reflect.defineMetadata(API_BEARER_AUTH_METADATA, true, target);
+		} else {
+			Reflect.defineMetadata(
+				API_BEARER_AUTH_METADATA,
+				true,
+				target,
+				propertyKey,
+			);
+		}
+	}) as ClassDecorator & MethodDecorator;
+}
+
 export function getControllerTags(controller: Constructor): string[] {
 	return Reflect.getMetadata(API_TAGS_METADATA, controller) ?? [];
 }
@@ -92,5 +127,22 @@ export function getApiResponses(
 			controller.prototype,
 			handlerName,
 		) ?? []
+	);
+}
+
+export function hasControllerBearerAuth(controller: Constructor): boolean {
+	return Reflect.getMetadata(API_BEARER_AUTH_METADATA, controller) === true;
+}
+
+export function hasRouteBearerAuth(
+	controller: Constructor,
+	handlerName: string,
+): boolean {
+	return (
+		Reflect.getOwnMetadata(
+			API_BEARER_AUTH_METADATA,
+			controller.prototype,
+			handlerName,
+		) === true
 	);
 }
