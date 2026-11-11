@@ -29,6 +29,8 @@ Make sure decorators are enabled in `tsconfig.json`:
 }
 ```
 
+Bun reads these options from the `tsconfig.json` of the directory the process **starts in**, not from the file's own. Run the app (and `bun build`) from the project directory — in Docker, set `WORKDIR` to it. Started elsewhere, Bun compiles standard decorators instead, and Bunstone stops at boot with `BNS-CFG-005` naming the directory.
+
 ## Project structure
 
 A typical Bunstone project looks like this:
