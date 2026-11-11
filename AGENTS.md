@@ -8,7 +8,7 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (147)
+## Public exports (153)
 
 - `AdapterError`
 - `AggregateRoot`
@@ -94,6 +94,7 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `QueryHandler`
 - `QueueConsumer`
 - `RABBIT_OPTIONS`
+- `RATE_LIMIT_STORAGE`
 - `RabbitConnection`
 - `RabbitConsumer`
 - `RabbitMQError`
@@ -102,6 +103,8 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `RabbitSubscribe`
 - `RateLimit`
 - `RateLimitError`
+- `RateLimitModule`
+- `RedisStorage`
 - `Req`
 - `ResponseValidationError`
 - `Returns`
@@ -109,6 +112,7 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `ScheduleError`
 - `Scheduler`
 - `SetHeader`
+- `SkipRateLimit`
 - `SqlEventStore`
 - `SqlEventStoreModule`
 - `SqlModule`
@@ -149,7 +153,9 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `instrumentRequest`
 - `isInjectable`
 - `isRabbitConsumer`
+- `matchPrefix`
 - `provideEventStore`
+- `resolveRateLimit`
 - `retryDelays`
 - `retryQueueName`
 - `shouldRetry`

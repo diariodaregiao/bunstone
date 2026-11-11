@@ -46,6 +46,15 @@ export interface CompiledModules {
 	container: Container;
 	controllers: Constructor[];
 	modules: Constructor[];
+	/** The root module's class. */
+	root: Constructor;
+	/**
+	 * Every import entry of each module, as written (dynamic modules keep their
+	 * configuration), across all of that module's configurations. Features that
+	 * depend on the module graph read it from here instead of the compiler
+	 * knowing about them.
+	 */
+	moduleImports: Map<Constructor, ModuleImport[]>;
 }
 
 /** What one module contributes to, and may see in, the dependency graph. */
@@ -67,6 +76,7 @@ export function compileModules(
 	const seenEntries = new Set<ModuleImport>();
 	const seenClasses = new Set<Constructor>();
 	const scopes = new Map<Constructor, ModuleScope>();
+	const moduleImports = new Map<Constructor, ModuleImport[]>();
 
 	const visit = (entry: ModuleImport): void => {
 		if (entry === undefined || entry === null) {
@@ -113,6 +123,10 @@ export function compileModules(
 			...(dynamic?.controllers ?? []),
 		];
 
+		const knownImports = moduleImports.get(moduleClass) ?? [];
+		knownImports.push(...imports);
+		moduleImports.set(moduleClass, knownImports);
+
 		const scope = scopeOf(scopes, moduleClass);
 		if (own?.global || dynamic?.global) scope.global = true;
 		if (own?.exports || dynamic?.exports) {
@@ -139,11 +153,18 @@ export function compileModules(
 	};
 
 	visit(root);
+	const rootClass = isDynamicModule(root) ? root.module : root;
 
 	if (strict) {
 		container.enforceBoundaries(buildVisibility(scopes));
 	}
-	return { container, controllers, modules };
+	return {
+		container,
+		controllers,
+		modules,
+		root: rootClass,
+		moduleImports,
+	};
 }
 
 function scopeOf(

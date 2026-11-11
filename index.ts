@@ -208,12 +208,25 @@ export {
 } from "@/openapi";
 export {
 	clientAddress,
+	type GlobalRateLimitOptions,
 	getRateLimit,
 	MemoryStorage,
+	matchPrefix,
+	RATE_LIMIT_STORAGE,
 	RateLimit,
 	type RateLimitConfig,
+	RateLimitModule,
+	type RateLimitModuleOptions,
+	type RateLimitPrefixOptions,
+	type RateLimitResolveContext,
 	type RateLimitResult,
 	type RateLimitStorage,
+	type RateLimitStorageModuleOptions,
+	RedisStorage,
+	type RedisStorageFailureMode,
+	type ResolvedRateLimit,
+	resolveRateLimit,
+	SkipRateLimit,
 	type TrustProxy,
 } from "@/ratelimit";
 export {

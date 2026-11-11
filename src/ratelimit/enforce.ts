@@ -1,7 +1,10 @@
-import { TooManyRequestsException } from "@/http/exceptions";
+import { HttpException, TooManyRequestsException } from "@/http/exceptions";
 import type { RequestContext } from "@/http/types";
-import type { RateLimitConfig } from "./decorator";
-import type { RateLimitStorage } from "./storage";
+import { Logger } from "@/utils/logger";
+import type { ResolvedRateLimit } from "./decorator";
+import type { RateLimitResult, RateLimitStorage } from "./storage";
+
+const logger = new Logger("RateLimit");
 
 /**
  * How many reverse proxies sit in front of the app. `false` (the default) reads
@@ -58,9 +61,30 @@ function defaultKey(ctx: RequestContext, route: string, ip: string): string {
 	return `${ip}:${method}:${route}`;
 }
 
+/**
+ * A scoped limit (global, prefix, module) is one counter per client for the
+ * whole scope, so it is keyed by the scope's bucket rather than the route —
+ * otherwise "200/min global" would grant 200/min on every route. The bucket
+ * also namespaces a custom key, so the same id cannot collide across scopes.
+ */
+function rateLimitKey(
+	ctx: RequestContext,
+	config: ResolvedRateLimit,
+	route: string,
+	ip: string,
+): string {
+	if (config.bucket) {
+		const id = config.keyGenerator ? config.keyGenerator(ctx, ip) : ip;
+		return `${id}:${config.bucket}`;
+	}
+	return config.keyGenerator
+		? config.keyGenerator(ctx, ip)
+		: defaultKey(ctx, route, ip);
+}
+
 export async function enforceRateLimit(
 	ctx: RequestContext,
-	config: RateLimitConfig,
+	config: ResolvedRateLimit,
 	storage: RateLimitStorage,
 	route: string,
 	trustProxy?: TrustProxy,
@@ -68,10 +92,17 @@ export async function enforceRateLimit(
 	const ip = clientAddress(ctx, trustProxy);
 	// the resolved address reaches custom generators too, so bucketing by
 	// something else does not mean giving up proxy awareness
-	const key = config.keyGenerator
-		? config.keyGenerator(ctx, ip)
-		: defaultKey(ctx, route, ip);
-	const result = await storage.hit(key, config.max, config.windowMs);
+	const key = rateLimitKey(ctx, config, route, ip);
+
+	let result: RateLimitResult;
+	try {
+		result = await storage.hit(key, config.max, config.windowMs);
+	} catch (error) {
+		// the limiter, not the request, failed: a 503 tells the client to retry
+		// instead of blaming the handler with a 500
+		logger.error("Rate limit storage failed; rejecting request.", error);
+		throw new HttpException("Service Unavailable", 503);
+	}
 
 	ctx.responseHeaders.set("x-ratelimit-limit", String(result.limit));
 	ctx.responseHeaders.set("x-ratelimit-remaining", String(result.remaining));
