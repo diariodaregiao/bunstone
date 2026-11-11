@@ -87,6 +87,25 @@ function routeShape(path: string): string {
 
 const logger = new Logger("HTTP");
 
+function withSetCookies(response: Response, cookies: Bun.CookieMap): Response {
+	const setCookies = cookies.toSetCookieHeaders();
+	if (setCookies.length === 0) return response;
+	try {
+		for (const value of setCookies)
+			response.headers.append("set-cookie", value);
+		return response;
+	} catch {
+		// a passthrough Response can have immutable headers
+		const headers = new Headers(response.headers);
+		for (const value of setCookies) headers.append("set-cookie", value);
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers,
+		});
+	}
+}
+
 export type RouteMethods = Record<string, RouteHandler>;
 export type RoutesMap = Record<string, RouteMethods>;
 
@@ -325,7 +344,11 @@ export class HttpServer {
 
 		if (handler && match) {
 			req.params = match.params;
-			return handler(req, server);
+			// Bun.serve attaches the cookie jar and turns its changes into
+			// Set-Cookie headers; a request dispatched in memory gets the same
+			if (req.cookies) return handler(req, server);
+			req.cookies = new Bun.CookieMap(req.headers.get("cookie") ?? "");
+			return withSetCookies(await handler(req, server), req.cookies);
 		}
 		return (
 			(await this.fallback(req, server)) ??

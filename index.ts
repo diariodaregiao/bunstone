@@ -95,6 +95,7 @@ export {
 	Controller,
 	Cors,
 	type CorsOptions,
+	Cookie,
 	Ctx,
 	Delete,
 	ForbiddenException,

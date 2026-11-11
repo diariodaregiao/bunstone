@@ -60,6 +60,7 @@ Parameter decorators pull data out of the request into method arguments:
 - `@Query(name?)` — a query-string value, or the full query object when called without a name.
 - `@Body(schema?)` — the parsed request body.
 - `@Header(name)` — a single request header.
+- `@Cookie(name?)` — a request cookie, or every cookie as an object when called without a name (accepts a Zod schema too).
 - `@Req()` — the raw Bun `Request` (with `params` attached).
 - `@Ctx()` — the full `RequestContext` (`req`, `url`, `params`, `query`, `headers`, `state`, `responseHeaders`, and more).
 
@@ -79,6 +80,33 @@ export class UsersController {
   }
 }
 ```
+
+## Cookies
+
+Read cookies with `@Cookie()`, and set or clear them through `ctx.cookies`, which is Bun's native `CookieMap`. Changes are sent back as `Set-Cookie` headers automatically, in the live server and in `TestApp` alike.
+
+```ts
+@Controller("session")
+export class SessionController {
+  @Get()
+  me(@Cookie("sid") sid?: string) {
+    return { loggedIn: Boolean(sid) };
+  }
+
+  @Post()
+  login(@Ctx() ctx: RequestContext) {
+    ctx.cookies.set("sid", crypto.randomUUID(), { httpOnly: true, secure: true });
+    return { ok: true };
+  }
+
+  @Post("logout")
+  logout(@Ctx() ctx: RequestContext) {
+    ctx.cookies.delete("sid");
+  }
+}
+```
+
+A named `@Cookie("sid")` is documented in OpenAPI as an `in: cookie` parameter.
 
 ## Validation with Zod
 

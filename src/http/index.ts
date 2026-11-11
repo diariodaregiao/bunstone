@@ -24,6 +24,7 @@ export {
 } from "./health";
 export {
 	Body,
+	Cookie,
 	Ctx,
 	FormData,
 	type FormDataFileOptions,
