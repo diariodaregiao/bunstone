@@ -11,3 +11,8 @@ trailingComma = "all"
 bracketSpacing = true
 arrowParens = "always"
 endOfLine = "lf"
+
+[install]
+# Refuse package versions published less than 3 days ago: most malicious
+# releases are caught and pulled within that window.
+minimumReleaseAge = "3d"
