@@ -33,13 +33,20 @@ export function createContext(
 	req: BunRequest,
 	server: BunServer,
 ): RequestContext {
-	const url = new URL(req.url);
+	// Parsing the URL costs more than most handlers do, and Bun's router has
+	// already extracted the params, so it is only parsed when something reads it.
+	let url: URL | undefined;
 	return {
 		req,
 		server,
-		url,
+		get url() {
+			url ??= new URL(req.url);
+			return url;
+		},
+		get query() {
+			return this.url.searchParams;
+		},
 		params: req.params ?? {},
-		query: url.searchParams,
 		headers: req.headers,
 		responseHeaders: new Headers(),
 		state: {},
