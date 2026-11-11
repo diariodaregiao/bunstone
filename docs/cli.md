@@ -52,7 +52,7 @@ bunx @grupodiariodaregiao/bunstone build --compile --bytecode
 
 #### What goes into the bundle
 
-Bunstone ships as one package, but a production bundle only carries the features the app uses. An app without RabbitMQ does not bundle `amqplib`; one without `TelemetryModule` does not bundle the OpenTelemetry SDK; one that never imports `/mcp` does not bundle the MCP SDK. A hello-world app bundles to about 110 KB.
+Bunstone ships as one package, but a production bundle only carries the features the app uses. An app without RabbitMQ does not bundle `amqplib`; one without `TelemetryModule` does not bundle the OpenTelemetry SDK; one that never imports `/mcp` does not bundle the MCP SDK. `StorageModule` is built on Bun's own S3 client, so it adds no package at all: about 10 KB of Bunstone code, and only in apps that use it. A hello-world app bundles to about 110 KB.
 
 Optional drivers you have not installed (`mongodb`, `@modelcontextprotocol/client`) are left out, and the build still succeeds.
 

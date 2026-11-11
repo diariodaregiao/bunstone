@@ -22,6 +22,7 @@ import {
 	recordCacheResult,
 } from "@/observability/instrumentation";
 import { TelemetryModule } from "@/observability/telemetry-module";
+import { instrumentStorage } from "@/storage/storage.instrumentation";
 
 class Ping {
 	constructor(readonly n: number) {}
@@ -61,6 +62,7 @@ class WorkController {
 		await instrumentQuery("SELECT", "SELECT 1", async () => [{ one: 1 }]);
 		recordCacheResult("get", "miss");
 		recordCacheResult("get", "hit");
+		await instrumentStorage("write", "uploads", "a.png", async () => 3);
 		await this.commands.execute(new Ping(1));
 		await this.queries.execute(new Pong(2));
 		return { ok: true };
@@ -113,7 +115,19 @@ describe("instrumentation coverage", () => {
 		expect(names).toContain("SELECT");
 		expect(names).toContain("command Ping");
 		expect(names).toContain("query Pong");
+		expect(names).toContain("storage write");
 		expect(names).toContain("GET /w");
+	});
+
+	it("records the bucket and key on the storage span", () => {
+		const span = spans
+			.getFinishedSpans()
+			.find((finished) => finished.name === "storage write");
+		expect(span?.attributes).toMatchObject({
+			"storage.operation.name": "write",
+			"storage.bucket": "uploads",
+			"storage.key": "a.png",
+		});
 	});
 
 	it("nests them under the request span, in one trace", () => {
@@ -141,6 +155,7 @@ describe("instrumentation coverage", () => {
 		expect(names).toContain("db.client.operation.duration");
 		expect(names).toContain("cache.operations");
 		expect(names).toContain("cqrs.handler.duration");
+		expect(names).toContain("storage.operation.duration");
 	});
 
 	it("separates cache hits from misses", async () => {

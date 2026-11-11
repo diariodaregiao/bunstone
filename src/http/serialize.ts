@@ -12,7 +12,13 @@ export function serialize(result: unknown, ctx: RequestContext): Response {
 	}
 
 	if (result instanceof ReadableStream || result instanceof Blob) {
-		return applyHeaders(new Response(result, { status }), ctx);
+		// Bun answers `new Response(s3File)` with a redirect to a presigned URL
+		// and rejects any init for it, so none is passed unless a status is set
+		const response =
+			status === undefined
+				? new Response(result)
+				: new Response(result, { status });
+		return applyHeaders(response, ctx);
 	}
 
 	if (typeof result === "string") {

@@ -92,6 +92,31 @@ Field and file errors are reported together, in the same shape `@Body(schema)` u
 }
 ```
 
+### Saving uploads to S3, R2 or MinIO
+
+With [`StorageModule`](./storage.md) registered, storing the files of a form takes one line. Each file gets a generated key, so the client's filename never decides the path. `maxSize` and `accept` are enforced on the server and rejected with the same `400` shape shown above:
+
+```ts
+@Post("avatars")
+async upload(
+  @FormData({ files: { avatar: { required: true } } }) form: FormDataPayload,
+) {
+  const [avatar] = await this.storage.saveUploads(form, {
+    prefix: "avatars/",
+    maxSize: 5_000_000,
+    accept: ["image/png", "image/jpeg"],
+  });
+  return { key: avatar.key, url: `/${avatar.key}` };
+}
+
+@Get("avatars/:id")
+show(@Param("id") id: string, @Req() req: Request) {
+  return this.storage.serve(`avatars/${id}`, { request: req }); // streamed, with Range support
+}
+```
+
+See [Storage → Uploads](./storage.md#uploads) for the full set of options, presigned direct-to-bucket uploads, and serving files.
+
 ## Static files
 
 Serve a directory from disk with the `static` option:

@@ -18,6 +18,7 @@ const DOC_ORDER = [
 	"idle-timeout.md",
 	"database.md",
 	"cache.md",
+	"storage.md",
 	"cqrs.md",
 	"event-sourcing.md",
 	"messaging.md",
