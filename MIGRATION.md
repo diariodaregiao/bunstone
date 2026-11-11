@@ -16,6 +16,45 @@ Bun 1.4 changes can affect an application:
 - **TypeScript 6+** no longer discovers `@types` packages: add
   `"types": ["bun"]` to your `tsconfig.json`.
 
+# Deprecated
+
+These exports are left over from v0.7. Nothing in v1 throws or calls them, so
+code that catches or calls them never runs. They still work and are still
+exported, so importing them does not break, but they are marked `@deprecated`
+and will be removed in **v2.0**.
+
+| Deprecated | Codes | Use instead |
+|---|---|---|
+| `BullMQError` | `BNS-MQ-001`, `BNS-MQ-002` | nothing: there is no BullMQ integration. Use `RabbitMQError` for messaging. |
+| `EmailError` | `BNS-EMAIL-001`, `BNS-EMAIL-002` | nothing: there is no email module. |
+| `UploadError` | `BNS-S3-001`, `BNS-S3-002` | nothing: there is no S3 adapter. `@FormData()` rejects bad input with `BadRequestException` (400). |
+| `AdapterError` | `BNS-ADP-001`, `BNS-ADP-002` | nothing: v1 runs on `Bun.serve` only, with no pluggable adapters. |
+| `HttpParamError` | `BNS-HTTP-001`, `BNS-HTTP-002` | `BadRequestException`, which is what parameter extraction and validation throw. Its codes clash with the duplicate-route codes of `ConfigurationError`. |
+| `GuardError` | `BNS-GRD-001` | `DependencyResolutionError`, which is what an unresolvable guard throws. |
+| `RateLimitError` | `BNS-RL-001`, `BNS-RL-002` | nothing: it described a Redis storage v1 does not ship. |
+| `TestingError` | `BNS-TEST-001` | `DependencyResolutionError`, which is what `TestingModule.get()` throws for an unknown provider. |
+
+Static factories on error classes that are still in use, but which nothing calls:
+
+| Deprecated | Code |
+|---|---|
+| `ModuleInitializationError.providersFailed()` | `BNS-MOD-001` |
+| `ModuleInitializationError.unsupportedHttpMethod()` | `BNS-MOD-002` |
+| `CqrsError.noEventHandler()` | `BNS-CQRS-003` |
+| `DatabaseError.notInitialized()` | `BNS-DB-001` |
+| `DatabaseError.invalidConfig()` | `BNS-DB-003` |
+| `RabbitMQError.notConfigured()` | `BNS-RMQ-001` |
+| `RabbitMQError.connectionFailed()` | `BNS-RMQ-002` |
+| `RabbitMQError.topologyFailed()` | `BNS-RMQ-003` |
+| `ScheduleError.invalidDelay()` | `BNS-SCHED-002` |
+| `ImportError.typeOnlyImport()` | `BNS-IMP-001` |
+| `ImportError.unknownExport()` | `BNS-IMP-002` |
+
+The codes `BNS-MOD-001`, `BNS-MOD-002`, `BNS-RMQ-001` and `BNS-RMQ-002` are still
+raised, by other code paths. The others in this table (`BNS-CQRS-003`,
+`BNS-DB-001`, `BNS-DB-003`, `BNS-RMQ-003`, `BNS-SCHED-002`, `BNS-IMP-001`,
+`BNS-IMP-002`) are never raised, so an alert on them never fires.
+
 # Migrating from v0.7 to v1.0
 
 Bunstone v1 is a clean rewrite. Elysia was removed entirely — the framework now

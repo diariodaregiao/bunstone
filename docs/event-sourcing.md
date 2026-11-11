@@ -219,7 +219,7 @@ Implement the optional `readFrom(streamId, afterVersion)` to support snapshot-ac
 - `read(streamId)` — returns the ordered event records.
 - `saveSnapshot(snapshot)` / `loadSnapshot(streamId)` — store and retrieve a `{ streamId, version, state }` snapshot.
 
-> **Note:** snapshots are storage only. `EventSourcedRepository.load` always replays the full stream and does not consult them — take and read them yourself if you need to shorten a long replay.
+> **Note:** `EventSourcedRepository` reads and writes snapshots itself when `snapshotEvery` is set (see [Snapshots](#snapshots)). Call these methods directly only when you manage snapshots outside a repository.
 
 ```ts
 await store.saveSnapshot({ streamId: "acc-1", version: 3, state: { balance: 70 } });
