@@ -15,7 +15,7 @@ import { Logger } from "@/utils/logger";
 import type { Container } from "./container";
 import { DisposableRegistry } from "./disposable";
 import type { Constructor, Token } from "./injectable";
-import { runLifecycle } from "./lifecycle";
+import { runFrameworkWiring, runLifecycle } from "./lifecycle";
 import { compileModules } from "./module";
 
 export interface ApplicationOptions extends HttpServerOptions {
@@ -122,6 +122,7 @@ export class Application {
 				);
 			}
 			await wireRabbit(container, instances);
+			await runFrameworkWiring(container, instances);
 			const gateways = collectGateways(instances);
 
 			const readiness: ReadinessState = { listening: false, draining: false };

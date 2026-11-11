@@ -56,6 +56,7 @@ try {
 | `HttpParamError` | parameter extraction and validation |
 | `ResponseValidationError` | a handler's return value rejected by its `@Returns` schema |
 | `UploadError` | multipart handling |
+| `McpError` | `McpModule` — invalid primitives, schemas or options |
 | `TestingError` | the testing module |
 | `ImportError`, `AdapterError`, `EmailError`, `BullMQError` | optional integrations |
 
@@ -74,6 +75,7 @@ Codes are stable and greppable — they are safe to alert on. The prefix identif
 | `BNS-CQRS-*` | CQRS buses | missing or duplicate handler |
 | `BNS-RMQ-*`, `BNS-MQ-*` | messaging | connection, topology and publish failures |
 | `BNS-SCHED-*` | scheduling | invalid cron expression |
+| `BNS-MCP-*` | MCP | `BNS-MCP-001` invalid decorator or option, `BNS-MCP-002` duplicate tool/resource/prompt, `BNS-MCP-003` `scopes` without `auth`, `BNS-MCP-004` unusable schema, `BNS-MCP-005` MCP server not started |
 | `BNS-IMP-*` | optional drivers | `BNS-IMP-003` an optional peer dependency is not installed |
 | `BNS-RL-*`, `BNS-GRD-*`, `BNS-TEST-*`, `BNS-ADP-*`, `BNS-EMAIL-*` | rate limiting, guards, testing, adapters, email |
 

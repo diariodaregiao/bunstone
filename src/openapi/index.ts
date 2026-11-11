@@ -7,6 +7,7 @@ export {
 } from "./builder";
 export {
 	ApiBearerAuth,
+	ApiExclude,
 	ApiOperation,
 	type ApiOperationInfo,
 	ApiResponse,

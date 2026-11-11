@@ -6,6 +6,7 @@ export const API_TAGS_METADATA = "bunstone:api-tags";
 export const API_OPERATION_METADATA = "bunstone:api-operation";
 export const API_RESPONSE_METADATA = "bunstone:api-response";
 export const API_BEARER_AUTH_METADATA = "bunstone:api-bearer-auth";
+export const API_EXCLUDE_METADATA = "bunstone:api-exclude";
 
 export interface ApiOperationInfo {
 	summary?: string;
@@ -87,6 +88,37 @@ export function ApiBearerAuth(): ClassDecorator & MethodDecorator {
 			);
 		}
 	}) as ClassDecorator & MethodDecorator;
+}
+
+/**
+ * Leaves a controller, or one of its routes, out of the OpenAPI document. The
+ * routes are still served.
+ */
+export function ApiExclude(): ClassDecorator & MethodDecorator {
+	return ((target: object, propertyKey?: string | symbol) => {
+		if (propertyKey === undefined) {
+			Reflect.defineMetadata(API_EXCLUDE_METADATA, true, target);
+		} else {
+			Reflect.defineMetadata(API_EXCLUDE_METADATA, true, target, propertyKey);
+		}
+	}) as ClassDecorator & MethodDecorator;
+}
+
+export function isExcluded(
+	controller: Constructor,
+	handlerName?: string,
+): boolean {
+	if (Reflect.getMetadata(API_EXCLUDE_METADATA, controller) === true) {
+		return true;
+	}
+	return (
+		handlerName !== undefined &&
+		Reflect.getMetadata(
+			API_EXCLUDE_METADATA,
+			controller.prototype,
+			handlerName,
+		) === true
+	);
 }
 
 export function getControllerTags(controller: Constructor): string[] {

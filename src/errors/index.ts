@@ -777,3 +777,61 @@ export class ImportError extends BunstoneError {
 		);
 	}
 }
+
+export class McpError extends BunstoneError {
+	constructor(
+		message: string,
+		code:
+			| "BNS-MCP-001"
+			| "BNS-MCP-002"
+			| "BNS-MCP-003"
+			| "BNS-MCP-004"
+			| "BNS-MCP-005" = "BNS-MCP-001",
+		suggestion?: string,
+		context?: Record<string, unknown>,
+		cause?: Error,
+	) {
+		super(message, code, suggestion, context, cause);
+	}
+
+	/** A decorator or a module option used in a way that cannot work. */
+	static invalidDefinition(message: string, suggestion?: string): McpError {
+		return new McpError(message, "BNS-MCP-001", suggestion);
+	}
+
+	static duplicate(where: string, what: string, existing: string): McpError {
+		return new McpError(
+			`${where}: there is already a ${what} (${existing}).`,
+			"BNS-MCP-002",
+			"Give one of them a different `name` (or `uri`) in its decorator.",
+			{ where, existing },
+		);
+	}
+
+	static scopesWithoutAuth(where: string): McpError {
+		return new McpError(
+			`${where} declares \`scopes\`, which are only checked against a verified access token.`,
+			"BNS-MCP-003",
+			"Configure the McpModule `auth` option, or set `path: false` if the application only serves stdio.",
+			{ where },
+		);
+	}
+
+	static invalidSchema(where: string, reason: string): McpError {
+		return new McpError(
+			`${where}: ${reason}`,
+			"BNS-MCP-004",
+			"Pass a Zod 4.2+ schema such as `z.object({ ... })`, or a JSON Schema wrapped with `fromJsonSchema()` from @modelcontextprotocol/server.",
+			{ where },
+		);
+	}
+
+	static notStarted(feature: string): McpError {
+		return new McpError(
+			`${feature} is not ready: the MCP server has not been started.`,
+			"BNS-MCP-005",
+			"Resolve it from an application built with `Application.create()` or `Test.createTestingModule().compile()`, which start it, and import `McpModule.register(...)` in the root module.",
+			{ feature },
+		);
+	}
+}

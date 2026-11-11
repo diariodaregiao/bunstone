@@ -14,6 +14,7 @@
     "src/observability/**/*",
     "src/cache/**/*",
     "src/scheduling/**/*",
+    "src/mcp/**/*",
     "src/errors/**/*",
     "src/utils/logger.ts",
     "src/utils/is-zod-schema.ts",

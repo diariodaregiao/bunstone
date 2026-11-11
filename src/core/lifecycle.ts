@@ -51,3 +51,31 @@ export async function runLifecycle(
 		throw new AggregateError(errors, `One or more ${hook} hooks failed.`);
 	}
 }
+
+/**
+ * Internal: a provider a feature module registers to wire itself in during
+ * bootstrap, after `onModuleInit`. The core calls it instead of importing the
+ * feature, so an application only bundles the features it registers.
+ */
+export const FRAMEWORK_WIRING = Symbol.for("bunstone:framework-wiring");
+
+export interface FrameworkWiring {
+	[FRAMEWORK_WIRING](
+		container: import("./container").Container,
+		instances: readonly unknown[],
+	): void | Promise<void>;
+}
+
+export async function runFrameworkWiring(
+	container: import("./container").Container,
+	instances: readonly unknown[],
+): Promise<void> {
+	for (const instance of instances) {
+		const wire = (instance as Partial<FrameworkWiring> | null)?.[
+			FRAMEWORK_WIRING
+		];
+		if (typeof wire === "function") {
+			await wire.call(instance, container, instances);
+		}
+	}
+}

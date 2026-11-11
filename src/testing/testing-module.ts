@@ -1,6 +1,6 @@
 import type { Container, Provider } from "@/core/container";
 import type { Constructor, Token } from "@/core/injectable";
-import { runLifecycle } from "@/core/lifecycle";
+import { runFrameworkWiring, runLifecycle } from "@/core/lifecycle";
 import { compileModules, type ModuleMetadata } from "@/core/module";
 import { wireCqrs } from "@/cqrs/cqrs-module";
 import { assertEventStoreWiring } from "@/cqrs/event-sourcing-module";
@@ -102,6 +102,7 @@ export class TestingModuleBuilder {
 		const instances = container.getInstances();
 		await runLifecycle(instances, "onModuleInit");
 		wireCqrs(container, instances);
+		await runFrameworkWiring(container, instances);
 		await runLifecycle(instances, "onApplicationBootstrap");
 
 		return new TestingModule(
