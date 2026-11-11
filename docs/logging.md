@@ -45,6 +45,14 @@ new Logger("Orders", {
 
 `pretty` defaults to whether stdout is a TTY: colourised output in a terminal, and single-line JSON when the process is piped or running in a container, which is what a log shipper wants.
 
+## Logging to stderr
+
+`Logger.useStderr()` sends every log line to stderr instead of stdout, for processes whose stdout is a protocol channel, such as an [MCP server over stdio](./mcp.md#stdio):
+
+```ts
+Logger.useStderr();
+```
+
 ## Structured output
 
 In JSON mode each line is one object:
