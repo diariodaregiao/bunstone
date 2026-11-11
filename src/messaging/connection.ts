@@ -78,16 +78,26 @@ export class RabbitConnection {
 	 */
 	getChannel(timeoutMs = DEFAULT_PUBLISH_TIMEOUT_MS): Promise<ConfirmChannel> {
 		if (this.channel) return Promise.resolve(this.channel);
-		return Promise.race([
-			this.ready,
-			Bun.sleep(timeoutMs).then<never>(() => {
-				throw new RabbitMQError(
-					"Timed out waiting for a RabbitMQ connection.",
-					"BNS-RMQ-001",
-					"The broker is unreachable. Check the connection and consider queueing the publish yourself.",
-				);
-			}),
-		]);
+		// a plain sleep would keep its timer alive for the full timeout even after
+		// the connection came back, holding the process open on shutdown, so the
+		// timer is cleared as soon as either side settles
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const timeout = new Promise<never>((_, reject) => {
+			timer = setTimeout(
+				() =>
+					reject(
+						new RabbitMQError(
+							"Timed out waiting for a RabbitMQ connection.",
+							"BNS-RMQ-001",
+							"The broker is unreachable. Check the connection and consider queueing the publish yourself.",
+						),
+					),
+				timeoutMs,
+			);
+		});
+		return Promise.race([this.ready, timeout]).finally(() =>
+			clearTimeout(timer),
+		);
 	}
 
 	/** False while the link is down; suitable as a readiness check. */

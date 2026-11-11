@@ -13,6 +13,7 @@ export enum ParamSource {
 	CONTEXT = "context",
 	STATE = "state",
 	FORM_DATA = "form-data",
+	COOKIE = "cookie",
 }
 
 export interface FormDataPayload<TFields = Record<string, string>> {
@@ -92,6 +93,12 @@ export const Body = keyedDecorator(ParamSource.BODY);
 export const Query = keyedDecorator(ParamSource.QUERY);
 
 export const Param = keyedDecorator(ParamSource.PARAM);
+
+/**
+ * A request cookie by name, or every cookie as an object when called without
+ * one. A Zod schema validates the whole object.
+ */
+export const Cookie = keyedDecorator(ParamSource.COOKIE);
 
 export function Header(name: string): ParameterDecorator {
 	return (target, propertyKey, index) => {
@@ -263,6 +270,11 @@ export async function extractArgs(
 				break;
 			case ParamSource.PARAM:
 				value = meta.key ? ctx.params[meta.key] : ctx.params;
+				break;
+			case ParamSource.COOKIE:
+				value = meta.key
+					? (ctx.cookies.get(meta.key) ?? undefined)
+					: Object.fromEntries(ctx.cookies);
 				break;
 			case ParamSource.HEADER:
 				value = meta.key ? (ctx.headers.get(meta.key) ?? undefined) : undefined;

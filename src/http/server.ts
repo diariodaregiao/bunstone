@@ -43,6 +43,7 @@ import {
 	buildWebSocketHandler,
 	closeOpenSockets,
 	type WebSocketHandler,
+	type WebSocketServerOptions,
 } from "./websocket";
 
 export interface HttpServerOptions {
@@ -73,6 +74,15 @@ export interface HttpServerOptions {
 
 	/** Milliseconds a connection may sit idle before the server closes it. */
 	idleTimeout?: number;
+
+	/** Server-wide settings for WebSocket gateways (compression, backpressure…). */
+	websocket?: WebSocketServerOptions;
+
+	/**
+	 * Lets several processes bind the same port, with the kernel balancing
+	 * connections between them (Linux). Default `false`.
+	 */
+	reusePort?: boolean;
 }
 
 export interface OpenApiServeOptions {
@@ -96,6 +106,25 @@ function routeShape(path: string): string {
 }
 
 const logger = new Logger("HTTP");
+
+function withSetCookies(response: Response, cookies: Bun.CookieMap): Response {
+	const setCookies = cookies.toSetCookieHeaders();
+	if (setCookies.length === 0) return response;
+	try {
+		for (const value of setCookies)
+			response.headers.append("set-cookie", value);
+		return response;
+	} catch {
+		// a passthrough Response can have immutable headers
+		const headers = new Headers(response.headers);
+		for (const value of setCookies) headers.append("set-cookie", value);
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers,
+		});
+	}
+}
 
 export type RouteMethods = Record<string, RouteHandler>;
 export type RoutesMap = Record<string, RouteMethods>;
@@ -328,11 +357,12 @@ export class HttpServer {
 		this.server = Bun.serve({
 			port: port ?? this.options.port ?? 3000,
 			hostname: this.options.hostname,
+			reusePort: this.options.reusePort,
 			idleTimeout: idleTimeoutForBunServe(
 				this.options.idleTimeout ?? DEFAULT_IDLE_TIMEOUT_MS,
 			),
 			routes: this.routes,
-			websocket: buildWebSocketHandler(this.gateways),
+			websocket: buildWebSocketHandler(this.gateways, this.options.websocket),
 			fetch: (req, server) => this.fallback(req as BunRequest, server),
 		});
 		return this.server;
@@ -350,7 +380,11 @@ export class HttpServer {
 
 		if (handler && match) {
 			req.params = match.params;
-			return handler(req, server);
+			// Bun.serve attaches the cookie jar and turns its changes into
+			// Set-Cookie headers; a request dispatched in memory gets the same
+			if (req.cookies) return handler(req, server);
+			req.cookies = new Bun.CookieMap(req.headers.get("cookie") ?? "");
+			return withSetCookies(await handler(req, server), req.cookies);
 		}
 		return (
 			(await this.fallback(req, server)) ??
@@ -374,7 +408,7 @@ export class HttpServer {
 			return this.cors.preflightResponse(ctx);
 		}
 		if (this.staticFiles?.matches(ctx.url.pathname)) {
-			return this.staticFiles.serve(ctx.url.pathname);
+			return this.staticFiles.serve(ctx.url.pathname, req);
 		}
 
 		const headers = this.cors ? this.cors.headers(ctx) : {};

@@ -106,3 +106,20 @@ describe("SqlService", () => {
 		await expect(sql.query("SELECT 1")).rejects.toBeDefined();
 	});
 });
+
+describe("SqlModule passthrough options", () => {
+	it("forwards Bun.SQL's column transform", async () => {
+		const { SQL } = await import("bun");
+		const { createSqlClient } = await import("@/database/sql-module");
+		const sql = createSqlClient({
+			adapter: "sqlite",
+			filename: ":memory:",
+			transform: SQL.camel,
+		});
+		const service = new SqlService(sql);
+		expect(await service.queryOne("SELECT 1 AS created_at")).toEqual({
+			createdAt: 1,
+		});
+		await sql.close();
+	});
+});

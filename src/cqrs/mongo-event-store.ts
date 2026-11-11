@@ -100,7 +100,8 @@ export class MongoEventStore implements EventStore, OnModuleInit {
 				payload: event.payload,
 			})),
 			timestamp: new Date().toISOString(),
-			commitId: crypto.randomUUID(),
+			// time-ordered, so commits sort by when they were written
+			commitId: Bun.randomUUIDv7(),
 		};
 
 		const bytes = this.sizeOf(doc);
