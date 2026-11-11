@@ -349,7 +349,7 @@ export class HttpServer {
 			return this.cors.preflightResponse(ctx);
 		}
 		if (this.staticFiles?.matches(ctx.url.pathname)) {
-			return this.staticFiles.serve(ctx.url.pathname);
+			return this.staticFiles.serve(ctx.url.pathname, req);
 		}
 
 		const headers = this.cors ? this.cors.headers(ctx) : {};

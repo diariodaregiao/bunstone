@@ -46,6 +46,44 @@ describe("static files", () => {
 		const res = await fetch(`${base}/public/index.md`);
 		expect(res.status).toBe(200);
 	});
+
+	it("sends validators and answers a matching If-None-Match with 304", async () => {
+		const first = await fetch(`${base}/public/index.md`);
+		await first.arrayBuffer();
+		const etag = first.headers.get("etag");
+		expect(etag).toMatch(/^W\/"/);
+		expect(first.headers.get("last-modified")).toBeTruthy();
+
+		const again = await fetch(`${base}/public/index.md`, {
+			headers: { "if-none-match": etag ?? "" },
+		});
+		expect(again.status).toBe(304);
+		expect(await again.text()).toBe("");
+	});
+
+	it("answers If-Modified-Since with 304 when the file is unchanged", async () => {
+		const first = await fetch(`${base}/public/index.md`);
+		await first.arrayBuffer();
+		const res = await fetch(`${base}/public/index.md`, {
+			headers: {
+				"if-modified-since": first.headers.get("last-modified") ?? "",
+			},
+		});
+		expect(res.status).toBe(304);
+	});
+
+	it("serves a byte range", async () => {
+		const res = await fetch(`${base}/public/index.md`, {
+			headers: { range: "bytes=0-7" },
+		});
+		expect(res.status).toBe(206);
+		expect(await res.text()).toBe("# Bunsto");
+	});
+
+	it("still rejects traversal with 403", async () => {
+		const res = await fetch(`${base}/public/..%2fpackage.json`);
+		expect(res.status).toBe(403);
+	});
 });
 
 /** Digs the POST request-body schema out of a generated document. */
