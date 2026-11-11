@@ -50,6 +50,10 @@ SqlModule.register("mysql://root:secret@localhost:3306/app");
 | `idleTimeout` | `number` | Idle connection timeout, in **seconds** |
 | `maxLifetime` | `number` | Max connection lifetime, in **seconds** |
 | `connectionTimeout` | `number` | Connection handshake timeout, in **seconds** |
+| `transform` | `SQL.camel` etc. | Rename columns, e.g. `created_at` → `createdAt` |
+| `prepare` | `boolean` | `false` disables prepared statements (needed behind PgBouncer) |
+| `tls` | `boolean \| object` | TLS settings for the connection |
+| `bigint` | `boolean` | Return 64-bit integers as `bigint` |
 
 These are Bun.SQL options and use seconds, unlike the application's HTTP [`idleTimeout`](./idle-timeout.md), which is in milliseconds.
 

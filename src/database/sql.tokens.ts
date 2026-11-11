@@ -1,7 +1,13 @@
 import type { SQL } from "bun";
 import { InjectionToken } from "@/core/injectable";
 
-export interface SqlConnectionOptions {
+/** Bun.SQL settings passed through as they are. */
+type PassthroughOptions = Pick<
+	SQL.PostgresOrMySQLOptions,
+	"tls" | "prepare" | "bigint" | "transform"
+>;
+
+export interface SqlConnectionOptions extends PassthroughOptions {
 	adapter?: "postgres" | "mysql" | "mariadb" | "sqlite";
 	hostname?: string;
 	port?: number;
