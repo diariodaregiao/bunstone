@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { DependencyResolutionError } from "@/errors";
 import { Logger } from "@/utils/logger";
+import { FRAMEWORK_PREFLIGHT, type FrameworkPreflight } from "./lifecycle";
 import {
 	type Constructor,
 	INJECT_TOKENS_METADATA,
@@ -60,6 +61,20 @@ export class Container {
 		this.strict = true;
 		for (const [module, tokens] of visibility) {
 			this.visibility.set(module, tokens);
+		}
+	}
+
+	/**
+	 * Runs the checks modules registered as `useValue` providers carrying
+	 * `FRAMEWORK_PREFLIGHT`, before anything is instantiated.
+	 */
+	runPreflight(): void {
+		for (const provider of this.providers.values()) {
+			if (!("useValue" in provider)) continue;
+			const check = (provider.useValue as Partial<FrameworkPreflight> | null)?.[
+				FRAMEWORK_PREFLIGHT
+			];
+			if (typeof check === "function") check.call(provider.useValue, this);
 		}
 	}
 

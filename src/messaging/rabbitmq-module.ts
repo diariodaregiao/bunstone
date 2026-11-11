@@ -1,6 +1,12 @@
 import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
 import { InjectionToken } from "@/core/injectable";
+import {
+	FRAMEWORK_WIRING,
+	FRAMEWORK_WIRING_ORDER,
+	type FrameworkWiring,
+	type WiringContext,
+} from "@/core/lifecycle";
 import type { DynamicModule } from "@/core/module";
 import type { CircuitBreakerOptions } from "./circuit-breaker";
 import { RabbitConnection, type RabbitConnectionOptions } from "./connection";
@@ -40,11 +46,46 @@ export class RabbitMQModule {
 					inject: [RABBIT_OPTIONS],
 				},
 				RabbitMQService,
+				{ provide: RABBIT_WIRING, useValue: rabbitWiring },
 			],
 			exports: [RABBIT_OPTIONS, RabbitConnection, RabbitMQService],
 		};
 	}
 }
+
+const RABBIT_WIRING = new InjectionToken<FrameworkWiring>("RabbitWiring");
+
+/**
+ * Connects the consumers during bootstrap. Not live inside a testing module:
+ * tests never open a broker connection.
+ */
+const rabbitWiring: FrameworkWiring = {
+	[FRAMEWORK_WIRING_ORDER]: 10,
+	async [FRAMEWORK_WIRING]({
+		container,
+		instances,
+		live,
+		intake,
+		resources,
+		shutdownTimeoutMs,
+	}: WiringContext): Promise<void> {
+		if (!live || !container.has(RabbitConnection)) return;
+		// registered for disposal before anything starts, so a failure later in
+		// bootstrap cannot strand a connection. Consumers stop first; the
+		// connection closes after the destroy hooks, so a hook can still
+		// publish a final message.
+		intake.add(
+			() =>
+				container.resolve(RabbitConnection).stopConsuming(shutdownTimeoutMs),
+			"rabbit-consumers",
+		);
+		resources.add(
+			() => container.resolve(RabbitConnection).close(0),
+			"rabbit-connection",
+		);
+		await wireRabbit(container, instances);
+	},
+};
 
 export async function wireRabbit(
 	container: Container,

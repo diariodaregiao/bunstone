@@ -1,9 +1,9 @@
 import type { Container, Provider } from "@/core/container";
 import type { Constructor, Token } from "@/core/injectable";
+import { DisposableRegistry } from "@/core/disposable";
 import { runFrameworkWiring, runLifecycle } from "@/core/lifecycle";
 import { compileModules, type ModuleMetadata } from "@/core/module";
 import { wireCqrs } from "@/cqrs/cqrs-module";
-import { assertEventStoreWiring } from "@/cqrs/event-sourcing-module";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import { collectGateways } from "@/http/websocket";
 import { TestApp } from "./test-app";
@@ -89,12 +89,20 @@ export class TestingModuleBuilder {
 			providers: [...(this.metadata.providers ?? []), ...this.overrides],
 		});
 
-		assertEventStoreWiring(container);
+		container.runPreflight();
 		container.instantiateAll();
 		const instances = container.getInstances();
 		await runLifecycle(instances, "onModuleInit");
 		wireCqrs(container, instances);
-		await runFrameworkWiring(container, instances);
+		// not live: RabbitMQ stays disconnected, as it always has in tests
+		await runFrameworkWiring({
+			container,
+			instances,
+			live: false,
+			intake: new DisposableRegistry(),
+			resources: new DisposableRegistry(),
+			shutdownTimeoutMs: 0,
+		});
 		await runLifecycle(instances, "onApplicationBootstrap");
 
 		return new TestingModule(container, controllers, instances);
