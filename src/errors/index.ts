@@ -158,6 +158,7 @@ export class ModuleInitializationError extends BunstoneError {
 		super(message, code, suggestion, context, cause);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it; module compilation throws `BNS-MOD-001`/`BNS-MOD-002` directly. */
 	static providersFailed(
 		context?: Record<string, unknown>,
 		cause?: Error,
@@ -175,6 +176,7 @@ export class ModuleInitializationError extends BunstoneError {
 		);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it; v1 has no pluggable HTTP adapter. */
 	static unsupportedHttpMethod(method: string): ModuleInitializationError {
 		return new ModuleInitializationError(
 			`HTTP method "${method}" is not supported by the underlying adapter.`,
@@ -269,6 +271,7 @@ export class CqrsError extends BunstoneError {
 		);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it; publishing an event with no handler is not an error. */
 	static noEventHandler(eventName: string): CqrsError {
 		return new CqrsError(
 			`No handler found for event: ${eventName}.`,
@@ -349,6 +352,7 @@ export class DatabaseError extends BunstoneError {
 		super(message, code, suggestion, context, cause);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it; a missing `SqlModule` fails at startup as an unresolved dependency. */
 	static notInitialized(): DatabaseError {
 		return new DatabaseError(
 			"SQL instance is not initialized. You must register the module before running queries.",
@@ -369,6 +373,7 @@ export class DatabaseError extends BunstoneError {
 		);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it; `SqlModule.register()` options are typed. */
 	static invalidConfig(
 		invalidKeys: string[],
 		allowedKeys: readonly string[],
@@ -382,6 +387,9 @@ export class DatabaseError extends BunstoneError {
 	}
 }
 
+/**
+ * @deprecated Unused since v1.0; will be removed in v2.0. There is no BullMQ integration in v1 (it was removed with v0.7), so nothing throws it.
+ */
 export class BullMQError extends BunstoneError {
 	constructor(
 		message: string,
@@ -429,6 +437,7 @@ export class RabbitMQError extends BunstoneError {
 		super(message, code, suggestion, context, cause);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it; a missing `RabbitMQModule` fails at startup as an unresolved dependency. */
 	static notConfigured(): RabbitMQError {
 		return new RabbitMQError(
 			"RabbitMQModule is not configured.",
@@ -440,6 +449,7 @@ export class RabbitMQError extends BunstoneError {
 		);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it; reconnection failures are logged and retried, not thrown. */
 	static connectionFailed(attempts: number, cause?: Error): RabbitMQError {
 		return new RabbitMQError(
 			`Could not connect to RabbitMQ after ${attempts} attempt(s).`,
@@ -454,6 +464,7 @@ export class RabbitMQError extends BunstoneError {
 		);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it; a topology failure is logged with the broker's own error. */
 	static topologyFailed(
 		resource: string,
 		resourceName: string,
@@ -498,6 +509,7 @@ export class ScheduleError extends BunstoneError {
 		);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it. */
 	static invalidDelay(delay: number): ScheduleError {
 		return new ScheduleError(
 			`Invalid timeout delay: ${delay}. Delay must be a positive number (milliseconds).`,
@@ -511,6 +523,9 @@ export class ScheduleError extends BunstoneError {
 	}
 }
 
+/**
+ * @deprecated Unused since v1.0; will be removed in v2.0. The testing module reports a missing provider with `DependencyResolutionError`, so nothing throws it.
+ */
 export class TestingError extends BunstoneError {
 	constructor(
 		message: string,
@@ -536,6 +551,9 @@ export class TestingError extends BunstoneError {
 	}
 }
 
+/**
+ * @deprecated Unused since v1.0; will be removed in v2.0. Its factories describe a Redis rate-limit storage that v1 does not ship, so nothing throws it.
+ */
 export class RateLimitError extends BunstoneError {
 	constructor(
 		message: string,
@@ -547,31 +565,33 @@ export class RateLimitError extends BunstoneError {
 		super(message, code, suggestion, context, cause);
 	}
 
-	static transactionFailed(cause?: Error): RateLimitError {
+	static storageFailed(cause?: Error): RateLimitError {
 		return new RateLimitError(
-			"Failed to execute atomic Redis transaction for rate limiting.",
+			"Rate limit storage failed while recording a request.",
 			"BNS-RL-001",
-			[
-				"Check that the Redis client passed to RedisStorage is connected and healthy.",
-				"Verify that the Redis server supports MULTI/EXEC commands (standard in Redis ≥ 1.2).",
-			].join("\n  "),
+			"Check that the configured RateLimitStorage implementation is healthy.",
 			undefined,
 			cause,
 		);
 	}
 
+	/** @deprecated Use `storageFailed`. */
+	static transactionFailed(cause?: Error): RateLimitError {
+		return RateLimitError.storageFailed(cause);
+	}
+
 	static invalidResponse(): RateLimitError {
 		return new RateLimitError(
-			"Received an invalid or unexpected response from the Redis MULTI/EXEC transaction.",
+			"Rate limit storage returned an invalid response.",
 			"BNS-RL-002",
-			[
-				"This may indicate a version incompatibility between your Redis client library and the server.",
-				"Ensure the Redis client implements the RedisClientLike interface correctly.",
-			].join("\n  "),
+			"Ensure the RateLimitStorage implementation returns a valid RateLimitResult.",
 		);
 	}
 }
 
+/**
+ * @deprecated Unused since v1.0; will be removed in v2.0. There is no S3 upload adapter in v1 (it was removed with v0.7), so nothing throws it. `@FormData()` rejects bad input with `BadRequestException`.
+ */
 export class UploadError extends BunstoneError {
 	constructor(
 		message: string,
@@ -608,6 +628,9 @@ export class UploadError extends BunstoneError {
 	}
 }
 
+/**
+ * @deprecated Unused since v1.0; will be removed in v2.0. There is no email module in v1 (it was removed with v0.7), so nothing throws it.
+ */
 export class EmailError extends BunstoneError {
 	constructor(
 		message: string,
@@ -644,6 +667,9 @@ export class EmailError extends BunstoneError {
 	}
 }
 
+/**
+ * @deprecated Unused since v1.0; will be removed in v2.0. `@Body()`, `@Query()`, `@Param()` and `@FormData()` reject bad input with `BadRequestException`, so nothing throws it. Its codes also collide with the `BNS-HTTP-001`/`BNS-HTTP-002` codes of `ConfigurationError`.
+ */
 export class HttpParamError extends BunstoneError {
 	constructor(
 		message: string,
@@ -661,7 +687,7 @@ export class HttpParamError extends BunstoneError {
 			"BNS-HTTP-001",
 			[
 				"Ensure the route handler that uses @FormData() receives a multipart/form-data request.",
-				"Check that the HTTP adapter (Elysia) is not consuming the request body before Bunstone reads it.",
+				"Make sure nothing reads the request body before Bunstone does.",
 			].join("\n  "),
 		);
 	}
@@ -705,6 +731,9 @@ export class ResponseValidationError extends BunstoneError {
 	}
 }
 
+/**
+ * @deprecated Unused since v1.0; will be removed in v2.0. A guard that cannot be resolved fails with `DependencyResolutionError`, so nothing throws it.
+ */
 export class GuardError extends BunstoneError {
 	constructor(
 		message: string,
@@ -717,6 +746,9 @@ export class GuardError extends BunstoneError {
 	}
 }
 
+/**
+ * @deprecated Unused since v1.0; will be removed in v2.0. v1 has no pluggable HTTP adapters (it runs on `Bun.serve` only), so nothing throws it.
+ */
 export class AdapterError extends BunstoneError {
 	constructor(
 		message: string,
@@ -759,6 +791,7 @@ export class ImportError extends BunstoneError {
 		);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it. */
 	static typeOnlyImport(
 		name: string,
 		pkg: string,
@@ -788,6 +821,7 @@ export class ImportError extends BunstoneError {
 		);
 	}
 
+	/** @deprecated Unused since v1.0; will be removed in v2.0: nothing throws it; run `bunstone exports` to list the public API. */
 	static unknownExport(
 		name: string,
 		pkg: string,

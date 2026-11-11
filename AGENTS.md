@@ -8,7 +8,7 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (150)
+## Public exports (156)
 
 - `AdapterError`
 - `AggregateRoot`
@@ -96,6 +96,7 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `QueryHandler`
 - `QueueConsumer`
 - `RABBIT_OPTIONS`
+- `RATE_LIMIT_STORAGE`
 - `RabbitConnection`
 - `RabbitConsumer`
 - `RabbitMQError`
@@ -104,6 +105,8 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `RabbitSubscribe`
 - `RateLimit`
 - `RateLimitError`
+- `RateLimitModule`
+- `RedisStorage`
 - `Req`
 - `ResponseValidationError`
 - `Returns`
@@ -111,6 +114,7 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `ScheduleError`
 - `Scheduler`
 - `SetHeader`
+- `SkipRateLimit`
 - `SqlEventStore`
 - `SqlEventStoreModule`
 - `SqlModule`
@@ -152,7 +156,9 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `instrumentRequest`
 - `isInjectable`
 - `isRabbitConsumer`
+- `matchPrefix`
 - `provideEventStore`
+- `resolveRateLimit`
 - `retryDelays`
 - `retryQueueName`
 - `shouldRetry`
@@ -2083,7 +2089,7 @@ Implement the optional `readFrom(streamId, afterVersion)` to support snapshot-ac
 - `read(streamId)` — returns the ordered event records.
 - `saveSnapshot(snapshot)` / `loadSnapshot(streamId)` — store and retrieve a `{ streamId, version, state }` snapshot.
 
-> **Note:** snapshots are storage only. `EventSourcedRepository.load` always replays the full stream and does not consult them — take and read them yourself if you need to shorten a long replay.
+> **Note:** `EventSourcedRepository` reads and writes snapshots itself when `snapshotEvery` is set (see [Snapshots](#snapshots)). Call these methods directly only when you manage snapshots outside a repository.
 
 ```ts
 await store.saveSnapshot({ streamId: "acc-1", version: 3, state: { balance: 70 } });
@@ -3295,19 +3301,16 @@ try {
 | `DependencyResolutionError` | the DI container — unresolvable, circular or out-of-scope dependencies |
 | `ModuleInitializationError` | `@Module` compilation — not a module, `undefined` entry |
 | `ConfigurationError` | invalid or conflicting application options, duplicate routes, environment variables rejected by `defineConfig` |
-| `DatabaseError` | the SQL layer |
+| `DatabaseError` | a database connection used before it is open |
 | `EventStoreError` | the event store, including optimistic-concurrency conflicts |
-| `CqrsError` | command/query/event buses — missing or duplicate handlers |
-| `RabbitMQError` | connection, topology and consumer failures |
-| `ScheduleError` | invalid cron expressions and scheduler failures |
-| `RateLimitError` | rate-limit storage failures |
-| `GuardError` | guard resolution failures |
-| `HttpParamError` | parameter extraction and validation |
+| `CqrsError` | command and query buses — no handler registered |
+| `RabbitMQError` | a publish that times out waiting for the broker, or that the broker cannot route |
+| `ScheduleError` | invalid cron expressions or time zones |
 | `ResponseValidationError` | a handler's return value rejected by its `@Returns` schema |
-| `UploadError` | multipart handling |
 | `McpError` | `McpModule` — invalid primitives, schemas or options |
-| `TestingError` | the testing module |
-| `ImportError`, `AdapterError`, `EmailError`, `BullMQError` | optional integrations |
+| `ImportError` | optional peer dependencies that are not installed |
+
+`AdapterError`, `BullMQError`, `EmailError`, `GuardError`, `HttpParamError`, `RateLimitError`, `TestingError` and `UploadError` are still exported but **deprecated**: nothing in v1 throws them, and they will be removed in v2.0. See [`MIGRATION.md`](../MIGRATION.md#deprecated).
 
 ## Error codes
 
@@ -3321,12 +3324,13 @@ Codes are stable and greppable — they are safe to alert on. The prefix identif
 | `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller, `BNS-HTTP-003` a response does not match its `@Returns` schema |
 | `BNS-DB-*` | database | `BNS-DB-002` a connection module was never registered |
 | `BNS-ES-*` | event store | `BNS-ES-001` concurrency conflict, `BNS-ES-002` commit over the document limit, `BNS-ES-003` aggregate is not snapshottable |
-| `BNS-CQRS-*` | CQRS buses | missing or duplicate handler |
-| `BNS-RMQ-*`, `BNS-MQ-*` | messaging | connection, topology and publish failures |
+| `BNS-CQRS-*` | CQRS buses | `BNS-CQRS-001` no command handler, `BNS-CQRS-002` no query handler |
+| `BNS-RMQ-*` | messaging | `BNS-RMQ-001` broker unreachable while publishing, `BNS-RMQ-002` a publish the broker could not route |
 | `BNS-SCHED-*` | scheduling | invalid cron expression |
 | `BNS-MCP-*` | MCP | `BNS-MCP-001` invalid decorator or option, `BNS-MCP-002` duplicate tool/resource/prompt, `BNS-MCP-003` `scopes` without `auth`, `BNS-MCP-004` unusable schema, `BNS-MCP-005` MCP server not started |
 | `BNS-IMP-*` | optional drivers | `BNS-IMP-003` an optional peer dependency is not installed |
-| `BNS-RL-*`, `BNS-GRD-*`, `BNS-TEST-*`, `BNS-ADP-*`, `BNS-EMAIL-*` | rate limiting, guards, testing, adapters, email |
+
+The codes of the deprecated classes (`BNS-ADP-*`, `BNS-EMAIL-*`, `BNS-GRD-*`, `BNS-MQ-*`, `BNS-RL-*`, `BNS-S3-*`, `BNS-TEST-*`) are never raised.
 
 ## Failing fast
 

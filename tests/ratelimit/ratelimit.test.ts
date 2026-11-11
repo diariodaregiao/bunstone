@@ -55,7 +55,7 @@ describe("Rate limiting", () => {
 		expect(await res.json()).toEqual({ message: "slow down" });
 	});
 
-	it("does not rate limit unmarked routes", async () => {
+	it("without any rate limit config, no route is limited", async () => {
 		for (let i = 0; i < 5; i++) {
 			expect((await fetch(`${base}/api/open`)).status).toBe(200);
 		}

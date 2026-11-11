@@ -6,6 +6,7 @@ import { resolveIdleTimeout } from "@/http/idle-timeout";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
 import { collectGateways } from "@/http/websocket";
+import { resolveModuleRateLimits } from "@/ratelimit/module-limits";
 import { Scheduler } from "@/scheduling/scheduler";
 import { Logger } from "@/utils/logger";
 import type { Container } from "./container";
@@ -80,7 +81,7 @@ export class Application {
 			...options,
 			idleTimeout: resolveIdleTimeout(options.idleTimeout),
 		};
-		const { container, controllers } = compileModules(
+		const { container, controllers, root, moduleImports } = compileModules(
 			rootModule,
 			resolvedOptions.strictModuleBoundaries === true,
 		);
@@ -125,6 +126,7 @@ export class Application {
 				resolvedOptions,
 				gateways,
 				isReady,
+				resolveModuleRateLimits(root, moduleImports),
 			);
 			intake.add(() => httpServer.stop(0), "http-server");
 			await runLifecycle(instances, "onApplicationBootstrap");

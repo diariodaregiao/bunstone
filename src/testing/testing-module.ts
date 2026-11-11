@@ -6,6 +6,8 @@ import { compileModules, type ModuleMetadata } from "@/core/module";
 import { wireCqrs } from "@/cqrs/cqrs-module";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import { collectGateways } from "@/http/websocket";
+import type { ResolvedRateLimit } from "@/ratelimit/decorator";
+import { resolveModuleRateLimits } from "@/ratelimit/module-limits";
 import { TestApp } from "./test-app";
 
 export class TestingModule {
@@ -15,6 +17,10 @@ export class TestingModule {
 		readonly container: Container,
 		private readonly controllers: Constructor[],
 		private readonly instances: readonly unknown[],
+		private readonly moduleRateLimits: ReadonlyMap<
+			Constructor,
+			ResolvedRateLimit
+		> = new Map(),
 	) {}
 
 	get<T>(token: Token<T>): T {
@@ -28,6 +34,8 @@ export class TestingModule {
 			this.controllers,
 			options,
 			gateways,
+			undefined,
+			this.moduleRateLimits,
 		);
 		// the server owns a rate-limit storage with a sweep interval; without
 		// tracking it here every createTestApp() would leak a timer per test
@@ -82,7 +90,7 @@ export class TestingModuleBuilder {
 	 */
 	async compile(): Promise<TestingModule> {
 		class TestRootModule {}
-		const { container, controllers } = compileModules({
+		const { container, controllers, root, moduleImports } = compileModules({
 			module: TestRootModule,
 			imports: this.metadata.imports ?? [],
 			controllers: this.metadata.controllers ?? [],
@@ -105,7 +113,12 @@ export class TestingModuleBuilder {
 		});
 		await runLifecycle(instances, "onApplicationBootstrap");
 
-		return new TestingModule(container, controllers, instances);
+		return new TestingModule(
+			container,
+			controllers,
+			instances,
+			resolveModuleRateLimits(root, moduleImports),
+		);
 	}
 }
 

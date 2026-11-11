@@ -86,10 +86,6 @@ export function SetHeader(name: string, value: string): MethodDecorator {
 	};
 }
 
-export function isController(target: Constructor): boolean {
-	return Reflect.hasMetadata(CONTROLLER_METADATA, target);
-}
-
 export function getControllerPath(controller: Constructor): string {
 	return Reflect.getMetadata(CONTROLLER_METADATA, controller) ?? "/";
 }
