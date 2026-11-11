@@ -6,7 +6,17 @@ import { projectAgentsMd } from "../src/cli/scaffold-agents";
 
 const argv = process.argv.slice(2);
 const force = argv.includes("--force");
-const [command, ...args] = argv.filter((arg) => arg !== "--force");
+const BUILD_FLAGS = ["--compile", "--bytecode", "--external"] as const;
+type BuildFlag = (typeof BUILD_FLAGS)[number];
+const buildFlags = new Set(
+	argv.filter((arg): arg is BuildFlag =>
+		(BUILD_FLAGS as readonly string[]).includes(arg),
+	),
+);
+const [command, ...args] = argv.filter(
+	(arg) =>
+		arg !== "--force" && !(BUILD_FLAGS as readonly string[]).includes(arg),
+);
 
 async function main(): Promise<void> {
 	switch (command) {
@@ -18,7 +28,7 @@ async function main(): Promise<void> {
 			await runBun(["run", ...argv.slice(1)]);
 			break;
 		case "build":
-			await buildApp(args[0]);
+			await buildApp(args[0], buildFlags);
 			break;
 		case "generate":
 		case "g":
@@ -136,18 +146,38 @@ async function runGenerate(kind?: string, name?: string): Promise<void> {
 	console.log(`Created ${file.path}`);
 }
 
-async function buildApp(entry = "src/main.ts"): Promise<void> {
-	const result = await Bun.build({
-		entrypoints: [entry],
-		outdir: "dist",
-		target: "bun",
-		minify: true,
-	});
+async function buildApp(
+	entry = "src/main.ts",
+	flags: ReadonlySet<BuildFlag> = new Set(),
+): Promise<void> {
+	const compile = flags.has("--compile");
+	const outfile = join("dist", "app");
+	let result: Bun.BuildOutput;
+	try {
+		result = await Bun.build({
+			entrypoints: [entry],
+			target: "bun",
+			// ESM keeps top-level `await` (as in `await Application.create`)
+			// working; bytecode would otherwise default to CommonJS
+			format: "esm",
+			minify: true,
+			// precompiled bytecode skips parsing on boot
+			bytecode: flags.has("--bytecode"),
+			// leaves node_modules out, e.g. optional drivers such as `mongodb`
+			packages: flags.has("--external") ? "external" : "bundle",
+			...(compile ? { compile: { outfile } } : { outdir: "dist" }),
+		});
+	} catch (error) {
+		// Bun.build throws an AggregateError with the build logs on failure
+		const logs = error instanceof AggregateError ? error.errors : [error];
+		fail(logs.map((log) => String(log?.message ?? log)).join("\n"));
+		return;
+	}
 	if (!result.success) {
 		fail(result.logs.map((log) => log.message).join("\n"));
 		return;
 	}
-	console.log("Built to dist/");
+	console.log(compile ? `Compiled to ${outfile}` : "Built to dist/");
 }
 
 async function runBun(argv: string[]): Promise<void> {
@@ -172,6 +202,9 @@ function printHelp(): void {
   bunstone new <name>                 scaffold a new project
   bunstone run <entry>                run an entrypoint with Bun
   bunstone build [entry]              bundle the app to dist/
+    --compile                         produce a single executable, dist/app
+    --bytecode                        precompile to bytecode for faster startup
+    --external                        do not bundle node_modules
   bunstone generate <kind> <name>     generate controller|service|module
   bunstone exports                    list public exports
 
