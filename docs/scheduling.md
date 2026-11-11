@@ -18,7 +18,16 @@ export class ReportService {
 }
 ```
 
-An invalid cron expression throws at startup.
+Pass `tz` to read the expression in another IANA time zone:
+
+```ts
+@Cron("0 9 * * 1-5", { tz: "America/Sao_Paulo" })
+morningReport() {}
+```
+
+An invalid cron expression or an unknown time zone throws at startup.
+
+> Since Bun 1.4, `Bun.cron` reads schedules in the server's local zone by default. Bunstone always passes a zone (`UTC` unless you set `tz`), so a job fires at the same instant on every machine, whatever its `TZ`.
 
 ## @Interval
 

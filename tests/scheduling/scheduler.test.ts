@@ -147,4 +147,42 @@ describe("Scheduler", () => {
 		expect(daily.runs).toBe(0);
 		scheduler.stopAll();
 	});
+
+	it("reads cron expressions in UTC by default, whatever the server zone", () => {
+		const calls: unknown[] = [];
+		const original = Bun.cron;
+		const fake = Object.assign(
+			(expression: string, handler: () => unknown, options?: unknown) => {
+				calls.push(options);
+				return original(expression, handler, options as { tz?: string });
+			},
+			original,
+		);
+		(Bun as { cron: typeof Bun.cron }).cron = fake as typeof Bun.cron;
+		try {
+			@Injectable()
+			class Jobs {
+				@Cron("0 9 * * *")
+				utc() {}
+				@Cron("0 9 * * *", { tz: "America/Sao_Paulo" })
+				local() {}
+			}
+			const scheduler = new Scheduler();
+			scheduler.start([new Jobs()]);
+			scheduler.stopAll();
+			expect(calls).toEqual([{ tz: "UTC" }, { tz: "America/Sao_Paulo" }]);
+		} finally {
+			(Bun as { cron: typeof Bun.cron }).cron = original;
+		}
+	});
+
+	it("rejects an unknown time zone at startup", () => {
+		@Injectable()
+		class BadZone {
+			@Cron("0 9 * * *", { tz: "Nowhere/Nothing" })
+			job() {}
+		}
+		const scheduler = new Scheduler();
+		expect(() => scheduler.start([new BadZone()])).toThrow(/Nowhere\/Nothing/);
+	});
 });

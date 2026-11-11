@@ -215,6 +215,7 @@ export {
 } from "@/ratelimit";
 export {
 	Cron,
+	type CronOptions,
 	getSchedules,
 	Interval,
 	type ScheduleEntry,
