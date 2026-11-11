@@ -71,3 +71,15 @@ app.listen(3000);
 ```
 
 Start one process per core. Each one has its own memory, so in-memory state such as the default rate-limit storage is per process, not shared. On macOS and Windows the option is ignored.
+
+## Working directory
+
+Start the process from the project directory, the one with `tsconfig.json`. Bun picks the decorator mode from the `tsconfig.json` of the directory it starts in, so a container whose `WORKDIR` is elsewhere compiles standard (TC39) decorators instead of the legacy ones Bunstone uses:
+
+```dockerfile
+WORKDIR /app
+COPY . .
+CMD ["bun", "src/main.ts"]
+```
+
+Bunstone detects it at boot and fails with `BNS-CFG-005`, naming the directory, rather than serving 404s. A build made with `bunstone build` from the project directory is not affected: the decorators are compiled into the bundle.

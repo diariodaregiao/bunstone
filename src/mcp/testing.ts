@@ -1,6 +1,6 @@
 import type { Client } from "@modelcontextprotocol/client";
 import type { Container } from "@/core/container";
-import { optionalImport } from "@/utils/optional-import";
+import { optionalImportError } from "@/utils/optional-import";
 import { McpHttpService } from "./http";
 
 export interface ConnectMcpClientOptions {
@@ -40,11 +40,7 @@ export async function connectMcpClient(
 		clientInfo = { name: "bunstone-mcp-testing", version: "0.0.0" },
 	}: ConnectMcpClientOptions = {},
 ): Promise<Client> {
-	const { Client, StreamableHTTPClientTransport } = await optionalImport(
-		() => import("@modelcontextprotocol/client"),
-		"@modelcontextprotocol/client",
-		"connectMcpClient()",
-	);
+	const { Client, StreamableHTTPClientTransport } = await importClient();
 	const http = app.container.resolve(McpHttpService);
 
 	const transport = new StreamableHTTPClientTransport(
@@ -74,4 +70,19 @@ export async function connectMcpClient(
 	);
 	await client.connect(transport);
 	return client;
+}
+
+async function importClient(): Promise<
+	typeof import("@modelcontextprotocol/client")
+> {
+	// the import must sit inside the `try`: see `optionalImportError`
+	try {
+		return await import("@modelcontextprotocol/client");
+	} catch (error) {
+		throw optionalImportError(
+			error,
+			"@modelcontextprotocol/client",
+			"connectMcpClient()",
+		);
+	}
 }

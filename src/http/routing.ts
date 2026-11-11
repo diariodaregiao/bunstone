@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { assertLegacyDecorator } from "@/core/decorator-mode";
 import type { Constructor } from "@/core/injectable";
 import type { HttpMethod } from "./types";
 
@@ -31,14 +32,22 @@ export function joinPaths(base: string, sub: string): string {
 }
 
 export function Controller(path = "/"): ClassDecorator {
-	return (target) => {
-		Reflect.defineMetadata(CONTROLLER_METADATA, normalizePath(path), target);
-	};
+	return ((...args: unknown[]) => {
+		assertLegacyDecorator(args, "@Controller()");
+		Reflect.defineMetadata(
+			CONTROLLER_METADATA,
+			normalizePath(path),
+			args[0] as object,
+		);
+	}) as ClassDecorator;
 }
 
 function methodDecorator(method: HttpMethod) {
+	const name = `@${method[0]}${method.slice(1).toLowerCase()}()`;
 	return (path = "/"): MethodDecorator =>
-		(target, propertyKey) => {
+		((...args: [object, string | symbol]) => {
+			assertLegacyDecorator(args, name);
+			const [target, propertyKey] = args;
 			const ctor = target.constructor as Constructor;
 			const routes: RouteDefinition[] =
 				Reflect.getOwnMetadata(ROUTES_METADATA, ctor) ?? [];
@@ -48,7 +57,7 @@ function methodDecorator(method: HttpMethod) {
 				handlerName: String(propertyKey),
 			});
 			Reflect.defineMetadata(ROUTES_METADATA, routes, ctor);
-		};
+		}) as MethodDecorator;
 }
 
 export const Get = methodDecorator("GET");

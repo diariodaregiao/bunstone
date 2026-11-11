@@ -151,6 +151,14 @@ async function buildApp(
 	flags: ReadonlySet<BuildFlag> = new Set(),
 ): Promise<void> {
 	const compile = flags.has("--compile");
+	if (flags.has("--bytecode") && !compile) {
+		// Bun only emits ESM bytecode inside an executable, and ESM is what keeps
+		// a top-level `await Application.create(...)` working
+		fail(
+			"`--bytecode` needs `--compile`: Bun emits bytecode for an ES module only inside an executable.\n  Run `bunstone build --compile --bytecode`.",
+		);
+		return;
+	}
 	const outfile = join("dist", "app");
 	let result: Bun.BuildOutput;
 	try {
@@ -203,7 +211,7 @@ function printHelp(): void {
   bunstone run <entry>                run an entrypoint with Bun
   bunstone build [entry]              bundle the app to dist/
     --compile                         produce a single executable, dist/app
-    --bytecode                        precompile to bytecode for faster startup
+    --bytecode                        precompile to bytecode (with --compile)
     --external                        do not bundle node_modules
   bunstone generate <kind> <name>     generate controller|service|module
   bunstone exports                    list public exports

@@ -3,9 +3,10 @@ import type { DynamicModule } from "@/core/module";
 import { MongoService } from "@/database/mongo.service";
 import { SqlService } from "@/database/sql.service";
 import { ConfigurationError } from "@/errors";
-import { EVENT_STORE, provideEventStore } from "./event-store";
+import { EVENT_STORE } from "./event-store";
 import { MongoEventStore } from "./mongo-event-store";
 import { SqlEventStore } from "./sql-event-store";
+import { provideSqlEventStore } from "./sql-event-store-module";
 
 /**
  * @deprecated Register the backend explicitly: `SqlEventStoreModule.register()`
@@ -17,7 +18,7 @@ export class EventSourcingModule {
 		return {
 			module: EventSourcingModule,
 			global: true,
-			providers: provideEventStore(SqlEventStore),
+			providers: provideSqlEventStore(),
 			exports: [EVENT_STORE, SqlEventStore],
 		};
 	}

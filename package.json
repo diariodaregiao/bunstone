@@ -49,11 +49,12 @@
     "test:serial": "bun test",
     "coverage": "bun test --coverage",
     "typecheck": "bun check --no-script",
-    "build": "rm -rf dist && bun build ./index.ts ./src/mcp/index.ts ./src/mcp/testing.ts --outdir ./dist --root . --target bun --packages external --splitting && tsc -p tsconfig.build.json --emitDeclarationOnly --declaration --outDir dist && tsc-alias -p tsconfig.build.json --outDir dist",
+    "build": "rm -rf dist && bun run ./scripts/build-lib.ts && tsc -p tsconfig.build.json --emitDeclarationOnly --declaration --outDir dist && tsc-alias -p tsconfig.build.json --outDir dist",
     "format": "bun fmt --no-script src bin tests index.ts",
     "format:check": "bun fmt --no-script --check src bin tests index.ts",
     "verify": "bun run typecheck && bun run format:check && bun test",
     "benchmark": "bun run ./benchmarks/run.ts",
+    "benchmark:bundle": "bun run ./benchmarks/bundle/run.ts",
     "prepack": "npm run build && npm run agents:build"
   },
   "devDependencies": {
@@ -102,5 +103,6 @@
     "@modelcontextprotocol/client": {
       "optional": true
     }
-  }
+  },
+  "sideEffects": false
 }

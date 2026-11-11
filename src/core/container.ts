@@ -1,9 +1,11 @@
 import "reflect-metadata";
 import { DependencyResolutionError } from "@/errors";
 import { Logger } from "@/utils/logger";
+import { FRAMEWORK_PREFLIGHT, type FrameworkPreflight } from "./lifecycle";
 import {
 	type Constructor,
 	INJECT_TOKENS_METADATA,
+	isInjectable,
 	type Token,
 	tokenName,
 } from "./injectable";
@@ -60,6 +62,20 @@ export class Container {
 		this.strict = true;
 		for (const [module, tokens] of visibility) {
 			this.visibility.set(module, tokens);
+		}
+	}
+
+	/**
+	 * Runs the checks modules registered as `useValue` providers carrying
+	 * `FRAMEWORK_PREFLIGHT`, before anything is instantiated.
+	 */
+	runPreflight(): void {
+		for (const provider of this.providers.values()) {
+			if (!("useValue" in provider)) continue;
+			const check = (provider.useValue as Partial<FrameworkPreflight> | null)?.[
+				FRAMEWORK_PREFLIGHT
+			];
+			if (typeof check === "function") check.call(provider.useValue, this);
 		}
 	}
 
@@ -150,6 +166,9 @@ export class Container {
 			Reflect.getMetadata("design:paramtypes", cls) ?? [];
 
 		if (paramTypes.length === 0 && cls.length > 0) {
+			if (isDecorated(cls)) {
+				throw DependencyResolutionError.missingParamTypes(cls.name);
+			}
 			throw DependencyResolutionError.generic(
 				`Class \`${cls.name}\` has constructor parameters but no decorator metadata was emitted.`,
 				{ class: cls.name },
@@ -202,4 +221,13 @@ function normalize(provider: Provider): NormalizedProvider {
 		useFactory: provider.useFactory,
 		inject: provider.inject ?? [],
 	};
+}
+
+/** Carries metadata from one of Bunstone's class decorators. */
+function isDecorated(cls: Constructor): boolean {
+	return (
+		isInjectable(cls) ||
+		// `@Controller()`'s key, read without importing the HTTP layer
+		Reflect.hasMetadata("bunstone:controller", cls)
+	);
 }

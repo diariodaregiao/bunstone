@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { assertLegacyDecorator } from "./decorator-mode";
 
 export type Constructor<T = unknown> = new (...args: any[]) => T;
 
@@ -18,9 +19,10 @@ export const INJECTABLE_METADATA = "bunstone:injectable";
 export const INJECT_TOKENS_METADATA = "bunstone:inject-tokens";
 
 export function Injectable(): ClassDecorator {
-	return (target) => {
-		Reflect.defineMetadata(INJECTABLE_METADATA, true, target);
-	};
+	return ((...args: unknown[]) => {
+		assertLegacyDecorator(args, "@Injectable()");
+		Reflect.defineMetadata(INJECTABLE_METADATA, true, args[0] as object);
+	}) as ClassDecorator;
 }
 
 export function Inject(token: Token): ParameterDecorator {

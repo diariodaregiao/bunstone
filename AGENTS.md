@@ -272,6 +272,8 @@ Make sure decorators are enabled in `tsconfig.json`:
 }
 ```
 
+Bun reads these options from the `tsconfig.json` of the directory the process **starts in**, not from the file's own. Run the app (and `bun build`) from the project directory — in Docker, set `WORKDIR` to it. Started elsewhere, Bun compiles standard decorators instead, and Bunstone stops at boot with `BNS-CFG-005` naming the directory.
+
 ## Project structure
 
 A typical Bunstone project looks like this:
@@ -3135,7 +3137,7 @@ Codes are stable and greppable — they are safe to alert on. The prefix identif
 |---|---|---|
 | `BNS-DI-*` | dependency injection | `BNS-DI-001` undefined type (usually `import type` on an injected class), `BNS-DI-002` circular dependency, `BNS-DI-003` no provider registered, `BNS-DI-004` outside the module's boundary |
 | `BNS-MOD-*` | modules | `BNS-MOD-001` not a module, `BNS-MOD-002` `undefined` entry (usually a circular import) |
-| `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module |
+| `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module, `BNS-CFG-005` decorators compiled as standard (TC39) decorators — the process started outside the project directory |
 | `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller, `BNS-HTTP-003` a response does not match its `@Returns` schema |
 | `BNS-DB-*` | database | `BNS-DB-002` a connection module was never registered |
 | `BNS-ES-*` | event store | `BNS-ES-001` concurrency conflict, `BNS-ES-002` commit over the document limit, `BNS-ES-003` aggregate is not snapshottable |
@@ -3789,7 +3791,7 @@ bunx @grupodiariodaregiao/bunstone build src/main.ts
 Flags:
 
 - `--compile` — produce a single self-contained executable at `dist/app`, with the Bun runtime inside. Copy that one file to the server; no `bun install` needed there.
-- `--bytecode` — precompile to bytecode so the app skips parsing on boot (faster cold starts). Combine with `--compile` for the fastest startup.
+- `--bytecode` — precompile to bytecode so the app skips parsing on boot (faster cold starts). It requires `--compile`: Bun emits bytecode for an ES module only inside an executable.
 - `--external` — leave `node_modules` out of the bundle. Use it when you deploy with `node_modules` present, or to keep optional drivers such as `mongodb` from being resolved.
 
 ```bash
@@ -3798,6 +3800,14 @@ bunx @grupodiariodaregiao/bunstone build --compile --bytecode
 ```
 
 > A compiled executable does not read `tsconfig.json` or `package.json` at runtime (Bun 1.3.4+). It does load `.env` files.
+
+#### What goes into the bundle
+
+Bunstone ships as one package, but a production bundle only carries the features the app uses. An app without RabbitMQ does not bundle `amqplib`; one without `TelemetryModule` does not bundle the OpenTelemetry SDK; one that never imports `/mcp` does not bundle the MCP SDK. A hello-world app bundles to about 110 KB.
+
+Optional drivers you have not installed (`mongodb`, `@modelcontextprotocol/client`) are left out, and the build still succeeds.
+
+To see what a build carries, run `bun run benchmark:bundle` in the Bunstone repository: it bundles the sample apps under `benchmarks/bundle/apps` and lists their size, biggest packages and startup time.
 
 ### `bunstone generate <kind> <name>` (alias `g`)
 
@@ -3894,3 +3904,15 @@ app.listen(3000);
 ```
 
 Start one process per core. Each one has its own memory, so in-memory state such as the default rate-limit storage is per process, not shared. On macOS and Windows the option is ignored.
+
+## Working directory
+
+Start the process from the project directory, the one with `tsconfig.json`. Bun picks the decorator mode from the `tsconfig.json` of the directory it starts in, so a container whose `WORKDIR` is elsewhere compiles standard (TC39) decorators instead of the legacy ones Bunstone uses:
+
+```dockerfile
+WORKDIR /app
+COPY . .
+CMD ["bun", "src/main.ts"]
+```
+
+Bunstone detects it at boot and fails with `BNS-CFG-005`, naming the directory, rather than serving 404s. A build made with `bunstone build` from the project directory is not affected: the decorators are compiled into the bundle.

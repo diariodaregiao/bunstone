@@ -84,6 +84,25 @@ export class DependencyResolutionError extends BunstoneError {
 		);
 	}
 
+	/**
+	 * A decorated class whose constructor types are missing: the decorator ran,
+	 * so it is the type emission that is off, not a missing `@Injectable()`.
+	 */
+	static missingParamTypes(className: string): DependencyResolutionError {
+		const cwd = typeof process !== "undefined" ? process.cwd() : "unknown";
+		return new DependencyResolutionError(
+			`Class \`${className}\` has constructor parameters but no decorator metadata was emitted.`,
+			"BNS-DI-003",
+			[
+				"The class is decorated, so TypeScript did not emit its constructor types. Check that:",
+				`  - the tsconfig.json of the directory the process starts in (here: ${cwd}) sets`,
+				'    `"emitDecoratorMetadata": true` — Bun reads that one, not the file\'s own;',
+				'  - `import "reflect-metadata"` runs before any decorated class is loaded (first line of main.ts).',
+			].join("\n  "),
+			{ class: className, cwd },
+		);
+	}
+
 	static circular(resolutionStack: string): DependencyResolutionError {
 		return new DependencyResolutionError(
 			`Circular dependency detected: [${resolutionStack}].`,
@@ -174,6 +193,7 @@ export class ConfigurationError extends BunstoneError {
 			| "BNS-CFG-002"
 			| "BNS-CFG-003"
 			| "BNS-CFG-004"
+			| "BNS-CFG-005"
 			| "BNS-HTTP-001"
 			| "BNS-HTTP-002" = "BNS-CFG-001",
 		suggestion?: string,
@@ -181,6 +201,23 @@ export class ConfigurationError extends BunstoneError {
 		cause?: Error,
 	) {
 		super(message, code, suggestion, context, cause);
+	}
+
+	/** Bunstone's decorators were compiled as standard (TC39) decorators. */
+	static standardDecorators(decorator: string): ConfigurationError {
+		const cwd = typeof process !== "undefined" ? process.cwd() : "unknown";
+		return new ConfigurationError(
+			`${decorator} was compiled as a standard (TC39) decorator, but Bunstone needs TypeScript's legacy decorators.`,
+			"BNS-CFG-005",
+			[
+				"Bun picks the decorator mode from the tsconfig.json of the directory the process starts in",
+				`(here: ${cwd}), not from the file's own tsconfig.json. That directory has none, or one`,
+				"without the decorator options. Either:",
+				"  - start the app (or run `bun build`) from the project directory, e.g. set `WORKDIR` in Docker; or",
+				'  - add `"experimentalDecorators": true` and `"emitDecoratorMetadata": true` to that tsconfig.json.',
+			].join("\n  "),
+			{ decorator, cwd },
+		);
 	}
 
 	static missingModule(

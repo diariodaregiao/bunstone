@@ -1,5 +1,10 @@
 import type { Container } from "@/core/container";
-import { FRAMEWORK_WIRING, type FrameworkWiring } from "@/core/lifecycle";
+import {
+	FRAMEWORK_WIRING,
+	FRAMEWORK_WIRING_ORDER,
+	type FrameworkWiring,
+	type WiringContext,
+} from "@/core/lifecycle";
 import type { Constructor } from "@/core/injectable";
 import { McpError } from "@/errors";
 import { ForbiddenException } from "@/http/exceptions";
@@ -39,11 +44,13 @@ export class McpRegistry implements McpPrimitives, FrameworkWiring {
 
 	constructor(private readonly options: McpModuleOptions) {}
 
-	/** Started by the core during bootstrap; see `wireMcp`. */
-	async [FRAMEWORK_WIRING](
-		container: Container,
-		instances: readonly unknown[],
-	): Promise<void> {
+	/** Started by the core during bootstrap, after RabbitMQ; see `wireMcp`. */
+	readonly [FRAMEWORK_WIRING_ORDER] = 20;
+
+	async [FRAMEWORK_WIRING]({
+		container,
+		instances,
+	}: WiringContext): Promise<void> {
 		const { wireMcp } = await import("./mcp-module");
 		await wireMcp(container, instances);
 	}
