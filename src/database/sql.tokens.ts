@@ -10,9 +10,13 @@ export interface SqlConnectionOptions {
 	database?: string;
 	filename?: string;
 	timezone?: string;
+	/** Maximum connections in the pool. */
 	max?: number;
+	/** Seconds a pooled connection may sit idle before it is closed. */
 	idleTimeout?: number;
+	/** Maximum lifetime of a pooled connection, in seconds. */
 	maxLifetime?: number;
+	/** Seconds allowed for the whole connection handshake. */
 	connectionTimeout?: number;
 }
 

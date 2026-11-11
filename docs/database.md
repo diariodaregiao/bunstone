@@ -47,9 +47,11 @@ SqlModule.register("mysql://root:secret@localhost:3306/app");
 | `filename` | `string` | SQLite file (e.g. `:memory:`) |
 | `timezone` | `string` | Session timezone (default `"utc"`) |
 | `max` | `number` | Max pool connections |
-| `idleTimeout` | `number` | Idle connection timeout |
-| `maxLifetime` | `number` | Max connection lifetime |
-| `connectionTimeout` | `number` | Connection timeout |
+| `idleTimeout` | `number` | Idle connection timeout, in **seconds** |
+| `maxLifetime` | `number` | Max connection lifetime, in **seconds** |
+| `connectionTimeout` | `number` | Connection handshake timeout, in **seconds** |
+
+These are Bun.SQL options and use seconds, unlike the application's HTTP [`idleTimeout`](./idle-timeout.md), which is in milliseconds.
 
 The connection pool is closed automatically on application shutdown.
 
