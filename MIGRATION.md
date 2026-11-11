@@ -27,7 +27,7 @@ and will be removed in **v2.0**.
 |---|---|---|
 | `BullMQError` | `BNS-MQ-001`, `BNS-MQ-002` | nothing: there is no BullMQ integration. Use `RabbitMQError` for messaging. |
 | `EmailError` | `BNS-EMAIL-001`, `BNS-EMAIL-002` | nothing: there is no email module. |
-| `UploadError` | `BNS-S3-001`, `BNS-S3-002` | nothing: there is no S3 adapter. `@FormData()` rejects bad input with `BadRequestException` (400). |
+| `UploadError` | `BNS-S3-001`, `BNS-S3-002` | `StorageError` (`BNS-STG-*`) from [`StorageModule`](./docs/storage.md), the S3 integration. `@FormData()` and `saveUploads()` reject bad input with `BadRequestException` (400). |
 | `AdapterError` | `BNS-ADP-001`, `BNS-ADP-002` | nothing: v1 runs on `Bun.serve` only, with no pluggable adapters. |
 | `HttpParamError` | `BNS-HTTP-001`, `BNS-HTTP-002` | `BadRequestException`, which is what parameter extraction and validation throw. Its codes clash with the duplicate-route codes of `ConfigurationError`. |
 | `GuardError` | `BNS-GRD-001` | `DependencyResolutionError`, which is what an unresolvable guard throws. |

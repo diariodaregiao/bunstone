@@ -31,6 +31,7 @@ Start the app as usual — telemetry begins immediately.
 - **HTTP** — `{METHOD} {route}` (e.g. `GET /users/:id`) with `http.request.method`, `http.route` and `http.response.status_code`. Responses `>= 500` are marked as errors.
 - **Queue** — `process {queue}` with `messaging.system`, `messaging.destination.name` and `messaging.attempt`. A handler that throws marks the span as an error.
 - **Database** — one span per `SqlService` operation, named after the statement's verb (`SELECT`, `INSERT`, `TRANSACTION`), with `db.operation.name` and `db.query.text`. Statements are parameterised, so the recorded text contains no values.
+- **Storage** — `storage write`, `storage read`, `storage list`, … with `storage.operation.name`, `storage.bucket` and `storage.key`, one per `StorageService` call.
 - **CQRS** — `command CreateUser`, `query GetUser`, `event UserCreated`, with `cqrs.kind` and `cqrs.message`.
 
 Only requests that reach a route handler are traced. A `404`, a `405`, a CORS preflight and a static file are answered before the pipeline and produce no span — the router, not your code, decided them.
@@ -62,6 +63,7 @@ GET /orders/:id
 | `messaging.consumer.in_flight` | gauge | `queue` |
 | `db.client.operation.duration` | histogram (ms) | `db.operation.name`, `outcome` |
 | `cache.operations` | counter | `operation`, `result` (`hit` / `miss`) |
+| `storage.operation.duration` | histogram (ms) | `storage.operation.name`, `outcome` |
 | `cqrs.handler.duration` | histogram (ms) | `cqrs.kind`, `cqrs.message`, `outcome` |
 
 Status is recorded as a **class** (`2xx`, `4xx`, `5xx`) rather than an exact code, and routes are recorded as templates, so label cardinality stays bounded however many distinct URLs you serve.

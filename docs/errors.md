@@ -52,6 +52,7 @@ try {
 | `RabbitMQError` | a publish that times out waiting for the broker, or that the broker cannot route |
 | `ScheduleError` | invalid cron expressions or time zones |
 | `ResponseValidationError` | a handler's return value rejected by its `@Returns` schema |
+| `StorageError` | object storage (`StorageModule`): denied, missing bucket, unreachable endpoint, invalid configuration |
 | `McpError` | `McpModule` — invalid primitives, schemas or options |
 | `ImportError` | optional peer dependencies that are not installed |
 
@@ -68,6 +69,7 @@ Codes are stable and greppable — they are safe to alert on. The prefix identif
 | `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module, `BNS-CFG-005` decorators compiled as standard (TC39) decorators — the process started outside the project directory |
 | `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller, `BNS-HTTP-003` a response does not match its `@Returns` schema |
 | `BNS-DB-*` | database | `BNS-DB-002` a connection module was never registered |
+| `BNS-STG-*` | object storage | `BNS-STG-002` access denied, `BNS-STG-003` bucket does not exist, `BNS-STG-004` endpoint unreachable, `BNS-STG-005` invalid configuration |
 | `BNS-ES-*` | event store | `BNS-ES-001` concurrency conflict, `BNS-ES-002` commit over the document limit, `BNS-ES-003` aggregate is not snapshottable |
 | `BNS-CQRS-*` | CQRS buses | `BNS-CQRS-001` no command handler, `BNS-CQRS-002` no query handler |
 | `BNS-RMQ-*` | messaging | `BNS-RMQ-001` broker unreachable while publishing, `BNS-RMQ-002` a publish the broker could not route |

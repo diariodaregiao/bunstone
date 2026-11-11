@@ -60,3 +60,27 @@ export async function mongoReachable(uri = MONGO_URI): Promise<boolean> {
 		return false;
 	}
 }
+
+/** MinIO (or any S3 endpoint) for the storage suites; `S3_TEST_*` overrides it. */
+export const S3_TEST = {
+	endpoint: process.env.S3_TEST_ENDPOINT ?? "http://localhost:9000",
+	accessKeyId: process.env.S3_TEST_ACCESS_KEY_ID ?? "minioadmin",
+	secretAccessKey: process.env.S3_TEST_SECRET_ACCESS_KEY ?? "minioadmin",
+	region: process.env.S3_TEST_REGION ?? "us-east-1",
+};
+
+export async function minioReachable(
+	endpoint = S3_TEST.endpoint,
+): Promise<boolean> {
+	try {
+		// MinIO's liveness probe; any other S3 endpoint still answers the request
+		const response = await fetch(new URL("/minio/health/live", endpoint), {
+			signal: AbortSignal.timeout(1500),
+		});
+		await response.body?.cancel();
+		return true;
+	} catch (error) {
+		announce("S3/MinIO", endpoint, error);
+		return false;
+	}
+}
