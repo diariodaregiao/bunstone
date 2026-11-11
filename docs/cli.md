@@ -50,6 +50,14 @@ bunx @grupodiariodaregiao/bunstone build --compile --bytecode
 
 > A compiled executable does not read `tsconfig.json` or `package.json` at runtime (Bun 1.3.4+). It does load `.env` files.
 
+#### What goes into the bundle
+
+Bunstone ships as one package, but a production bundle only carries the features the app uses. An app without RabbitMQ does not bundle `amqplib`; one without `TelemetryModule` does not bundle the OpenTelemetry SDK; one that never imports `/mcp` does not bundle the MCP SDK. A hello-world app bundles to about 110 KB.
+
+Optional drivers you have not installed (`mongodb`, `@modelcontextprotocol/client`) are left out, and the build still succeeds.
+
+To see what a build carries, run `bun run benchmark:bundle` in the Bunstone repository: it bundles the sample apps under `benchmarks/bundle/apps` and lists their size, biggest packages and startup time.
+
 ### `bunstone generate <kind> <name>` (alias `g`)
 
 Generates a `controller`, `service`, or `module` from a template. The file name is derived in kebab-case and the class in PascalCase.

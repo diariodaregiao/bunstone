@@ -7,6 +7,7 @@
  *   bun run benchmark:bundle            # table
  *   bun run benchmark:bundle --json     # machine-readable
  *   bun run benchmark:bundle --skip-build
+ *   BUNDLE_LIBRARY=../bunstone-main bun run benchmark:bundle   # compare
  *
  * For every app it reports the bundle size (raw and gzip), the biggest
  * packages inside it, and the startup time and memory of the bundled app
@@ -19,6 +20,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "../..");
+/**
+ * The library to measure: this checkout by default, or another one (e.g. a
+ * worktree of `main`) to compare against, with the same apps.
+ */
+const library = resolve(process.env.BUNDLE_LIBRARY ?? root);
 const appsDir = join(import.meta.dir, "apps");
 const args = new Set(process.argv.slice(2));
 const RUNS = Number(process.env.BUNDLE_RUNS ?? 15);
@@ -36,7 +42,7 @@ interface AppReport {
 async function packLibrary(work: string): Promise<string> {
 	if (!args.has("--skip-build")) {
 		const build = Bun.spawnSync(["bun", "run", "build"], {
-			cwd: root,
+			cwd: library,
 			stdout: "ignore",
 			stderr: "pipe",
 		});
@@ -53,8 +59,8 @@ async function packLibrary(work: string): Promise<string> {
 	}
 	const pkg = join(modules, "@grupodiariodaregiao", "bunstone");
 	await mkdir(pkg, { recursive: true });
-	await cp(join(root, "dist"), join(pkg, "dist"), { recursive: true });
-	await cp(join(root, "package.json"), join(pkg, "package.json"));
+	await cp(join(library, "dist"), join(pkg, "dist"), { recursive: true });
+	await cp(join(library, "package.json"), join(pkg, "package.json"));
 	return modules;
 }
 
@@ -133,7 +139,6 @@ async function measure(app: string, work: string): Promise<AppReport> {
 		packages: Object.fromEntries(
 			Object.entries(packages)
 				.sort((a, b) => b[1] - a[1])
-				.slice(0, 6)
 				.map(([name, size]) => [name, Math.round(size / 1024)]),
 		),
 		startupMs: median(startups),
@@ -185,6 +190,7 @@ try {
 		);
 		for (const report of reports) {
 			const top = Object.entries(report.packages)
+				.slice(0, 6)
 				.map(([name, kb]) => `${name} ${kb}KB`)
 				.join(", ");
 			console.log(`${report.app}: ${top}`);
