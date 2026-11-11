@@ -196,6 +196,7 @@ export class ConfigurationError extends BunstoneError {
 			| "BNS-CFG-003"
 			| "BNS-CFG-004"
 			| "BNS-CFG-005"
+			| "BNS-CFG-006"
 			| "BNS-HTTP-001"
 			| "BNS-HTTP-002" = "BNS-CFG-001",
 		suggestion?: string,

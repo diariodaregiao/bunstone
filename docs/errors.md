@@ -45,7 +45,7 @@ try {
 |---|---|
 | `DependencyResolutionError` | the DI container — unresolvable, circular or out-of-scope dependencies |
 | `ModuleInitializationError` | `@Module` compilation — not a module, `undefined` entry |
-| `ConfigurationError` | invalid or conflicting application options, duplicate routes |
+| `ConfigurationError` | invalid or conflicting application options, duplicate routes, environment variables rejected by `defineConfig` |
 | `DatabaseError` | a database connection used before it is open |
 | `EventStoreError` | the event store, including optimistic-concurrency conflicts |
 | `CqrsError` | command and query buses — no handler registered |
@@ -65,7 +65,7 @@ Codes are stable and greppable — they are safe to alert on. The prefix identif
 |---|---|---|
 | `BNS-DI-*` | dependency injection | `BNS-DI-001` undefined type (usually `import type` on an injected class), `BNS-DI-002` circular dependency, `BNS-DI-003` no provider registered, `BNS-DI-004` outside the module's boundary |
 | `BNS-MOD-*` | modules | `BNS-MOD-001` not a module, `BNS-MOD-002` `undefined` entry (usually a circular import) |
-| `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module, `BNS-CFG-005` decorators compiled as standard (TC39) decorators — the process started outside the project directory |
+| `BNS-CFG-*` | configuration | `BNS-CFG-002` a feature used without registering its module, `BNS-CFG-005` decorators compiled as standard (TC39) decorators — the process started outside the project directory, `BNS-CFG-006` environment variables rejected by `defineConfig` (every one listed, values never printed) |
 | `BNS-HTTP-*` | routing | `BNS-HTTP-001` duplicate route, `BNS-HTTP-002` a built-in route collides with a controller, `BNS-HTTP-003` a response does not match its `@Returns` schema |
 | `BNS-DB-*` | database | `BNS-DB-002` a connection module was never registered |
 | `BNS-ES-*` | event store | `BNS-ES-001` concurrency conflict, `BNS-ES-002` commit over the document limit, `BNS-ES-003` aggregate is not snapshottable |

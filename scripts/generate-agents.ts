@@ -10,6 +10,7 @@ const DOC_ORDER = [
 	"getting-started.md",
 	"dependency-injection.md",
 	"modules.md",
+	"config.md",
 	"controllers.md",
 	"guards-jwt.md",
 	"uploads-and-static.md",
