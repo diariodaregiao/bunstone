@@ -1,4 +1,4 @@
-import type { Server } from "bun";
+import type { CookieMap, Server } from "bun";
 
 export interface WebSocketData {
 	path: string;
@@ -6,7 +6,11 @@ export interface WebSocketData {
 
 export type BunServer = Server<WebSocketData>;
 
-export type BunRequest = Request & { params: Record<string, string> };
+export type BunRequest = Request & {
+	params: Record<string, string>;
+	/** Bun's cookie jar; changes to it are sent back as `Set-Cookie`. */
+	cookies: CookieMap;
+};
 
 export type HttpMethod =
 	"GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
@@ -18,6 +22,11 @@ export interface RequestContext {
 	readonly params: Record<string, string>;
 	readonly query: URLSearchParams;
 	readonly headers: Headers;
+	/**
+	 * The request cookies. `set` and `delete` are sent back as `Set-Cookie`
+	 * headers on the response.
+	 */
+	readonly cookies: CookieMap;
 
 	readonly responseHeaders: Headers;
 
@@ -33,14 +42,24 @@ export function createContext(
 	req: BunRequest,
 	server: BunServer,
 ): RequestContext {
-	const url = new URL(req.url);
+	// Parsing the URL costs more than most handlers do, and Bun's router has
+	// already extracted the params, so it is only parsed when something reads it.
+	let url: URL | undefined;
 	return {
 		req,
 		server,
-		url,
+		get url() {
+			url ??= new URL(req.url);
+			return url;
+		},
+		get query() {
+			return this.url.searchParams;
+		},
 		params: req.params ?? {},
-		query: url.searchParams,
 		headers: req.headers,
+		get cookies() {
+			return req.cookies;
+		},
 		responseHeaders: new Headers(),
 		state: {},
 		body: undefined,

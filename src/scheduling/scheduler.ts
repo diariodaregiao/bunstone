@@ -1,19 +1,10 @@
 import { ScheduleError } from "@/errors";
 import { Logger } from "@/utils/logger";
-import { getSchedules, type ScheduleEntry } from "./decorators";
-
-interface BunCronJob {
-	stop(): void;
-	unref(): void;
-	ref(): void;
-}
-
-interface BunCron {
-	(schedule: string, handler: () => void | Promise<void>): BunCronJob;
-	parse(expression: string, relativeDate?: Date | number): Date | null;
-}
-
-const bunCron = (Bun as unknown as { cron: BunCron }).cron;
+import {
+	DEFAULT_CRON_TZ,
+	getSchedules,
+	type ScheduleEntry,
+} from "./decorators";
 
 export class Scheduler {
 	private readonly logger = new Logger("Scheduler");
@@ -39,12 +30,15 @@ export class Scheduler {
 
 		if (entry.type === "cron") {
 			const expression = entry.expression ?? "";
+			// Bun reads schedules in the server's local zone since 1.4; pinning the
+			// zone keeps a job on the same instant on every machine it runs on
+			const tz = entry.tz ?? DEFAULT_CRON_TZ;
 			try {
-				bunCron.parse(expression);
+				Bun.cron.parse(expression, Date.now(), { tz });
 			} catch {
-				throw ScheduleError.invalidCron(expression);
+				throw ScheduleError.invalidCron(expression, tz);
 			}
-			const job = bunCron(expression, run);
+			const job = Bun.cron(expression, run, { tz });
 			this.stoppers.push(() => job.stop());
 		} else if (entry.type === "interval") {
 			const id = setInterval(run, entry.ms);

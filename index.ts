@@ -95,6 +95,7 @@ export {
 	Controller,
 	Cors,
 	type CorsOptions,
+	Cookie,
 	Ctx,
 	Delete,
 	ForbiddenException,
@@ -142,6 +143,7 @@ export {
 	type WebSocketData,
 	WebSocketGateway,
 	type WebSocketHandler,
+	type WebSocketServerOptions,
 } from "@/http";
 export {
 	backoffDelay,
@@ -215,6 +217,7 @@ export {
 } from "@/ratelimit";
 export {
 	Cron,
+	type CronOptions,
 	getSchedules,
 	Interval,
 	type ScheduleEntry,

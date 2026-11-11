@@ -446,17 +446,17 @@ export class ScheduleError extends BunstoneError {
 		super(message, code, suggestion, context, cause);
 	}
 
-	static invalidCron(expression?: string): ScheduleError {
+	static invalidCron(expression?: string, tz?: string): ScheduleError {
 		return new ScheduleError(
-			`Invalid or empty cron expression${expression ? `: "${expression}"` : ""}.`,
+			`Invalid or empty cron expression${expression ? `: "${expression}"` : ""}${tz ? ` (time zone "${tz}")` : ""}.`,
 			"BNS-SCHED-001",
 			[
-				"Provide a valid 5 or 6-field cron expression to @Cron().",
+				'Provide a valid 5-field cron expression to @Cron(), and an IANA time zone such as "America/Sao_Paulo" in `tz`.',
 				'Examples: @Cron("0 * * * *")  // every hour',
 				'         @Cron("*/5 * * * *") // every 5 minutes',
 				"Use https://crontab.guru to generate and validate cron expressions.",
 			].join("\n  "),
-			expression ? { expression } : undefined,
+			expression ? { expression, tz } : undefined,
 		);
 	}
 

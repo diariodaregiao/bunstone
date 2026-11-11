@@ -307,6 +307,14 @@ function buildParameters(
 				schema: { type: "string" },
 			});
 		}
+		if (param.source === ParamSource.COOKIE && param.key) {
+			parameters.push({
+				name: param.key,
+				in: "cookie",
+				required: false,
+				schema: { type: "string" },
+			});
+		}
 		if (param.source === ParamSource.QUERY && isZodSchema(param.schema)) {
 			const schema = toJsonSchema(param.schema, route);
 			const properties = (schema.properties ?? {}) as JsonObject;

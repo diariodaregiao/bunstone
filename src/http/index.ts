@@ -24,6 +24,7 @@ export {
 } from "./health";
 export {
 	Body,
+	Cookie,
 	Ctx,
 	FormData,
 	type FormDataFileOptions,
@@ -88,4 +89,5 @@ export {
 	type Socket,
 	WebSocketGateway,
 	type WebSocketHandler,
+	type WebSocketServerOptions,
 } from "./websocket";

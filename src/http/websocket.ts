@@ -1,5 +1,8 @@
 import "reflect-metadata";
-import type { ServerWebSocket } from "bun";
+import type {
+	ServerWebSocket,
+	WebSocketHandler as BunWebSocketHandler,
+} from "bun";
 import type { Constructor } from "@/core/injectable";
 import { Logger } from "@/utils/logger";
 import type { WebSocketData } from "./types";
@@ -10,7 +13,19 @@ export interface WebSocketHandler {
 	open?(socket: Socket): void | Promise<void>;
 	message(socket: Socket, data: unknown): void | Promise<void>;
 	close?(socket: Socket, code: number, reason: string): void | Promise<void>;
+	/** Called when a socket that hit backpressure can be written to again. */
+	drain?(socket: Socket): void | Promise<void>;
 }
+
+/**
+ * Bun's server-wide WebSocket settings: `perMessageDeflate`,
+ * `backpressureLimit`, `closeOnBackpressureLimit`, `maxPayloadLength`,
+ * `idleTimeout` (seconds), `sendPings` and `publishToSelf`.
+ */
+export type WebSocketServerOptions = Omit<
+	BunWebSocketHandler<WebSocketData>,
+	"data" | "open" | "message" | "close" | "drain" | "ping" | "pong" | "error"
+>;
 
 export const WEBSOCKET_GATEWAY_METADATA = "bunstone:websocket-gateway";
 
@@ -91,8 +106,12 @@ export function closeOpenSockets(code = 1001, reason = "server shutting down") {
 	openSockets.clear();
 }
 
-export function buildWebSocketHandler(gateways: Map<string, WebSocketHandler>) {
+export function buildWebSocketHandler(
+	gateways: Map<string, WebSocketHandler>,
+	options: WebSocketServerOptions = {},
+) {
 	return {
+		...options,
 		open(socket: Socket) {
 			openSockets.add(socket);
 			// a gateway that rejects the connection in `open` must not be left
@@ -107,6 +126,9 @@ export function buildWebSocketHandler(gateways: Map<string, WebSocketHandler>) {
 			guard("message", () =>
 				gateways.get(socket.data.path)?.message(socket, decode(message)),
 			);
+		},
+		drain(socket: Socket) {
+			guard("drain", () => gateways.get(socket.data.path)?.drain?.(socket));
 		},
 		close(socket: Socket, code: number, reason: string) {
 			openSockets.delete(socket);

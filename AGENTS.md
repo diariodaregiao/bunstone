@@ -8,7 +8,7 @@ Bunstone is a decorator-based framework for Bun (DI, HTTP over native
 SSE & WebSocket, OpenTelemetry). Import everything from
 `@grupodiariodaregiao/bunstone`.
 
-## Public exports (144)
+## Public exports (145)
 
 - `AdapterError`
 - `AggregateRoot`
@@ -32,6 +32,7 @@ SSE & WebSocket, OpenTelemetry). Import everything from
 - `ConflictException`
 - `Container`
 - `Controller`
+- `Cookie`
 - `Cors`
 - `CqrsError`
 - `CqrsModule`
@@ -686,6 +687,7 @@ Parameter decorators pull data out of the request into method arguments:
 - `@Query(name?)` — a query-string value, or the full query object when called without a name.
 - `@Body(schema?)` — the parsed request body.
 - `@Header(name)` — a single request header.
+- `@Cookie(name?)` — a request cookie, or every cookie as an object when called without a name (accepts a Zod schema too).
 - `@Req()` — the raw Bun `Request` (with `params` attached).
 - `@Ctx()` — the full `RequestContext` (`req`, `url`, `params`, `query`, `headers`, `state`, `responseHeaders`, and more).
 
@@ -705,6 +707,33 @@ export class UsersController {
   }
 }
 ```
+
+## Cookies
+
+Read cookies with `@Cookie()`, and set or clear them through `ctx.cookies`, which is Bun's native `CookieMap`. Changes are sent back as `Set-Cookie` headers automatically, in the live server and in `TestApp` alike.
+
+```ts
+@Controller("session")
+export class SessionController {
+  @Get()
+  me(@Cookie("sid") sid?: string) {
+    return { loggedIn: Boolean(sid) };
+  }
+
+  @Post()
+  login(@Ctx() ctx: RequestContext) {
+    ctx.cookies.set("sid", crypto.randomUUID(), { httpOnly: true, secure: true });
+    return { ok: true };
+  }
+
+  @Post("logout")
+  logout(@Ctx() ctx: RequestContext) {
+    ctx.cookies.delete("sid");
+  }
+}
+```
+
+A named `@Cookie("sid")` is documented in OpenAPI as an `in: cookie` parameter.
 
 ## Validation with Zod
 
@@ -1208,7 +1237,7 @@ Bunstone keeps your option in **milliseconds** for consistency with other timeou
 in the ecosystem, then converts when starting the server:
 
 - values are rounded **up** to the next whole second (`500` → `1` second);
-- the minimum passed to Bun is **1** second.
+- the minimum passed to Bun is **1** second, except `0`, which disables the timeout.
 
 | You pass (`idleTimeout`) | Bun receives |
 |--------------------------|--------------|
@@ -1227,7 +1256,8 @@ port. Invalid values throw `ConfigurationError` (`BNS-CFG-001`) at startup.
 |-------|--------|
 | Omitted | Default `10000` |
 | Positive integer (ms) | Used as configured |
-| `0`, negative, or non-integer | Rejected |
+| `0` | No idle timeout (Bun 1.4.4+) |
+| Negative or non-integer | Rejected |
 | Non-numeric (e.g. a string at runtime) | Rejected |
 | Greater than `255_000` | Rejected |
 
@@ -1311,9 +1341,15 @@ SqlModule.register("mysql://root:secret@localhost:3306/app");
 | `filename` | `string` | SQLite file (e.g. `:memory:`) |
 | `timezone` | `string` | Session timezone (default `"utc"`) |
 | `max` | `number` | Max pool connections |
-| `idleTimeout` | `number` | Idle connection timeout |
-| `maxLifetime` | `number` | Max connection lifetime |
-| `connectionTimeout` | `number` | Connection timeout |
+| `idleTimeout` | `number` | Idle connection timeout, in **seconds** |
+| `maxLifetime` | `number` | Max connection lifetime, in **seconds** |
+| `connectionTimeout` | `number` | Connection handshake timeout, in **seconds** |
+| `transform` | `SQL.camel` etc. | Rename columns, e.g. `created_at` → `createdAt` |
+| `prepare` | `boolean` | `false` disables prepared statements (needed behind PgBouncer) |
+| `tls` | `boolean \| object` | TLS settings for the connection |
+| `bigint` | `boolean` | Return 64-bit integers as `bigint` |
+
+These are Bun.SQL options and use seconds, unlike the application's HTTP [`idleTimeout`](./idle-timeout.md), which is in milliseconds.
 
 The connection pool is closed automatically on application shutdown.
 
@@ -2075,7 +2111,16 @@ export class ReportService {
 }
 ```
 
-An invalid cron expression throws at startup.
+Pass `tz` to read the expression in another IANA time zone:
+
+```ts
+@Cron("0 9 * * 1-5", { tz: "America/Sao_Paulo" })
+morningReport() {}
+```
+
+An invalid cron expression or an unknown time zone throws at startup.
+
+> Since Bun 1.4, `Bun.cron` reads schedules in the server's local zone by default. Bunstone always passes a zone (`UTC` unless you set `tz`), so a job fires at the same instant on every machine, whatever its `TZ`.
 
 ## @Interval
 
@@ -2243,6 +2288,45 @@ export class AppModule {}
 ```
 
 Clients then connect to `ws://<host>/ws`.
+
+### Rooms and broadcast (pub/sub)
+
+Gateways get Bun's native pub/sub, which fans a message out in C++ without looping over sockets in JavaScript. Subscribe a socket to a topic and publish to it, from the gateway or from anywhere through the server:
+
+```ts
+@WebSocketGateway("/chat")
+@Injectable()
+export class ChatGateway implements WebSocketHandler {
+  open(socket: Socket) {
+    socket.subscribe("lobby");
+  }
+
+  message(socket: Socket, data: unknown) {
+    socket.publish("lobby", JSON.stringify(data)); // everyone else in the lobby
+  }
+}
+
+// elsewhere, e.g. after a domain event
+app.getServer()?.publish("lobby", JSON.stringify({ system: "deploy finished" }));
+```
+
+### Server options
+
+The `websocket` application option passes Bun's server-wide WebSocket settings through:
+
+```ts
+const app = await Application.create(AppModule, {
+  websocket: {
+    perMessageDeflate: true,        // compress messages
+    maxPayloadLength: 1024 * 1024,  // reject frames over 1 MB
+    backpressureLimit: 1024 * 1024, // buffer at most 1 MB per slow client
+    closeOnBackpressureLimit: true,
+    idleTimeout: 120,               // seconds
+  },
+});
+```
+
+Implement `drain(socket)` on a gateway to resume sending once a slow client has caught up.
 
 ## docs/rate-limiting.md
 
@@ -3320,6 +3404,19 @@ bunx @grupodiariodaregiao/bunstone build
 bunx @grupodiariodaregiao/bunstone build src/main.ts
 ```
 
+Flags:
+
+- `--compile` — produce a single self-contained executable at `dist/app`, with the Bun runtime inside. Copy that one file to the server; no `bun install` needed there.
+- `--bytecode` — precompile to bytecode so the app skips parsing on boot (faster cold starts). Combine with `--compile` for the fastest startup.
+- `--external` — leave `node_modules` out of the bundle. Use it when you deploy with `node_modules` present, or to keep optional drivers such as `mongodb` from being resolved.
+
+```bash
+bunx @grupodiariodaregiao/bunstone build --compile --bytecode
+./dist/app
+```
+
+> A compiled executable does not read `tsconfig.json` or `package.json` at runtime (Bun 1.3.4+). It does load `.env` files.
+
 ### `bunstone generate <kind> <name>` (alias `g`)
 
 Generates a `controller`, `service`, or `module` from a template. The file name is derived in kebab-case and the class in PascalCase.
@@ -3404,3 +3501,14 @@ await Application.create(AppModule, {
 
 For zero-downtime rolling deploys, set `shutdownGraceMs` to a couple of seconds
 and configure your orchestrator's `preStop` / termination grace period to match.
+
+## Several processes on one port
+
+`reusePort: true` lets several Bun processes bind the same port, with the Linux kernel spreading connections between them — a way to use every CPU core without a load balancer in front:
+
+```ts
+const app = await Application.create(AppModule, { reusePort: true });
+app.listen(3000);
+```
+
+Start one process per core. Each one has its own memory, so in-memory state such as the default rate-limit storage is per process, not shared. On macOS and Windows the option is ignored.

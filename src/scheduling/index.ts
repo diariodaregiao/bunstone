@@ -1,5 +1,6 @@
 export {
 	Cron,
+	type CronOptions,
 	getSchedules,
 	Interval,
 	type ScheduleEntry,

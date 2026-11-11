@@ -1,3 +1,21 @@
+# Running on Bun 1.4
+
+Bunstone requires Bun `>=1.4.4`. Bunstone's own API did not change, but a few
+Bun 1.4 changes can affect an application:
+
+- **Cron time zone.** Bun now reads cron schedules in the server's local zone.
+  Bunstone pins `@Cron` to UTC, as it always documented, and adds
+  `@Cron(expr, { tz })` for other zones.
+- **`idleTimeout: 0`** is now accepted and disables the HTTP idle timeout.
+- **SQL.** `Bun.SQL` no longer reads the `PASSWORD` environment variable, so pass
+  the password explicitly or in the URL. MySQL `DATETIME` values decode as UTC,
+  and MariaDB `JSON` columns come back parsed. An object passed as the
+  parameters of `sql.unsafe` now binds named parameters (`:name`, `$name`, `@name`).
+- **TLS.** `rediss://` URLs and `Bun.connect` verify certificates and hostnames
+  by default.
+- **TypeScript 6+** no longer discovers `@types` packages: add
+  `"types": ["bun"]` to your `tsconfig.json`.
+
 # Migrating from v0.7 to v1.0
 
 Bunstone v1 is a clean rewrite. Elysia was removed entirely — the framework now

@@ -13,12 +13,12 @@ export function resolveIdleTimeout(idleTimeout?: number): number {
 	if (
 		typeof idleTimeout !== "number" ||
 		!Number.isInteger(idleTimeout) ||
-		idleTimeout <= 0
+		idleTimeout < 0
 	) {
 		throw new ConfigurationError(
-			"`idleTimeout` must be a positive integer.",
+			"`idleTimeout` must be a non-negative integer.",
 			"BNS-CFG-001",
-			"Pass a whole number of milliseconds greater than zero, for example `idleTimeout: 10000`.",
+			"Pass a whole number of milliseconds, for example `idleTimeout: 10000`, or `0` to disable the timeout.",
 			{ idleTimeout },
 		);
 	}
@@ -33,7 +33,11 @@ export function resolveIdleTimeout(idleTimeout?: number): number {
 	return idleTimeout;
 }
 
-/** Converts the application option (ms) to the seconds Bun.serve expects. */
+/**
+ * Converts the application option (ms) to the seconds Bun.serve expects.
+ * `0` is passed through: since Bun 1.4.4 it disables the timeout.
+ */
 export function idleTimeoutForBunServe(idleTimeoutMs: number): number {
+	if (idleTimeoutMs === 0) return 0;
 	return Math.max(1, Math.ceil(idleTimeoutMs / 1000));
 }

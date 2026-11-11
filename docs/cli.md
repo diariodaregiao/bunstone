@@ -37,6 +37,19 @@ bunx @grupodiariodaregiao/bunstone build
 bunx @grupodiariodaregiao/bunstone build src/main.ts
 ```
 
+Flags:
+
+- `--compile` — produce a single self-contained executable at `dist/app`, with the Bun runtime inside. Copy that one file to the server; no `bun install` needed there.
+- `--bytecode` — precompile to bytecode so the app skips parsing on boot (faster cold starts). Combine with `--compile` for the fastest startup.
+- `--external` — leave `node_modules` out of the bundle. Use it when you deploy with `node_modules` present, or to keep optional drivers such as `mongodb` from being resolved.
+
+```bash
+bunx @grupodiariodaregiao/bunstone build --compile --bytecode
+./dist/app
+```
+
+> A compiled executable does not read `tsconfig.json` or `package.json` at runtime (Bun 1.3.4+). It does load `.env` files.
+
 ### `bunstone generate <kind> <name>` (alias `g`)
 
 Generates a `controller`, `service`, or `module` from a template. The file name is derived in kebab-case and the class in PascalCase.

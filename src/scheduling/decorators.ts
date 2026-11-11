@@ -7,8 +7,21 @@ export interface ScheduleEntry {
 	type: ScheduleType;
 	methodName: string;
 	expression?: string;
+	/** IANA time zone the cron expression is read in. */
+	tz?: string;
 	ms?: number;
 }
+
+export interface CronOptions {
+	/**
+	 * IANA time zone the expression is read in, e.g. `"America/Sao_Paulo"`.
+	 * Default `"UTC"`, so a job fires at the same instant whatever the server's
+	 * own time zone is.
+	 */
+	tz?: string;
+}
+
+export const DEFAULT_CRON_TZ = "UTC";
 
 export const SCHEDULE_METADATA = "bunstone:schedule";
 
@@ -20,11 +33,15 @@ function addSchedule(target: object, entry: ScheduleEntry): void {
 	Reflect.defineMetadata(SCHEDULE_METADATA, entries, ctor);
 }
 
-export function Cron(expression: string): MethodDecorator {
+export function Cron(
+	expression: string,
+	options: CronOptions = {},
+): MethodDecorator {
 	return (target, propertyKey) => {
 		addSchedule(target, {
 			type: "cron",
 			expression,
+			tz: options.tz ?? DEFAULT_CRON_TZ,
 			methodName: String(propertyKey),
 		});
 	};
