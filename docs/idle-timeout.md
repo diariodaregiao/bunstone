@@ -33,7 +33,7 @@ Bunstone keeps your option in **milliseconds** for consistency with other timeou
 in the ecosystem, then converts when starting the server:
 
 - values are rounded **up** to the next whole second (`500` → `1` second);
-- the minimum passed to Bun is **1** second.
+- the minimum passed to Bun is **1** second, except `0`, which disables the timeout.
 
 | You pass (`idleTimeout`) | Bun receives |
 |--------------------------|--------------|
@@ -52,7 +52,8 @@ port. Invalid values throw `ConfigurationError` (`BNS-CFG-001`) at startup.
 |-------|--------|
 | Omitted | Default `10000` |
 | Positive integer (ms) | Used as configured |
-| `0`, negative, or non-integer | Rejected |
+| `0` | No idle timeout (Bun 1.4.4+) |
+| Negative or non-integer | Rejected |
 | Non-numeric (e.g. a string at runtime) | Rejected |
 | Greater than `255_000` | Rejected |
 

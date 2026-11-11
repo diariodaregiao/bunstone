@@ -102,14 +102,17 @@ describe("Application idleTimeout", () => {
 		).rejects.toThrow(ConfigurationError);
 	});
 
-	it("rejects zero and negative idleTimeout at create time", async () => {
-		await expect(
-			Application.create(AppModule, {
-				...createOptions,
-				idleTimeout: 0,
-			}),
-		).rejects.toThrow(ConfigurationError);
+	it("accepts zero as 'no idle timeout'", async () => {
+		const app = await Application.create(AppModule, {
+			...createOptions,
+			idleTimeout: 0,
+		});
+		apps.push(app);
+		app.listen(0);
+		expect(serveCalls.at(-1)?.idleTimeout).toBe(0);
+	});
 
+	it("rejects a negative idleTimeout at create time", async () => {
 		await expect(
 			Application.create(AppModule, {
 				...createOptions,
