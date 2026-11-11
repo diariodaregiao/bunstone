@@ -142,13 +142,17 @@ async function measure(app: string, work: string): Promise<AppReport> {
 	};
 }
 
-/** `bunstone build` must work for an app that never installed `mongodb`. */
-async function buildsWithoutMongo(work: string): Promise<boolean> {
+/**
+ * `bunstone build` must work for an app that never installed `mongodb`, which
+ * is most of them. Returns the bundle size in KB, or `null` when it fails.
+ */
+async function buildWithoutMongo(work: string): Promise<number | null> {
 	const mongo = join(work, "node_modules", "mongodb");
 	await rm(mongo, { force: true });
 	try {
 		const result = await bundle("hello", work, join(work, "out", "no-mongo"));
-		return result.success;
+		const output = result.success ? result.outputs[0] : undefined;
+		return output ? Bun.file(output.path).size / 1024 : null;
 	} finally {
 		await symlink(join(root, "node_modules", "mongodb"), mongo);
 	}
@@ -162,10 +166,12 @@ try {
 	const apps = (await readdir(appsDir)).sort();
 	const reports: AppReport[] = [];
 	for (const app of apps) reports.push(await measure(app, work));
-	const withoutMongo = await buildsWithoutMongo(work);
+	const withoutMongo = await buildWithoutMongo(work);
 
 	if (args.has("--json")) {
-		console.log(JSON.stringify({ reports, buildsWithoutMongo: withoutMongo }, null, 2));
+		console.log(
+			JSON.stringify({ reports, helloWithoutMongoKb: withoutMongo }, null, 2),
+		);
 	} else {
 		console.table(
 			reports.map((report) => ({
@@ -184,10 +190,10 @@ try {
 			console.log(`${report.app}: ${top}`);
 		}
 		console.log(
-			`hello builds without mongodb installed: ${withoutMongo ? "yes" : "NO"}`,
+			`hello without mongodb installed: ${withoutMongo === null ? "BUILD FAILS" : `${withoutMongo.toFixed(0)} KB`}`,
 		);
 	}
-	if (!withoutMongo || reports.some((report) => !report.ok)) {
+	if (withoutMongo === null || reports.some((report) => !report.ok)) {
 		process.exitCode = 1;
 	}
 } finally {

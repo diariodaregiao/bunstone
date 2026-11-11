@@ -40,7 +40,7 @@ bunx @grupodiariodaregiao/bunstone build src/main.ts
 Flags:
 
 - `--compile` — produce a single self-contained executable at `dist/app`, with the Bun runtime inside. Copy that one file to the server; no `bun install` needed there.
-- `--bytecode` — precompile to bytecode so the app skips parsing on boot (faster cold starts). Combine with `--compile` for the fastest startup.
+- `--bytecode` — precompile to bytecode so the app skips parsing on boot (faster cold starts). It requires `--compile`: Bun emits bytecode for an ES module only inside an executable.
 - `--external` — leave `node_modules` out of the bundle. Use it when you deploy with `node_modules` present, or to keep optional drivers such as `mongodb` from being resolved.
 
 ```bash

@@ -1,22 +1,34 @@
 import { ImportError } from "@/errors";
 
 /**
- * Loads a driver the framework does not depend on. `load` is a thunk so the
- * specifier stays a literal at the call site and the bundler leaves it alone.
- * Anything other than "not installed" is rethrown untouched — wrapping a driver
- * that throws while evaluating would report a broken install as a missing one.
+ * What to throw when importing an optional driver failed: "not installed"
+ * becomes an `ImportError` that says how to install it; anything else is
+ * returned untouched — wrapping a driver that throws while evaluating would
+ * report a broken install as a missing one.
+ *
+ * Call sites write the `import()` themselves, syntactically inside a
+ * `try` block:
+ *
+ * ```ts
+ * try {
+ *   return await import("mongodb");
+ * } catch (error) {
+ *   throw optionalImportError(error, "mongodb", "MongoModule");
+ * }
+ * ```
+ *
+ * That shape is what Bun's bundler needs: it bundles the driver when it is
+ * installed, and leaves a runtime import when it is not. A bare `import()`
+ * anywhere else makes `bun build` fail for every app that skipped the
+ * optional dependency.
  */
-export async function optionalImport<T>(
-	load: () => Promise<T>,
+export function optionalImportError(
+	error: unknown,
 	pkg: string,
 	feature: string,
-): Promise<T> {
-	try {
-		return await load();
-	} catch (error) {
-		if (!isModuleNotFound(error, pkg)) throw error;
-		throw ImportError.missingDriver(pkg, feature, asError(error));
-	}
+): unknown {
+	if (!isModuleNotFound(error, pkg)) return error;
+	return ImportError.missingDriver(pkg, feature, asError(error));
 }
 
 /**

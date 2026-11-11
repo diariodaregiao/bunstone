@@ -9,8 +9,8 @@ import { EventSourcedRepository } from "@/cqrs/repository";
 import { SqlEventStore } from "@/cqrs/sql-event-store";
 import { SqlEventStoreModule } from "@/cqrs/sql-event-store-module";
 import { SqlModule } from "@/database/sql-module";
-import { EventStoreError } from "@/errors";
-import { optionalImport } from "@/utils/optional-import";
+import { EventStoreError, ImportError } from "@/errors";
+import { optionalImportError } from "@/utils/optional-import";
 
 const sqlite = { adapter: "sqlite" as const, filename: ":memory:" };
 
@@ -119,27 +119,29 @@ describe("snapshots", () => {
 	});
 });
 
-describe("optionalImport", () => {
+describe("optionalImportError", () => {
 	it("reports a missing driver as an ImportError with an install hint", async () => {
-		await expect(
-			optionalImport(
-				() => import(`${"definitely-not-installed"}-pkg`),
+		let error: unknown;
+		try {
+			await import(`${"definitely-not-installed"}-pkg`);
+		} catch (caught) {
+			error = optionalImportError(
+				caught,
 				"definitely-not-installed-pkg",
 				"SomeModule",
-			),
-		).rejects.toThrow(/bun add definitely-not-installed-pkg/);
+			);
+		}
+		expect(error).toBeInstanceOf(ImportError);
+		expect(String((error as Error).message)).toContain(
+			"bun add definitely-not-installed-pkg",
+		);
 	});
 
-	it("rethrows an unrelated failure untouched", async () => {
+	it("returns an unrelated failure untouched", () => {
 		const boom = new Error("the driver blew up while evaluating");
-
-		await expect(
-			optionalImport(
-				() => Promise.reject(boom),
-				"definitely-not-installed-pkg",
-				"SomeModule",
-			),
-		).rejects.toThrow(boom);
+		expect(
+			optionalImportError(boom, "definitely-not-installed-pkg", "SomeModule"),
+		).toBe(boom);
 	});
 });
 

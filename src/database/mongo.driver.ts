@@ -1,4 +1,4 @@
-import { optionalImport } from "@/utils/optional-import";
+import { optionalImportError } from "@/utils/optional-import";
 
 export type MongoDriver = typeof import("mongodb");
 
@@ -11,14 +11,19 @@ let driver: Promise<MongoDriver> | undefined;
  * call site happened to touch Mongo first.
  */
 export function loadMongoDriver(): Promise<MongoDriver> {
-	driver ??= optionalImport(
-		() => import("mongodb"),
-		"mongodb",
-		"MongoModule",
-	).catch((error: unknown) => {
+	driver ??= importMongo().catch((error: unknown) => {
 		// a failed load must not poison a later attempt after the install
 		driver = undefined;
 		throw error;
 	});
 	return driver;
+}
+
+async function importMongo(): Promise<MongoDriver> {
+	// the import must sit inside the `try`: see `optionalImportError`
+	try {
+		return await import("mongodb");
+	} catch (error) {
+		throw optionalImportError(error, "mongodb", "MongoModule");
+	}
 }
