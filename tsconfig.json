@@ -49,6 +49,8 @@
     "src/database/**/*",
     "src/observability/**/*",
     "src/cache/**/*",
+    "src/config/**/*",
+    "src/storage/**/*",
     "src/scheduling/**/*",
     "src/mcp/**/*",
     "src/errors/**/*",

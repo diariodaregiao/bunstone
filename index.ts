@@ -18,6 +18,15 @@ export {
 	type CacheSetOptions,
 } from "@/cache";
 export {
+	CONFIG,
+	type ConfigSchema,
+	ConfigModule,
+	type DeepReadonly,
+	type DefineConfigOptions,
+	defineConfig,
+	type InferConfig,
+} from "@/config";
+export {
 	Application,
 	type ApplicationOptions,
 	type CompiledModules,
