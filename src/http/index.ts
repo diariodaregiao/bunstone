@@ -89,4 +89,5 @@ export {
 	type Socket,
 	WebSocketGateway,
 	type WebSocketHandler,
+	type WebSocketServerOptions,
 } from "./websocket";

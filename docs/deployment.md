@@ -60,3 +60,14 @@ await Application.create(AppModule, {
 
 For zero-downtime rolling deploys, set `shutdownGraceMs` to a couple of seconds
 and configure your orchestrator's `preStop` / termination grace period to match.
+
+## Several processes on one port
+
+`reusePort: true` lets several Bun processes bind the same port, with the Linux kernel spreading connections between them — a way to use every CPU core without a load balancer in front:
+
+```ts
+const app = await Application.create(AppModule, { reusePort: true });
+app.listen(3000);
+```
+
+Start one process per core. Each one has its own memory, so use `RedisStorage` for [rate limiting](./rate-limiting.md#redis--valkey-multiple-replicas). On macOS and Windows the option is ignored.

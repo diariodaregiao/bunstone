@@ -38,6 +38,7 @@ import {
 	buildWebSocketHandler,
 	closeOpenSockets,
 	type WebSocketHandler,
+	type WebSocketServerOptions,
 } from "./websocket";
 
 export interface HttpServerOptions {
@@ -63,6 +64,15 @@ export interface HttpServerOptions {
 
 	/** Milliseconds a connection may sit idle before the server closes it. */
 	idleTimeout?: number;
+
+	/** Server-wide settings for WebSocket gateways (compression, backpressure…). */
+	websocket?: WebSocketServerOptions;
+
+	/**
+	 * Lets several processes bind the same port, with the kernel balancing
+	 * connections between them (Linux). Default `false`.
+	 */
+	reusePort?: boolean;
 }
 
 export interface OpenApiServeOptions {
@@ -322,11 +332,12 @@ export class HttpServer {
 		this.server = Bun.serve({
 			port: port ?? this.options.port ?? 3000,
 			hostname: this.options.hostname,
+			reusePort: this.options.reusePort,
 			idleTimeout: idleTimeoutForBunServe(
 				this.options.idleTimeout ?? DEFAULT_IDLE_TIMEOUT_MS,
 			),
 			routes: this.routes,
-			websocket: buildWebSocketHandler(this.gateways),
+			websocket: buildWebSocketHandler(this.gateways, this.options.websocket),
 			fetch: (req, server) => this.fallback(req as BunRequest, server),
 		});
 		return this.server;

@@ -124,3 +124,42 @@ export class AppModule {}
 ```
 
 Clients then connect to `ws://<host>/ws`.
+
+### Rooms and broadcast (pub/sub)
+
+Gateways get Bun's native pub/sub, which fans a message out in C++ without looping over sockets in JavaScript. Subscribe a socket to a topic and publish to it, from the gateway or from anywhere through the server:
+
+```ts
+@WebSocketGateway("/chat")
+@Injectable()
+export class ChatGateway implements WebSocketHandler {
+  open(socket: Socket) {
+    socket.subscribe("lobby");
+  }
+
+  message(socket: Socket, data: unknown) {
+    socket.publish("lobby", JSON.stringify(data)); // everyone else in the lobby
+  }
+}
+
+// elsewhere, e.g. after a domain event
+app.getServer()?.publish("lobby", JSON.stringify({ system: "deploy finished" }));
+```
+
+### Server options
+
+The `websocket` application option passes Bun's server-wide WebSocket settings through:
+
+```ts
+const app = await Application.create(AppModule, {
+  websocket: {
+    perMessageDeflate: true,        // compress messages
+    maxPayloadLength: 1024 * 1024,  // reject frames over 1 MB
+    backpressureLimit: 1024 * 1024, // buffer at most 1 MB per slow client
+    closeOnBackpressureLimit: true,
+    idleTimeout: 120,               // seconds
+  },
+});
+```
+
+Implement `drain(socket)` on a gateway to resume sending once a slow client has caught up.

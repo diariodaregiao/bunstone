@@ -143,6 +143,7 @@ export {
 	type WebSocketData,
 	WebSocketGateway,
 	type WebSocketHandler,
+	type WebSocketServerOptions,
 } from "@/http";
 export {
 	backoffDelay,
