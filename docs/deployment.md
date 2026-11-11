@@ -70,4 +70,4 @@ const app = await Application.create(AppModule, { reusePort: true });
 app.listen(3000);
 ```
 
-Start one process per core. Each one has its own memory, so use `RedisStorage` for [rate limiting](./rate-limiting.md#redis--valkey-multiple-replicas). On macOS and Windows the option is ignored.
+Start one process per core. Each one has its own memory, so in-memory state such as the default rate-limit storage is per process, not shared. On macOS and Windows the option is ignored.
