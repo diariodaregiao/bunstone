@@ -54,6 +54,7 @@
     "format:check": "bun fmt --no-script --check src bin tests index.ts",
     "verify": "bun run typecheck && bun run format:check && bun test",
     "benchmark": "bun run ./benchmarks/run.ts",
+    "benchmark:bundle": "bun run ./benchmarks/bundle/run.ts",
     "prepack": "npm run build && npm run agents:build"
   },
   "devDependencies": {
