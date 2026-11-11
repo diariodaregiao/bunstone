@@ -11,4 +11,3 @@ export {
 	type RateLimitResult,
 	type RateLimitStorage,
 } from "./storage";
-export { RedisStorage, type RedisStorageOptions } from "./redis-storage";

@@ -213,8 +213,6 @@ export {
 	type RateLimitConfig,
 	type RateLimitResult,
 	type RateLimitStorage,
-	RedisStorage,
-	type RedisStorageOptions,
 	type TrustProxy,
 } from "@/ratelimit";
 export {
