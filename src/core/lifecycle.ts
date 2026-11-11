@@ -1,3 +1,6 @@
+import type { Container } from "./container";
+import type { DisposableRegistry } from "./disposable";
+
 export interface OnModuleInit {
 	onModuleInit(): void | Promise<void>;
 }
@@ -53,29 +56,76 @@ export async function runLifecycle(
 }
 
 /**
- * Internal: a provider a feature module registers to wire itself in during
- * bootstrap, after `onModuleInit`. The core calls it instead of importing the
- * feature, so an application only bundles the features it registers.
+ * Internal hooks that let a feature module plug itself into bootstrap. The
+ * core calls them instead of importing the feature, so an application only
+ * bundles the features it actually registers: an app without RabbitMQ never
+ * pulls in amqplib, one without an event store never pulls in its drivers.
+ */
+
+/** What a wiring hook receives. */
+export interface WiringContext {
+	readonly container: Container;
+	readonly instances: readonly unknown[];
+	/**
+	 * `false` inside `Test.createTestingModule()`: nothing may reach outside
+	 * the process (no broker connection, no timers).
+	 */
+	readonly live: boolean;
+	/** Stopped before the destroy hooks: what takes in work. */
+	readonly intake: DisposableRegistry;
+	/** Released after the destroy hooks: what a hook may still use. */
+	readonly resources: DisposableRegistry;
+	readonly shutdownTimeoutMs: number;
+}
+
+/**
+ * A provider's method that wires its feature in, after `onModuleInit` and
+ * before `onApplicationBootstrap`.
  */
 export const FRAMEWORK_WIRING = Symbol.for("bunstone:framework-wiring");
 
+/**
+ * Optional order of a wiring hook, lowest first (default 100). It keeps the
+ * bootstrap order the features always had: RabbitMQ (10), then MCP (20).
+ */
+export const FRAMEWORK_WIRING_ORDER = Symbol.for(
+	"bunstone:framework-wiring-order",
+);
+
 export interface FrameworkWiring {
-	[FRAMEWORK_WIRING](
-		container: import("./container").Container,
-		instances: readonly unknown[],
-	): void | Promise<void>;
+	[FRAMEWORK_WIRING](context: WiringContext): void | Promise<void>;
+	[FRAMEWORK_WIRING_ORDER]?: number;
 }
 
 export async function runFrameworkWiring(
-	container: import("./container").Container,
-	instances: readonly unknown[],
+	context: WiringContext,
 ): Promise<void> {
-	for (const instance of instances) {
-		const wire = (instance as Partial<FrameworkWiring> | null)?.[
-			FRAMEWORK_WIRING
-		];
-		if (typeof wire === "function") {
-			await wire.call(instance, container, instances);
-		}
+	const hooks = context.instances
+		.filter(
+			(instance): instance is FrameworkWiring =>
+				typeof (instance as Partial<FrameworkWiring> | null)?.[
+					FRAMEWORK_WIRING
+				] === "function",
+		)
+		.map((instance, index) => ({ instance, index }))
+		// stable: equal orders keep the order the providers were created in
+		.sort(
+			(a, b) =>
+				(a.instance[FRAMEWORK_WIRING_ORDER] ?? 100) -
+					(b.instance[FRAMEWORK_WIRING_ORDER] ?? 100) || a.index - b.index,
+		);
+	for (const { instance } of hooks) {
+		await instance[FRAMEWORK_WIRING](context);
 	}
+}
+
+/**
+ * A check a module registers as a `useValue` provider, run on the compiled
+ * graph *before* any provider is created, so a misconfiguration is reported
+ * in terms of the module the user forgot rather than a raw missing token.
+ */
+export const FRAMEWORK_PREFLIGHT = Symbol.for("bunstone:framework-preflight");
+
+export interface FrameworkPreflight {
+	[FRAMEWORK_PREFLIGHT](container: Container): void;
 }

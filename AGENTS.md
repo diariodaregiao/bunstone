@@ -3783,7 +3783,7 @@ bunx @grupodiariodaregiao/bunstone build src/main.ts
 Flags:
 
 - `--compile` — produce a single self-contained executable at `dist/app`, with the Bun runtime inside. Copy that one file to the server; no `bun install` needed there.
-- `--bytecode` — precompile to bytecode so the app skips parsing on boot (faster cold starts). Combine with `--compile` for the fastest startup.
+- `--bytecode` — precompile to bytecode so the app skips parsing on boot (faster cold starts). It requires `--compile`: Bun emits bytecode for an ES module only inside an executable.
 - `--external` — leave `node_modules` out of the bundle. Use it when you deploy with `node_modules` present, or to keep optional drivers such as `mongodb` from being resolved.
 
 ```bash
@@ -3792,6 +3792,14 @@ bunx @grupodiariodaregiao/bunstone build --compile --bytecode
 ```
 
 > A compiled executable does not read `tsconfig.json` or `package.json` at runtime (Bun 1.3.4+). It does load `.env` files.
+
+#### What goes into the bundle
+
+Bunstone ships as one package, but a production bundle only carries the features the app uses. An app without RabbitMQ does not bundle `amqplib`; one without `TelemetryModule` does not bundle the OpenTelemetry SDK; one that never imports `/mcp` does not bundle the MCP SDK. A hello-world app bundles to about 110 KB.
+
+Optional drivers you have not installed (`mongodb`, `@modelcontextprotocol/client`) are left out, and the build still succeeds.
+
+To see what a build carries, run `bun run benchmark:bundle` in the Bunstone repository: it bundles the sample apps under `benchmarks/bundle/apps` and lists their size, biggest packages and startup time.
 
 ### `bunstone generate <kind> <name>` (alias `g`)
 

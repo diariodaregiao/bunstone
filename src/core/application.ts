@@ -1,14 +1,11 @@
 import type { EventEmitter } from "node:events";
 import nodeProcess from "node:process";
 import { wireCqrs } from "@/cqrs/cqrs-module";
-import { assertEventStoreWiring } from "@/cqrs/event-sourcing-module";
 import { resolveHealth, runChecks } from "@/http/health";
 import { resolveIdleTimeout } from "@/http/idle-timeout";
 import { HttpServer, type HttpServerOptions } from "@/http/server";
 import type { BunServer } from "@/http/types";
 import { collectGateways } from "@/http/websocket";
-import { RabbitConnection } from "@/messaging/connection";
-import { wireRabbit } from "@/messaging/rabbitmq-module";
 import { Scheduler } from "@/scheduling/scheduler";
 import { Logger } from "@/utils/logger";
 import type { Container } from "./container";
@@ -95,33 +92,24 @@ export class Application {
 		// failure part-way through bootstrap cannot strand a timer or a socket
 		try {
 			// named-module diagnostics before the container reports a raw token
-			assertEventStoreWiring(container);
+			container.runPreflight();
 			container.instantiateAll();
 			instances = container.getInstances();
 
 			await runLifecycle(instances, "onModuleInit");
 			wireCqrs(container, instances);
 
-			if (container.has(RabbitConnection)) {
-				// consumers stop first; the connection itself closes after the
-				// destroy hooks, so a hook can still publish a final message
-				intake.add(
-					() =>
-						container
-							.resolve(RabbitConnection)
-							.stopConsuming(
-								resolvedOptions.shutdownTimeoutMs ??
-									DEFAULT_SHUTDOWN_TIMEOUT_MS,
-							),
-					"rabbit-consumers",
-				);
-				resources.add(
-					() => container.resolve(RabbitConnection).close(0),
-					"rabbit-connection",
-				);
-			}
-			await wireRabbit(container, instances);
-			await runFrameworkWiring(container, instances);
+			// feature modules (RabbitMQ, MCP) wire themselves in from here, in
+			// the order they always had; each registers what it must dispose
+			await runFrameworkWiring({
+				container,
+				instances,
+				live: true,
+				intake,
+				resources,
+				shutdownTimeoutMs:
+					resolvedOptions.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS,
+			});
 			const gateways = collectGateways(instances);
 
 			const readiness: ReadinessState = { listening: false, draining: false };
