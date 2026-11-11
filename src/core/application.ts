@@ -9,6 +9,7 @@ import type { BunServer } from "@/http/types";
 import { collectGateways } from "@/http/websocket";
 import { RabbitConnection } from "@/messaging/connection";
 import { wireRabbit } from "@/messaging/rabbitmq-module";
+import { resolveModuleRateLimits } from "@/ratelimit/module-limits";
 import { Scheduler } from "@/scheduling/scheduler";
 import { Logger } from "@/utils/logger";
 import type { Container } from "./container";
@@ -83,7 +84,7 @@ export class Application {
 			...options,
 			idleTimeout: resolveIdleTimeout(options.idleTimeout),
 		};
-		const { container, controllers, moduleRateLimits } = compileModules(
+		const { container, controllers, root, moduleImports } = compileModules(
 			rootModule,
 			resolvedOptions.strictModuleBoundaries === true,
 		);
@@ -133,9 +134,10 @@ export class Application {
 			const httpServer = new HttpServer(
 				container,
 				controllers,
-				{ ...resolvedOptions, moduleRateLimits },
+				resolvedOptions,
 				gateways,
 				isReady,
+				resolveModuleRateLimits(root, moduleImports),
 			);
 			intake.add(() => httpServer.stop(0), "http-server");
 			await runLifecycle(instances, "onApplicationBootstrap");

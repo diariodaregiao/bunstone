@@ -223,6 +223,7 @@ export {
 	type RateLimitStorageModuleOptions,
 	RedisStorage,
 	type RedisStorageFailureMode,
+	type ResolvedRateLimit,
 	resolveRateLimit,
 	SkipRateLimit,
 	type TrustProxy,

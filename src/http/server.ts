@@ -13,7 +13,7 @@ import {
 import { swaggerUiHtml } from "@/openapi/ui";
 import {
 	type GlobalRateLimitOptions,
-	type RateLimitConfig,
+	type ResolvedRateLimit,
 	resolveRateLimit,
 } from "@/ratelimit/decorator";
 import type { TrustProxy } from "@/ratelimit/enforce";
@@ -54,12 +54,15 @@ export interface HttpServerOptions {
 
 	static?: StaticOptions;
 
+	/**
+	 * Storage handed to the server. The server closes it on `stop()`, as it
+	 * does the `MemoryStorage` it creates by default; a storage provided through
+	 * `RATE_LIMIT_STORAGE` belongs to the container and is left alone.
+	 */
 	rateLimitStorage?: RateLimitStorage;
 
 	/** Applies to every controller route unless overridden or skipped. */
 	rateLimit?: GlobalRateLimitOptions;
-
-	moduleRateLimits?: ReadonlyMap<Constructor, RateLimitConfig>;
 
 	/**
 	 * Number of reverse proxies in front of the app (`true` means one). Enable
@@ -135,6 +138,8 @@ export class HttpServer {
 	private readonly cors?: Cors;
 	private readonly staticFiles?: StaticFiles;
 	private readonly rateLimitStorage: RateLimitStorage;
+	private readonly ownsRateLimitStorage: boolean;
+	private rateLimitStorageClosed = false;
 	private readonly globalSkipPaths: readonly string[];
 	private readonly matcher: RouteMatcher;
 
@@ -145,6 +150,11 @@ export class HttpServer {
 		private readonly gateways: Map<string, WebSocketHandler> = new Map(),
 		private readonly isReady: () => Promise<boolean> = () =>
 			Promise.resolve(true),
+		/** `RateLimitModule.register()` limits per module; see `resolveModuleRateLimits`. */
+		private readonly moduleRateLimits: ReadonlyMap<
+			Constructor,
+			ResolvedRateLimit
+		> = new Map(),
 	) {
 		this.cors = options.cors
 			? new Cors(options.cors === true ? {} : options.cors)
@@ -152,11 +162,14 @@ export class HttpServer {
 		this.staticFiles = options.static
 			? new StaticFiles(options.static)
 			: undefined;
-		this.rateLimitStorage =
-			options.rateLimitStorage ??
-			(container.has(RATE_LIMIT_STORAGE)
+		const containerStorage =
+			!options.rateLimitStorage && container.has(RATE_LIMIT_STORAGE)
 				? container.resolve(RATE_LIMIT_STORAGE)
-				: new MemoryStorage());
+				: undefined;
+		this.rateLimitStorage =
+			options.rateLimitStorage ?? containerStorage ?? new MemoryStorage();
+		// the container closes what it provides, after in-flight requests are done
+		this.ownsRateLimitStorage = containerStorage === undefined;
 		const health = resolveHealth(options.health);
 		this.globalSkipPaths = health ? [health.path, health.readyPath] : [];
 		this.routes = this.buildRoutes(container, controllers);
@@ -299,7 +312,7 @@ export class HttpServer {
 					rateLimit: resolveRateLimit(controller, route.handlerName, {
 						global: this.options.rateLimit,
 						module: ownerModule
-							? this.options.moduleRateLimits?.get(ownerModule)
+							? this.moduleRateLimits.get(ownerModule)
 							: undefined,
 						route: path,
 						globalSkipPaths: this.globalSkipPaths,
@@ -436,9 +449,15 @@ export class HttpServer {
 	async stop(timeoutMs = 10_000): Promise<void> {
 		const server = this.server;
 		this.server = undefined;
-		this.rateLimitStorage.close();
-		if (!server) return;
+		if (server) await this.drain(server, timeoutMs);
+		// only after draining: in-flight requests still count against the limiter
+		if (this.ownsRateLimitStorage && !this.rateLimitStorageClosed) {
+			this.rateLimitStorageClosed = true;
+			this.rateLimitStorage.close();
+		}
+	}
 
+	private async drain(server: BunServer, timeoutMs: number): Promise<void> {
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		const deadline = new Promise<void>((resolve) => {
 			timer = setTimeout(resolve, timeoutMs);

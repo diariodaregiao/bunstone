@@ -40,11 +40,24 @@ class FakeRedis {
 		return Math.max(0, expires - this.nowMs);
 	}
 
+	/** Emulates the storage's hit script: INCR, then PEXPIRE when no TTL. */
+	async send(command: string, args: string[]): Promise<unknown> {
+		if (command !== "EVAL") throw new Error(`unexpected ${command}`);
+		const [, , key, windowMs] = args as [string, string, string, string];
+		const count = await this.incr(key);
+		let ttl = await this.pttl(key);
+		if (ttl < 0) {
+			await this.pexpire(key, Number(windowMs));
+			ttl = Number(windowMs);
+		}
+		return [count, ttl];
+	}
+
 	close() {}
 }
 
 class FailingRedis {
-	async incr(): Promise<number> {
+	async send(): Promise<unknown> {
 		throw new Error("connection refused");
 	}
 
@@ -84,6 +97,25 @@ describe("RedisStorage", () => {
 
 		redis.setNow(Date.now() + 1_100);
 		expect((await storage.hit("k", 1, 1_000)).allowed).toBe(true);
+	});
+
+	it("gives a key that lost its TTL a new one instead of blocking forever", async () => {
+		const redis = new FakeRedis();
+		const storage = new RedisStorage({
+			client: redis as unknown as RedisClient,
+			keyPrefix: "test:",
+		});
+		// a counter left without expiry, e.g. by a crash between INCR and PEXPIRE
+		await redis.incr("test:k");
+		await redis.incr("test:k");
+		expect(await redis.pttl("test:k")).toBe(-1);
+
+		const blocked = await storage.hit("k", 2, 1_000);
+		expect(blocked.allowed).toBe(false);
+		expect(await redis.pttl("test:k")).toBe(1_000);
+
+		redis.setNow(Date.now() + 1_001);
+		expect((await storage.hit("k", 2, 1_000)).allowed).toBe(true);
 	});
 
 	it("allows requests when Redis fails and onFailure is allow", async () => {
@@ -133,6 +165,19 @@ describe.skipIf(!redisUp)("RedisStorage integration", () => {
 		);
 		expect(results.filter((result) => result.allowed).length).toBe(10);
 		expect(results.filter((result) => !result.allowed).length).toBe(40);
+	});
+
+	it("re-applies a TTL to a counter that has none", async () => {
+		const stuck = `${key}:stuck`;
+		await client.set(stuck, "7");
+		expect(await client.pttl(stuck)).toBe(-1);
+
+		const result = await storage.hit("stuck", 5, 60_000);
+		expect(result.allowed).toBe(false);
+		const ttl = await client.pttl(stuck);
+		expect(ttl).toBeGreaterThan(0);
+		expect(ttl).toBeLessThanOrEqual(60_000);
+		await client.del(stuck);
 	});
 });
 

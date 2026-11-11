@@ -15,7 +15,13 @@ class ApiController {
 }
 
 @Module({
-	imports: [RateLimitModule.registerStorage({ url: REDIS_URL })],
+	imports: [
+		RateLimitModule.registerStorage({
+			url: REDIS_URL,
+			// unique per run: the counter outlives the process on a real Redis
+			keyPrefix: `bunstone:ratelimit:register:${crypto.randomUUID()}:`,
+		}),
+	],
 	controllers: [ApiController],
 })
 class AppModule {}

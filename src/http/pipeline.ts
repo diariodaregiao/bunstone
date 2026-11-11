@@ -1,7 +1,7 @@
 import type { Container } from "@/core/container";
 import type { Constructor } from "@/core/injectable";
 import { instrumentRequest } from "@/observability/instrumentation";
-import type { RateLimitConfig } from "@/ratelimit/decorator";
+import type { ResolvedRateLimit } from "@/ratelimit/decorator";
 import { enforceRateLimit, type TrustProxy } from "@/ratelimit/enforce";
 import type { RateLimitStorage } from "@/ratelimit/storage";
 import type { Cors } from "./cors";
@@ -27,7 +27,7 @@ export interface RouteHandlerConfig {
 	guards: Constructor<GuardContract>[];
 	setHeaders: Record<string, string>;
 	cors?: Cors;
-	rateLimit?: RateLimitConfig;
+	rateLimit?: ResolvedRateLimit;
 	rateLimitStorage?: RateLimitStorage;
 	trustProxy?: TrustProxy;
 	sse?: SseOptions;

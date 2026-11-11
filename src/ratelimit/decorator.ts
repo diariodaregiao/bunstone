@@ -13,6 +13,17 @@ export interface RateLimitConfig {
 	keyGenerator?: (ctx: RequestContext, clientAddress: string) => string;
 }
 
+/**
+ * A limit as enforced on one route. Scoped limits (global, prefix, module)
+ * carry the `bucket` they count against, so every route in the scope shares
+ * one counter per client; per-route limits (`@RateLimit()`) have none and are
+ * counted per route.
+ */
+export interface ResolvedRateLimit extends RateLimitConfig {
+	/** e.g. `global`, `prefix:/auth`, `module:AdminModule`. */
+	bucket?: string;
+}
+
 /** Limits every route whose template starts with `path`. */
 export interface RateLimitPrefixOptions extends RateLimitConfig {
 	path: string;
@@ -95,7 +106,7 @@ export function getRateLimit(
 
 export interface RateLimitResolveContext {
 	global?: GlobalRateLimitOptions;
-	module?: RateLimitConfig;
+	module?: ResolvedRateLimit;
 	/** Resolved health probe paths excluded from the global limit. */
 	globalSkipPaths?: readonly string[];
 	route?: string;
@@ -115,21 +126,23 @@ function normalizePrefixPath(path: string): string {
 	return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
 }
 
-function prefixToConfig(prefix: RateLimitPrefixOptions): RateLimitConfig {
-	const { path: _path, ...config } = prefix;
-	return config;
+function prefixToConfig(prefix: RateLimitPrefixOptions): ResolvedRateLimit {
+	const { path, ...config } = prefix;
+	return { ...config, bucket: `prefix:${normalizePrefixPath(path)}` };
 }
 
-function globalDefaultConfig(global: GlobalRateLimitOptions): RateLimitConfig {
+function globalDefaultConfig(
+	global: GlobalRateLimitOptions,
+): ResolvedRateLimit {
 	const { skip: _skip, prefixes: _prefixes, ...config } = global;
-	return config;
+	return { ...config, bucket: "global" };
 }
 
 /** Longest matching prefix wins. */
 export function matchPrefix(
 	route: string | undefined,
 	prefixes: readonly RateLimitPrefixOptions[] | undefined,
-): RateLimitConfig | undefined {
+): ResolvedRateLimit | undefined {
 	if (!route || !prefixes?.length) return undefined;
 
 	let best: RateLimitPrefixOptions | undefined;
@@ -150,7 +163,7 @@ export function resolveRateLimit(
 	controller: Constructor,
 	handlerName: string,
 	context: RateLimitResolveContext,
-): RateLimitConfig | undefined {
+): ResolvedRateLimit | undefined {
 	if (hasSkipRateLimit(controller, handlerName)) return undefined;
 
 	const method = Reflect.getMetadata(

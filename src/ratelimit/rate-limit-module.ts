@@ -20,7 +20,13 @@ export interface RateLimitModuleOptions extends RateLimitConfig {
 }
 
 export interface RateLimitStorageModuleOptions {
+	/** Connection URL; ignored when `client` is given. */
 	url?: string;
+	/**
+	 * An existing client to reuse (e.g. the one behind `CACHE_CLIENT`). The
+	 * module never closes a client it was handed; whoever created it does.
+	 */
+	client?: RedisClient;
 	onFailure?: RedisStorageFailureMode;
 	keyPrefix?: string;
 }
@@ -37,22 +43,26 @@ export const RATE_LIMIT_STORAGE = new InjectionToken<RateLimitStorage>(
 
 @Injectable()
 class RedisRateLimitStorage extends RedisStorage implements OnModuleDestroy {
+	private readonly ownsClient: boolean;
+
 	constructor(
 		@Inject(RATE_LIMIT_STORAGE_OPTIONS)
 		options: RateLimitStorageModuleOptions,
 	) {
-		const client = options.url
-			? new RedisClient(options.url)
-			: new RedisClient();
+		const client =
+			options.client ??
+			(options.url ? new RedisClient(options.url) : new RedisClient());
 		super({
 			client,
 			keyPrefix: options.keyPrefix,
 			onFailure: options.onFailure,
 		} satisfies RedisStorageOptions);
+		this.ownsClient = options.client === undefined;
 	}
 
+	/** The container owns this storage; the HTTP server never closes it. */
 	onModuleDestroy(): void {
-		this.close();
+		if (this.ownsClient) this.close();
 	}
 }
 

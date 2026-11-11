@@ -59,14 +59,11 @@ describe("rate limit path prefix", () => {
 		await app.close();
 	});
 
-	it("applies the prefix limit per route template", async () => {
+	it("shares one prefix budget across every route under it", async () => {
 		expect((await fetch(`${base}/auth/login`)).status).toBe(200);
-		expect((await fetch(`${base}/auth/login`)).status).toBe(200);
-		expect((await fetch(`${base}/auth/login`)).status).toBe(429);
-
 		expect((await fetch(`${base}/auth/1`)).status).toBe(200);
-		expect((await fetch(`${base}/auth/2`)).status).toBe(200);
-		expect((await fetch(`${base}/auth/3`)).status).toBe(429);
+		expect((await fetch(`${base}/auth/login`)).status).toBe(429);
+		expect((await fetch(`${base}/auth/2`)).status).toBe(429);
 	});
 
 	it("does not match routes outside the prefix", async () => {

@@ -9,12 +9,14 @@ export {
 	type RateLimitConfig,
 	type RateLimitPrefixOptions,
 	type RateLimitResolveContext,
+	type ResolvedRateLimit,
 	resolveRateLimit,
 	SKIP_RATE_LIMIT_CONTROLLER_METADATA,
 	SKIP_RATE_LIMIT_METADATA,
 	SkipRateLimit,
 } from "./decorator";
 export { clientAddress, enforceRateLimit, type TrustProxy } from "./enforce";
+export { resolveModuleRateLimits } from "./module-limits";
 export {
 	extractRateLimitModuleConfig,
 	extractRateLimitModuleScope,

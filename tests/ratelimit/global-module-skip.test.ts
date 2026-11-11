@@ -207,14 +207,12 @@ describe("RateLimitModule scope", () => {
 		await app.close();
 	});
 
-	it("limits controllers in the scoped module and its imports", async () => {
+	it("limits controllers in the scoped module and its imports with one shared budget", async () => {
 		expect((await fetch(`${base}/admin`)).status).toBe(200);
-		expect((await fetch(`${base}/admin`)).status).toBe(200);
-		expect((await fetch(`${base}/admin`)).status).toBe(429);
-
 		expect((await fetch(`${base}/users/1`)).status).toBe(200);
-		expect((await fetch(`${base}/users/2`)).status).toBe(200);
-		expect((await fetch(`${base}/users/3`)).status).toBe(429);
+		// the subtree's budget is spent, whichever route spent it
+		expect((await fetch(`${base}/admin`)).status).toBe(429);
+		expect((await fetch(`${base}/users/2`)).status).toBe(429);
 	});
 
 	it("does not limit controllers outside the scoped subtree", async () => {
